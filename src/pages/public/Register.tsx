@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [error, setError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         full_name: '',
@@ -19,14 +20,13 @@ export default function Register() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
         setLoading(true);
 
         try {
-            // 1. Gera um novo ID de empresa
             const companyId = crypto.randomUUID();
 
-            // 2. Cria o usuário no Supabase Auth
-            const { error } = await supabase.auth.signUp({
+            const { data, error: signUpError } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
                 options: {
@@ -41,14 +41,28 @@ export default function Register() {
                 }
             });
 
-            if (error) throw error;
+            if (signUpError) throw signUpError;
+
+            // Supabase retorna identities vazio quando o e-mail já está cadastrado
+            if (data?.user?.identities?.length === 0) {
+                setError('Este e-mail já está cadastrado. Faça login ou use outro e-mail.');
+                return;
+            }
 
             setSuccess(true);
-            setTimeout(() => navigate('/login'), 5000);
+            setTimeout(() => navigate('/login'), 6000);
 
-        } catch (error: any) {
-            console.error('Error registering:', error);
-            alert(`Erro ao cadastrar: ${error.message || 'Tente novamente.'}`);
+        } catch (err: any) {
+            const msg = err?.message || '';
+            if (msg.includes('already registered') || msg.includes('User already registered')) {
+                setError('Este e-mail já está cadastrado. Faça login ou use outro e-mail.');
+            } else if (msg.includes('Password should be at least')) {
+                setError('A senha deve ter pelo menos 6 caracteres.');
+            } else if (msg.includes('invalid')) {
+                setError('E-mail inválido. Verifique e tente novamente.');
+            } else {
+                setError(msg || 'Erro ao cadastrar. Tente novamente.');
+            }
         } finally {
             setLoading(false);
         }
@@ -61,9 +75,13 @@ export default function Register() {
                     <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
                         <CheckCircle2 size={40} />
                     </div>
-                    <h2 className="text-3xl font-bold mb-4">Conta Criada!</h2>
-                    <p className="text-slate-600 dark:text-slate-400 mb-8">
-                        Cadastro realizado com sucesso! Verifique seu e-mail e clique no link de confirmação para ativar sua conta. Após confirmar, você já pode fazer login.
+                    <h2 className="text-3xl font-bold mb-4 dark:text-white">Verifique seu E-mail!</h2>
+                    <p className="text-slate-600 dark:text-slate-400 mb-2">
+                        Enviamos um link de confirmação para:
+                    </p>
+                    <p className="font-bold text-primary mb-6">{formData.email}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">
+                        Clique no link do e-mail para ativar sua conta. Verifique também a pasta de spam.
                     </p>
                     <Link to="/login" className="btn-primary w-full py-3 inline-block">
                         Ir para Login
@@ -117,6 +135,13 @@ export default function Register() {
                         Preencha os dados abaixo para iniciar sua jornada.
                     </p>
 
+                    {error && (
+                        <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-xl p-4 mb-6 text-sm">
+                            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Nome Completo</label>
@@ -126,7 +151,7 @@ export default function Register() {
                                 className="input-field"
                                 placeholder="Seu nome"
                                 value={formData.full_name}
-                                onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                                onChange={e => { setError(''); setFormData({ ...formData, full_name: e.target.value }); }}
                             />
                         </div>
 
@@ -138,7 +163,7 @@ export default function Register() {
                                 className="input-field"
                                 placeholder="email@suaempresa.com"
                                 value={formData.email}
-                                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                onChange={e => { setError(''); setFormData({ ...formData, email: e.target.value }); }}
                             />
                         </div>
 
@@ -152,7 +177,7 @@ export default function Register() {
                                     placeholder="Mínimo 6 caracteres"
                                     minLength={6}
                                     value={formData.password}
-                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                    onChange={e => { setError(''); setFormData({ ...formData, password: e.target.value }); }}
                                 />
                                 <button
                                     type="button"
@@ -227,4 +252,3 @@ export default function Register() {
         </div>
     );
 }
-
