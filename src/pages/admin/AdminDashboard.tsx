@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { financeService, tripService, dashboardService, maintenanceService } from '../../lib/services';
-import { exportToExcel, exportMultipleSheetsToExcel } from '../../lib/exports';
+import { exportMultipleSheetsToExcel } from '../../lib/exports';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import FreightSimulatorModal from '../../components/admin/FreightSimulatorModal';
 import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';

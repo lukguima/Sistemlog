@@ -1301,7 +1301,7 @@ export const dashboardService = {
             settlementsQuery = settlementsQuery.lte('settlement_date', endDate);
         }
 
-        const [{ data: fuel, error: fError }, { data: maintenance, error: mError }, { data: advances, error: aError }, { data: settlements, error: sError }] = await Promise.all([
+        const [{ data: fuel, error: fError }, { data: maintenance, error: mError }, { data: advances, error: aError }, { data: settlements }] = await Promise.all([
             fuelQuery,
             maintenanceQuery,
             advancesQuery,

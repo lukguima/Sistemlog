@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calculator, DollarSign, Fuel, Navigation, Percent, Info, Send, Disc } from 'lucide-react';
+import { X, Calculator, Fuel, Navigation, Percent, Info, Send, Disc } from 'lucide-react';
 
 interface FreightSimulatorModalProps {
     isOpen: boolean;

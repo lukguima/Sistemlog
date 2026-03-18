@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
     LayoutDashboard,
     Globe,
-    ShieldCheck,
     LogOut,
     Menu,
     X,
