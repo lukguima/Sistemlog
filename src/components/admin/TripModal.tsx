@@ -1,0 +1,403 @@
+import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
+import { fixedRouteService } from '../../lib/services';
+import { useAuth } from '../../context/AuthContext';
+
+interface TripModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (data: any) => Promise<void>;
+    vehicles: any[];
+    drivers: any[];
+    initialData?: any;
+}
+
+export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, initialData }: TripModalProps) {
+    const { user } = useAuth();
+    const companyId = (user as any)?.company_id;
+    const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
+    const [formData, setFormData] = useState({
+        vehicle_id: '',
+        driver_id: '',
+        cargo_description: '',
+        origin: '',
+        destination: '',
+        date: new Date().toISOString().split('T')[0],
+        start_km: '',
+        end_km: '',
+        cte: '',
+        weight: '',
+        value: '',
+        tax_rate: '',
+        commission_rate: '',
+        estimated_cost: '',
+        advance_value: '',
+        tolls_value: '',
+        insurance_value: '',
+        status: 'pending'
+    });
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (initialData) {
+            setFormData({
+                ...initialData,
+                vehicle_id: initialData.vehicle_id || '',
+                driver_id: initialData.driver_id || '',
+                cargo_description: initialData.cargo_description || '',
+                origin: initialData.origin || '',
+                destination: initialData.destination || '',
+                date: initialData.date || new Date().toISOString().split('T')[0],
+                start_km: initialData.start_km || '',
+                end_km: initialData.end_km || '',
+                cte: initialData.cte || initialData.cte_number || '',
+                weight: initialData.weight || '',
+                value: initialData.value || initialData.gross_value || '',
+                tax_rate: initialData.tax_rate || '',
+                commission_rate: initialData.commission_rate || '',
+                estimated_cost: initialData.estimated_cost || '',
+                advance_value: initialData.advance_value || '',
+                tolls_value: initialData.tolls_value || initialData.toll_expense || '',
+                insurance_value: initialData.insurance_value || initialData.other_expenses || '',
+                status: initialData.status || 'pending'
+            });
+        } else {
+            setFormData({
+                vehicle_id: '',
+                driver_id: '',
+                cargo_description: '',
+                origin: '',
+                destination: '',
+                date: new Date().toISOString().split('T')[0],
+                start_km: '',
+                end_km: '',
+                cte: '',
+                weight: '',
+                value: '',
+                tax_rate: '',
+                commission_rate: '',
+                estimated_cost: '',
+                advance_value: '',
+                tolls_value: '',
+                insurance_value: '',
+                status: 'pending'
+            });
+        }
+    }, [initialData, isOpen]);
+
+    useEffect(() => {
+        if (isOpen && companyId) {
+            fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes);
+        }
+    }, [isOpen, companyId]);
+
+    // Auto-fill value based on fixed routes
+    useEffect(() => {
+        if (!initialData && formData.origin && formData.destination) {
+            const match = fixedRoutes.find(r => 
+                r.origin.toLowerCase().trim() === formData.origin.toLowerCase().trim() && 
+                r.destination.toLowerCase().trim() === formData.destination.toLowerCase().trim()
+            );
+            if (match) {
+                setFormData(prev => ({ ...prev, value: match.freight_value }));
+            }
+        }
+    }, [formData.origin, formData.destination, fixedRoutes, initialData]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await onSave(formData);
+            onClose();
+        } catch (error) {
+            console.error('Error saving trip:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const labelStyle = "text-[10px] font-black text-[#8B95B1] uppercase tracking-widest ml-1 mb-1.5 block";
+    const inputStyle = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-300 appearance-none";
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-y-auto max-h-[95vh] animate-in zoom-in duration-200 custom-scrollbar border-none">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <h2 className="text-xl font-bold text-[#0F172A]">
+                        {initialData ? 'Editar Viagem' : 'Nova Viagem'}
+                    </h2>
+                    <button onClick={onClose} className="p-1.5 hover:bg-slate-50 rounded-xl text-slate-400 transition-all">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {/* Seleção de Trecho Fixo (Opcional) */}
+                    {!initialData && fixedRoutes.length > 0 && (
+                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 mb-2">
+                            <label className={`${labelStyle} text-blue-600`}>Usar Trecho Fixo (Opcional)</label>
+                            <select
+                                className={`${inputStyle} border-blue-200 focus:ring-blue-500/30`}
+                                onChange={e => {
+                                    const routeId = e.target.value;
+                                    if (!routeId) return;
+                                    const route = fixedRoutes.find(r => r.id === routeId);
+                                    if (route) {
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            origin: route.origin,
+                                            destination: route.destination,
+                                            value: route.freight_value
+                                        }));
+                                    }
+                                }}
+                            >
+                                <option value="">--- Selecione um trecho para carregar dados ---</option>
+                                {fixedRoutes.map(r => (
+                                    <option key={r.id} value={r.id}>
+                                        {r.origin} → {r.destination} (R$ {parseFloat(r.freight_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-blue-500 mt-2 ml-1">
+                                Selecionar um trecho preencherá automaticamente Origem, Destino e Valor.
+                            </p>
+                        </div>
+                    )}
+                    {/* Veículo e Motorista */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Veículo</label>
+                            <select
+                                required
+                                className={inputStyle}
+                                value={formData.vehicle_id}
+                                onChange={e => {
+                                    const vId = e.target.value;
+                                    const vehicle = vehicles.find(v => v.id === vId);
+                                    setFormData({ ...formData, vehicle_id: vId, start_km: vehicle?.current_km || '' });
+                                }}
+                            >
+                                <option value="">Selecione...</option>
+                                {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Motorista</label>
+                            <select
+                                required
+                                className={inputStyle}
+                                value={formData.driver_id}
+                                onChange={e => setFormData({ ...formData, driver_id: e.target.value })}
+                            >
+                                <option value="">Selecione...</option>
+                                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Descrição da Carga */}
+                    <div className="space-y-1">
+                        <label className={labelStyle}>Descrição da Carga</label>
+                        <input
+                            className={inputStyle}
+                            placeholder="Ex: Carga de Grãos, Eletrônicos, etc."
+                            value={formData.cargo_description}
+                            onChange={e => setFormData({ ...formData, cargo_description: e.target.value })}
+                        />
+                    </div>
+
+                    {/* Origem e Destino */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Cidade de Origem</label>
+                            <input
+                                required
+                                className={inputStyle}
+                                placeholder="Cidade - UF"
+                                value={formData.origin}
+                                onChange={e => setFormData({ ...formData, origin: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Cidade de Destino</label>
+                            <input
+                                required
+                                className={inputStyle}
+                                placeholder="Cidade - UF"
+                                value={formData.destination}
+                                onChange={e => setFormData({ ...formData, destination: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Data da Viagem e KM Inicial */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Data da Viagem</label>
+                            <input
+                                required
+                                type="date"
+                                className={inputStyle}
+                                value={formData.date}
+                                onChange={e => setFormData({ ...formData, date: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>KM Inicial</label>
+                            <input
+                                required
+                                type="number"
+                                className={inputStyle}
+                                placeholder="0"
+                                value={formData.start_km}
+                                onChange={e => setFormData({ ...formData, start_km: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* KM Final, CTE e Peso */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>KM Final</label>
+                            <input
+                                type="number"
+                                className={inputStyle}
+                                placeholder="Ex: 151200"
+                                value={formData.end_km}
+                                onChange={e => setFormData({ ...formData, end_km: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>CTE</label>
+                            <input
+                                className={inputStyle}
+                                placeholder="Núm. Documento"
+                                value={formData.cte}
+                                onChange={e => setFormData({ ...formData, cte: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Peso (KG)</label>
+                            <input
+                                required
+                                type="number"
+                                className={inputStyle}
+                                placeholder="0"
+                                value={formData.weight}
+                                onChange={e => setFormData({ ...formData, weight: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Financeiro: Valor, Imposto, Comissão */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Valor do Frete</label>
+                            <input
+                                required
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.value}
+                                onChange={e => setFormData({ ...formData, value: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Imposto (%)</label>
+                            <input
+                                type="number"
+                                className={inputStyle}
+                                placeholder="12"
+                                value={formData.tax_rate}
+                                onChange={e => setFormData({ ...formData, tax_rate: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Comissão (%)</label>
+                            <input
+                                type="number"
+                                className={inputStyle}
+                                placeholder="10"
+                                value={formData.commission_rate}
+                                onChange={e => setFormData({ ...formData, commission_rate: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Custos e Vale */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Pedágio (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.tolls_value}
+                                onChange={e => setFormData({ ...formData, tolls_value: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Seguro da Viagem (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.insurance_value}
+                                onChange={e => setFormData({ ...formData, insurance_value: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Custos Estimados (R$)</label>
+                            <input
+                                type="number"
+                                className={inputStyle}
+                                placeholder="1200"
+                                value={formData.estimated_cost}
+                                onChange={e => setFormData({ ...formData, estimated_cost: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Vale / Adiantamento (R$)</label>
+                            <input
+                                type="number"
+                                className={inputStyle}
+                                placeholder="500"
+                                value={formData.advance_value}
+                                onChange={e => setFormData({ ...formData, advance_value: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Ações */}
+                    <div className="flex gap-4 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all outline-none"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50"
+                        >
+                            {loading ? 'Salvando...' : 'Salvar Viagem'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}

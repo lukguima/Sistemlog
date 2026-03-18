@@ -1,0 +1,9 @@
+﻿src/pages/admin/Branding.tsx(1,20): error TS6133: 'useEffect' is declared but its value is never read.
+src/pages/admin/Settlement.tsx(2,10): error TS6133: 'DollarSign' is declared but its value is never read.
+src/pages/admin/TyreCheck.tsx(10,19): error TS6133: 'setPneus' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(1,1): error TS6133: 'useState' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(2,10): error TS6133: 'Camera' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(2,18): error TS6133: 'Send' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(2,30): error TS6133: 'Droplet' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(2,39): error TS6133: 'ArrowLeft' is declared but its value is never read.
+src/pages/driver/DriverHome.tsx(2,57): error TS6133: 'AlertCircle' is declared but its value is never read.
