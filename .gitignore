@@ -42,3 +42,6 @@ get-shit-done/
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.firebase/

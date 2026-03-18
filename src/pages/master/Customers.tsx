@@ -267,8 +267,13 @@ export default function Customers() {
                                             <td className="px-5 py-4">
                                                 <p className="font-bold text-white">{company.name}</p>
                                                 <p className="text-[11px] text-slate-500 mt-0.5">
-                                                    {sub?.kiwify_customer_email || 'email não vinculado'}
+                                                    {sub?.kiwify_customer_email || company.adminEmail || '—'}
                                                 </p>
+                                                {company.adminPhone && (
+                                                    <p className="text-[11px] text-slate-600 mt-0.5">
+                                                        {company.adminPhone}
+                                                    </p>
+                                                )}
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span className={`px-2.5 py-1 text-[10px] font-black uppercase rounded-full ${planBadge}`}>

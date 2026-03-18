@@ -1413,6 +1413,7 @@ export const masterService = {
             .from('companies')
             .select(`
                 id, name, created_at,
+                admin:profiles(email, phone),
                 subscription:subscriptions(
                     id, plan, status, mrr, vehicle_limit,
                     trial_ends_at, current_period_start, current_period_end,
@@ -1426,10 +1427,16 @@ export const masterService = {
             console.error('[masterService] getAllCompaniesWithSubscriptions:', error.message, error.code, error.hint);
             throw error;
         }
-        return (data || []).map((c: any) => ({
-            ...c,
-            subscription: Array.isArray(c.subscription) ? c.subscription[0] : c.subscription
-        }));
+        return (data || []).map((c: any) => {
+            const admins = Array.isArray(c.admin) ? c.admin : (c.admin ? [c.admin] : []);
+            const adminProfile = admins.find((p: any) => p.email) || admins[0] || null;
+            return {
+                ...c,
+                adminEmail: adminProfile?.email || null,
+                adminPhone: adminProfile?.phone || null,
+                subscription: Array.isArray(c.subscription) ? c.subscription[0] : c.subscription
+            };
+        });
     },
 
     /** Busca KPIs do master: MRR total, counts por status */
