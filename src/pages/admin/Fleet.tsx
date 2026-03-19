@@ -1,5 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle } from 'lucide-react';
+import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2 } from 'lucide-react';
+
+const KIWIFY_BASICO = 'https://pay.kiwify.com.br/Xo5neXV';
+const KIWIFY_PRO = 'https://pay.kiwify.com.br/9f3rjhC';
+const KIWIFY_ENTERPRISE = 'https://pay.kiwify.com.br/itrSZqN';
+
+const PLAN_LIMITS: Record<string, number | null> = {
+    trial: 3,
+    basico: 5,
+    pro: 20,
+    enterprise: null,
+};
+
+function getVehicleLimit(subscription: any): number | null {
+    if (!subscription) return PLAN_LIMITS['trial'];
+    if (subscription.vehicle_limit !== undefined && subscription.vehicle_limit !== null) return subscription.vehicle_limit;
+    return PLAN_LIMITS[subscription.plan] ?? 3;
+}
 import { exportToExcel, exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { fleetService, tripService, maintenanceService, driverService } from '../../lib/services';
@@ -20,8 +37,11 @@ export default function Fleet() {
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [isExporting, setIsExporting] = useState(false);
+    const [showLimitModal, setShowLimitModal] = useState(false);
 
     const companyId = (user as any)?.company_id;
+    const vehicleLimit = getVehicleLimit(subscription);
+    const atVehicleLimit = vehicleLimit !== null && vehicles.length >= vehicleLimit;
 
     const fetchData = async () => {
         let targetCompanyId = companyId;
@@ -187,6 +207,7 @@ export default function Fleet() {
     };
 
     return (
+        <>
         <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in transition-all">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -201,8 +222,8 @@ export default function Fleet() {
                 )}
                 <button
                     onClick={() => {
-                        if (activeTab === 'vehicles' && subscription?.vehicle_limit !== null && subscription?.vehicle_limit !== undefined && vehicles.length >= subscription.vehicle_limit) {
-                            alert(`Limite do plano atingido (${subscription.vehicle_limit} veículos). Faça upgrade para adicionar mais veículos.`);
+                        if (activeTab === 'vehicles' && atVehicleLimit) {
+                            setShowLimitModal(true);
                             return;
                         }
                         setEditingId(null);
@@ -448,6 +469,83 @@ export default function Fleet() {
                 initialData={editingId ? modalData : undefined}
             />
         </div>
+
+        {/* Modal de Limite de Veículos */}
+
+        {showLimitModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-t-2xl p-6 text-white relative">
+                        <button onClick={() => setShowLimitModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white">
+                            <X size={20} />
+                        </button>
+                        <div className="flex items-center gap-3 mb-1">
+                            <AlertTriangle size={24} />
+                            <h2 className="text-xl font-bold">Limite do plano atingido</h2>
+                        </div>
+                        <p className="text-white/80 text-sm">
+                            Seu plano <strong>{subscription?.plan === 'basico' ? 'Básico' : subscription?.plan === 'trial' ? 'Trial' : subscription?.plan}</strong> permite até <strong>{vehicleLimit} veículos</strong>. Faça upgrade para continuar crescendo.
+                        </p>
+                    </div>
+
+                    {/* Planos */}
+                    <div className="p-6 grid grid-cols-3 gap-3">
+                        {/* Básico */}
+                        <div className={`rounded-xl border-2 p-4 text-center flex flex-col gap-2 ${subscription?.plan === 'basico' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                            <Truck size={22} className="mx-auto text-blue-500" />
+                            <p className="font-bold text-sm text-slate-800">Básico</p>
+                            <p className="text-2xl font-extrabold text-blue-600">5</p>
+                            <p className="text-xs text-slate-500">veículos</p>
+                            {subscription?.plan !== 'basico' && (
+                                <a href={KIWIFY_BASICO} target="_blank" rel="noopener noreferrer"
+                                    className="mt-1 text-xs bg-blue-600 text-white rounded-lg py-1.5 font-semibold hover:bg-blue-700 transition-colors">
+                                    Assinar
+                                </a>
+                            )}
+                            {subscription?.plan === 'basico' && <span className="text-xs text-blue-600 font-semibold mt-1">Plano atual</span>}
+                        </div>
+
+                        {/* Pro */}
+                        <div className={`rounded-xl border-2 p-4 text-center flex flex-col gap-2 relative ${subscription?.plan === 'pro' ? 'border-purple-500 bg-purple-50' : 'border-purple-300 bg-purple-50/40'}`}>
+                            <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">POPULAR</span>
+                            <Star size={22} className="mx-auto text-purple-500" />
+                            <p className="font-bold text-sm text-slate-800">Pro</p>
+                            <p className="text-2xl font-extrabold text-purple-600">20</p>
+                            <p className="text-xs text-slate-500">veículos</p>
+                            {subscription?.plan !== 'pro' && (
+                                <a href={KIWIFY_PRO} target="_blank" rel="noopener noreferrer"
+                                    className="mt-1 text-xs bg-purple-600 text-white rounded-lg py-1.5 font-semibold hover:bg-purple-700 transition-colors">
+                                    Fazer Upgrade
+                                </a>
+                            )}
+                            {subscription?.plan === 'pro' && <span className="text-xs text-purple-600 font-semibold mt-1">Plano atual</span>}
+                        </div>
+
+                        {/* Enterprise */}
+                        <div className={`rounded-xl border-2 p-4 text-center flex flex-col gap-2 ${subscription?.plan === 'enterprise' ? 'border-slate-700 bg-slate-50' : 'border-slate-200'}`}>
+                            <Building2 size={22} className="mx-auto text-slate-700" />
+                            <p className="font-bold text-sm text-slate-800">Enterprise</p>
+                            <p className="text-2xl font-extrabold text-slate-700">∞</p>
+                            <p className="text-xs text-slate-500">ilimitado</p>
+                            {subscription?.plan !== 'enterprise' && (
+                                <a href={KIWIFY_ENTERPRISE} target="_blank" rel="noopener noreferrer"
+                                    className="mt-1 text-xs bg-slate-800 text-white rounded-lg py-1.5 font-semibold hover:bg-slate-900 transition-colors">
+                                    Fazer Upgrade
+                                </a>
+                            )}
+                            {subscription?.plan === 'enterprise' && <span className="text-xs text-slate-700 font-semibold mt-1">Plano atual</span>}
+                        </div>
+                    </div>
+
+                    <div className="px-6 pb-6 flex items-center gap-2 text-xs text-slate-500">
+                        <Zap size={14} className="text-amber-500 shrink-0" />
+                        Após o pagamento, seu acesso é liberado automaticamente em minutos.
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 }
 
