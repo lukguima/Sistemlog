@@ -12,9 +12,10 @@ export const fleetService = {
     },
     async addVehicle(vehicle: any) {
         if (!vehicle.company_id) throw new Error("ID da empresa não informado.");
+        const { id: _id, ...vehicleData } = vehicle;
         const { data, error } = await supabase
             .from('vehicles')
-            .insert([vehicle])
+            .insert([vehicleData])
             .select()
             .single();
         if (error) throw error;
@@ -48,9 +49,10 @@ export const fleetService = {
     },
     async addDriver(driver: any) {
         if (!driver.company_id) throw new Error("ID da empresa não informado.");
+        const { id: _id, ...driverData } = driver;
         const { data, error } = await supabase
             .from('drivers')
-            .insert([driver])
+            .insert([driverData])
             .select()
             .single();
         if (error) throw error;
@@ -128,9 +130,10 @@ export const tripService = {
     },
 
     async addTrip(trip: any) {
+        const { id: _id, ...tripData } = trip; // nunca passar id no insert
         const { data, error } = await supabase
             .from('trips')
-            .insert([trip])
+            .insert([tripData])
             .select()
             .single();
         if (error) throw error;
@@ -455,9 +458,10 @@ export const maintenanceService = {
         return data;
     },
     async addMaintenance(maintenance: any) {
+        const { id: _id, ...maintenanceData } = maintenance;
         const { data, error } = await supabase
             .from('maintenance')
-            .insert([maintenance])
+            .insert([maintenanceData])
             .select()
             .single();
         if (error) throw error;
@@ -1338,9 +1342,10 @@ export const supplierService = {
     },
 
     async addSupplier(data: any) {
+        const { id: _id, ...supplierData } = data;
         const { error } = await supabase
             .from('suppliers')
-            .insert([data]);
+            .insert([supplierData]);
 
         if (error) throw error;
     },
