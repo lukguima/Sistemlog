@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { usePersistedForm } from '../../hooks/usePersistedForm';
+import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
+
+const DRAFT_KEY = 'driver';
+const EMPTY = { name: '', email: '', license_number: '', license_expiry: '', phone: '', status: 'available' };
 
 interface DriverModalProps {
     isOpen: boolean;
@@ -12,16 +15,24 @@ interface DriverModalProps {
 
 export default function DriverModal({ isOpen, onClose, onSave, initialData, loading: externalLoading }: DriverModalProps) {
     const isEditing = !!(initialData && initialData.id);
-    const initialState = {
-        name: initialData?.name || '',
-        email: initialData?.email || '',
-        license_number: initialData?.license_number || '',
-        license_expiry: initialData?.license_expiry || '',
-        phone: initialData?.phone || '',
-        status: initialData?.status || 'available'
-    };
-    const { formData, setFormData, clearDraft } = usePersistedForm('driver', initialState, isEditing);
+
+    const [formData, setFormDataState] = useState<typeof EMPTY>(() => {
+        if (isEditing) return { ...EMPTY, ...initialData };
+        return { ...EMPTY, ...(loadDraft(DRAFT_KEY) || {}) };
+    });
     const [loading, setLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (isEditing && initialData) setFormDataState({ ...EMPTY, ...initialData });
+    }, [initialData?.id]);
+
+    function setFormData(partial: Partial<typeof EMPTY>) {
+        setFormDataState((prev: typeof EMPTY) => {
+            const next = { ...prev, ...partial };
+            if (!isEditing) saveDraft(DRAFT_KEY, next);
+            return next;
+        });
+    }
 
     if (!isOpen) return null;
 
@@ -33,7 +44,7 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
         setLoading(true);
         try {
             await onSave(formData);
-            clearDraft();
+            clearDraftStore(DRAFT_KEY);
             onClose();
         } catch (error: any) {
             const msg = error?.message || error?.details || JSON.stringify(error);
@@ -61,72 +72,41 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
                 <form onSubmit={handleSubmit} className="p-8 space-y-4">
                     <div className="space-y-1">
                         <label className={labelStyle}>Nome Completo</label>
-                        <input
-                            required
-                            className={inputStyle}
-                            placeholder="Ex: João da Silva"
-                            value={formData.name}
-                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                        />
+                        <input required className={inputStyle} placeholder="Ex: João da Silva"
+                            value={formData.name} onChange={e => setFormData({ name: e.target.value })} />
                     </div>
 
                     <div className="space-y-1">
                         <label className={labelStyle}>Email (Login do Motorista) - Opcional</label>
-                        <input
-                            type="email"
-                            className={inputStyle}
-                            placeholder="joao@exemplo.com"
-                            value={formData.email}
-                            onChange={e => setFormData({ ...formData, email: e.target.value })}
-                        />
+                        <input type="email" className={inputStyle} placeholder="joao@exemplo.com"
+                            value={formData.email} onChange={e => setFormData({ email: e.target.value })} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>CNH</label>
-                            <input
-                                required
-                                className={inputStyle}
-                                placeholder="123456789"
-                                value={formData.license_number}
-                                onChange={e => setFormData({ ...formData, license_number: e.target.value })}
-                            />
+                            <input required className={inputStyle} placeholder="123456789"
+                                value={formData.license_number} onChange={e => setFormData({ license_number: e.target.value })} />
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>Vencimento CNH</label>
-                            <input
-                                required
-                                type="date"
-                                className={inputStyle}
-                                value={formData.license_expiry}
-                                onChange={e => setFormData({ ...formData, license_expiry: e.target.value })}
-                            />
+                            <input required type="date" className={inputStyle}
+                                value={formData.license_expiry} onChange={e => setFormData({ license_expiry: e.target.value })} />
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>Telefone</label>
-                            <input
-                                required
-                                className={inputStyle}
-                                placeholder="(11) 99999-9999"
-                                value={formData.phone}
-                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                            />
+                            <input required className={inputStyle} placeholder="(11) 99999-9999"
+                                value={formData.phone} onChange={e => setFormData({ phone: e.target.value })} />
                         </div>
                     </div>
 
                     <div className="flex gap-4 pt-2">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all outline-none"
-                        >
+                        <button type="button" onClick={onClose}
+                            className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all outline-none">
                             Cancelar
                         </button>
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50"
-                        >
+                        <button type="submit" disabled={isSubmitting}
+                            className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50">
                             {isSubmitting ? 'Salvando...' : 'Salvar Motorista'}
                         </button>
                     </div>

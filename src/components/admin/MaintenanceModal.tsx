@@ -1,6 +1,14 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { usePersistedForm } from '../../hooks/usePersistedForm';
+import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
+
+const DRAFT_KEY = 'maintenance';
+const makeEmpty = () => ({
+    vehicle_id: '', supplier_id: '', type: 'preventive',
+    date: new Date().toISOString().split('T')[0], km: 0, cost: 0,
+    description: '', workshop: '', notes: '', preventive_type: '',
+    next_maintenance_km: 0, maintenance_interval: 0
+});
 
 interface MaintenanceModalProps {
     isOpen: boolean;
@@ -13,22 +21,23 @@ interface MaintenanceModalProps {
 
 export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, suppliers, initialData }: MaintenanceModalProps) {
     const isEditing = !!initialData;
-    const initialState = {
-        vehicle_id: initialData?.vehicle_id || '',
-        supplier_id: initialData?.supplier_id || '',
-        type: initialData?.type || 'preventive',
-        date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        km: initialData?.km || 0,
-        cost: initialData?.cost || 0,
-        description: initialData?.description || '',
-        workshop: initialData?.workshop || '',
-        notes: initialData?.notes || '',
-        preventive_type: initialData?.preventive_type || '',
-        next_maintenance_km: initialData?.next_maintenance_km || 0,
-        maintenance_interval: initialData?.maintenance_interval || 0
-    };
-    const { formData, setFormData, clearDraft } = usePersistedForm('maintenance', initialState, isEditing);
+    const [formData, setFormDataState] = useState(() => {
+        if (isEditing) return { ...makeEmpty(), ...initialData, date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] };
+        return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
+    });
     const [loading, setLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), ...initialData, date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
+    }, [initialData?.id]);
+
+    function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
+        setFormDataState((prev: ReturnType<typeof makeEmpty>) => {
+            const next = { ...prev, ...partial };
+            if (!isEditing) saveDraft(DRAFT_KEY, next);
+            return next;
+        });
+    }
 
     if (!isOpen) return null;
 
@@ -40,7 +49,7 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
         setLoading(true);
         try {
             await onSave(formData);
-            clearDraft();
+            clearDraftStore(DRAFT_KEY);
             onClose();
         } catch (error) {
             console.error('Error saving maintenance:', error);

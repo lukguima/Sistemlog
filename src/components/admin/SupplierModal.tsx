@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
-import { usePersistedForm } from '../../hooks/usePersistedForm';
+import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
+
+const DRAFT_KEY = 'supplier';
 
 interface SupplierModalProps {
     isOpen: boolean;
@@ -11,29 +13,35 @@ interface SupplierModalProps {
     supplier?: any;
 }
 
+const EMPTY = {
+    name: '', category: 'Outros', document: '',
+    phone: '', email: '', address: '', city: '', state: ''
+};
+
 export default function SupplierModal({ isOpen, onClose, onSave, supplier }: SupplierModalProps) {
     const { user } = useAuth();
     const isEditing = !!supplier;
 
-    const initialState = {
-        name: supplier?.name || '',
-        category: supplier?.category || 'Outros',
-        document: supplier?.document || '',
-        phone: supplier?.phone || '',
-        email: supplier?.email || '',
-        address: supplier?.address || '',
-        city: supplier?.city || '',
-        state: supplier?.state || '',
-        company_id: (user as any)?.company_id
-    };
+    const [formData, setFormDataState] = useState(() => {
+        if (isEditing) return { ...EMPTY, ...supplier };
+        return { ...EMPTY, ...(loadDraft(DRAFT_KEY) || {}) };
+    });
+    const [loading, setLoading] = useState(false);
 
-    const { formData, setFormData, clearDraft } = usePersistedForm(
-        'supplier',
-        initialState,
-        isEditing
-    );
+    // Quando abre para edição, preenche com dados do supplier
+    React.useEffect(() => {
+        if (isEditing && supplier) {
+            setFormDataState({ ...EMPTY, ...supplier });
+        }
+    }, [supplier?.id]);
 
-    const [loading, setLoading] = React.useState(false);
+    function setFormData(partial: Partial<typeof EMPTY>) {
+        setFormDataState((prev: typeof EMPTY) => {
+            const next = { ...prev, ...partial };
+            if (!isEditing) saveDraft(DRAFT_KEY, next);
+            return next;
+        });
+    }
 
     if (!isOpen) return null;
 
@@ -44,11 +52,12 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
         e.preventDefault();
         try {
             setLoading(true);
+            const data = { ...formData, company_id: (user as any)?.company_id };
             if (supplier) {
-                await supplierService.updateSupplier(supplier.id, { ...formData, company_id: (user as any)?.company_id });
+                await supplierService.updateSupplier(supplier.id, data);
             } else {
-                await supplierService.addSupplier({ ...formData, company_id: (user as any)?.company_id });
-                clearDraft();
+                await supplierService.addSupplier(data);
+                clearDraftStore(DRAFT_KEY);
             }
             onSave();
             onClose();
@@ -74,24 +83,15 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                 <form onSubmit={handleSubmit} className="p-8 space-y-4">
                     <div className="space-y-1">
                         <label className={labelStyle}>Nome da Empresa / Fantasia</label>
-                        <input
-                            required
-                            className={inputStyle}
-                            placeholder="Ex: Posto do Caminhoneiro"
-                            value={formData.name}
-                            onChange={e => setFormData({ name: e.target.value })}
-                        />
+                        <input required className={inputStyle} placeholder="Ex: Posto do Caminhoneiro"
+                            value={formData.name} onChange={e => setFormData({ name: e.target.value })} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Categoria</label>
-                            <select
-                                required
-                                className={inputStyle}
-                                value={formData.category}
-                                onChange={e => setFormData({ category: e.target.value })}
-                            >
+                            <select required className={inputStyle} value={formData.category}
+                                onChange={e => setFormData({ category: e.target.value })}>
                                 <option value="">Selecione...</option>
                                 <option value="Combustível">Combustível</option>
                                 <option value="Manutenção">Manutenção</option>
@@ -101,86 +101,50 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>CNPJ / CPF</label>
-                            <input
-                                className={inputStyle}
-                                placeholder="00.000.000/0001-00"
-                                value={formData.document}
-                                onChange={e => setFormData({ document: e.target.value })}
-                            />
+                            <input className={inputStyle} placeholder="00.000.000/0001-00"
+                                value={formData.document} onChange={e => setFormData({ document: e.target.value })} />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Telefone</label>
-                            <input
-                                type="text"
-                                className={inputStyle}
-                                value={formData.phone}
-                                onChange={e => setFormData({ phone: e.target.value })}
-                                placeholder="(00) 00000-0000"
-                            />
+                            <input type="text" className={inputStyle} placeholder="(00) 00000-0000"
+                                value={formData.phone} onChange={e => setFormData({ phone: e.target.value })} />
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>E-mail</label>
-                            <input
-                                type="email"
-                                className={inputStyle}
-                                value={formData.email}
-                                onChange={e => setFormData({ email: e.target.value })}
-                                placeholder="contato@fornecedor.com"
-                            />
+                            <input type="email" className={inputStyle} placeholder="contato@fornecedor.com"
+                                value={formData.email} onChange={e => setFormData({ email: e.target.value })} />
                         </div>
                     </div>
 
                     <div className="space-y-1">
                         <label className={labelStyle}>Endereço Completo</label>
-                        <input
-                            type="text"
-                            className={inputStyle}
-                            value={formData.address}
-                            onChange={e => setFormData({ address: e.target.value })}
-                            placeholder="Rua, Número, Bairro..."
-                        />
+                        <input type="text" className={inputStyle} placeholder="Rua, Número, Bairro..."
+                            value={formData.address} onChange={e => setFormData({ address: e.target.value })} />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Cidade</label>
-                            <input
-                                type="text"
-                                className={inputStyle}
-                                value={formData.city}
-                                onChange={e => setFormData({ city: e.target.value })}
-                                placeholder="Ex: São Paulo"
-                            />
+                            <input type="text" className={inputStyle} placeholder="Ex: São Paulo"
+                                value={formData.city} onChange={e => setFormData({ city: e.target.value })} />
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>Estado (UF)</label>
-                            <input
-                                type="text"
-                                className={inputStyle}
-                                value={formData.state}
-                                onChange={e => setFormData({ state: e.target.value.toUpperCase() })}
-                                maxLength={2}
-                                placeholder="UF"
-                            />
+                            <input type="text" className={inputStyle} maxLength={2} placeholder="UF"
+                                value={formData.state} onChange={e => setFormData({ state: e.target.value.toUpperCase() })} />
                         </div>
                     </div>
 
                     <div className="flex gap-4 pt-2">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all outline-none"
-                        >
+                        <button type="button" onClick={onClose}
+                            className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all outline-none">
                             Cancelar
                         </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50"
-                        >
+                        <button type="submit" disabled={loading}
+                            className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50">
                             {loading ? 'Salvando...' : supplier ? 'Atualizar' : 'Cadastrar'}
                         </button>
                     </div>

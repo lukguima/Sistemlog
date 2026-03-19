@@ -1,6 +1,13 @@
 import { X } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { usePersistedForm } from '../../hooks/usePersistedForm';
+import React, { useState, useEffect } from 'react';
+import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
+
+const DRAFT_KEY = 'fuel';
+const makeEmpty = () => ({
+    vehicle_id: '', driver_id: '', supplier_id: '', km_reading: '',
+    liters: '', price_per_liter: '', total_value: '', fuel_type: 'Diesel',
+    location: '', date: new Date().toISOString().split('T')[0]
+});
 
 interface FuelModalProps {
     isOpen: boolean;
@@ -14,28 +21,29 @@ interface FuelModalProps {
 
 export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, suppliers, initialData }: FuelModalProps) {
     const isEditing = !!initialData;
-    const initialState = {
-        vehicle_id: initialData?.vehicle_id || '',
-        driver_id: initialData?.driver_id || '',
-        supplier_id: initialData?.supplier_id || '',
-        km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '',
-        liters: initialData?.liters?.toString() || '',
-        price_per_liter: initialData?.price_per_liter?.toString() || '',
-        total_value: initialData?.total_value?.toString() || '',
-        fuel_type: initialData?.fuel_type || 'Diesel',
-        location: initialData?.location || '',
-        date: initialData?.created_at
-            ? new Date(initialData.created_at).toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0]
-    };
-    const { formData, setFormData, clearDraft } = usePersistedForm('fuel', initialState, isEditing);
+    const [formData, setFormDataState] = useState(() => {
+        if (isEditing) return { ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] };
+        return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
+    });
     const [loading, setLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
+    }, [initialData?.id]);
+
+    function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
+        setFormDataState((prev: ReturnType<typeof makeEmpty>) => {
+            const next = { ...prev, ...partial };
+            if (!isEditing) saveDraft(DRAFT_KEY, next);
+            return next;
+        });
+    }
 
     useEffect(() => {
         const liters = parseFloat(formData.liters);
         const price = parseFloat(formData.price_per_liter);
         if (!isNaN(liters) && !isNaN(price)) {
-            setFormData(prev => ({ ...prev, total_value: (liters * price).toFixed(2) }));
+            setFormData({ total_value: (liters * price).toFixed(2) });
         }
     }, [formData.liters, formData.price_per_liter]);
 
@@ -49,7 +57,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
         setLoading(true);
         try {
             onSave(formData);
-            clearDraft();
+            clearDraftStore(DRAFT_KEY);
             onClose();
         } catch (error) {
             console.error('Error saving fuel record:', error);
