@@ -93,6 +93,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                 last_filter_change_km: Number(formData.last_filter_change_km) || 0,
                 last_tyre_change_km: Number(formData.last_tyre_change_km) || 0,
                 insurance_value: Number(formData.insurance_value) || 0,
+                document_expiry: formData.document_expiry || null,
+                antt_expiry: formData.antt_expiry || null,
             };
 
             if (!initialData) {
