@@ -28,8 +28,14 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
-        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
-    }, [initialData?.id]);
+        if (!isOpen) return;
+        if (isEditing && initialData) {
+            setFormDataState({ ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+        }
+    }, [isOpen, initialData?.id]);
 
     function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
         setFormDataState((prev: ReturnType<typeof makeEmpty>) => {

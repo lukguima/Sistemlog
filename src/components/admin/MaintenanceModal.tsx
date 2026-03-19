@@ -28,8 +28,14 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
-        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), ...initialData, date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
-    }, [initialData?.id]);
+        if (!isOpen) return;
+        if (isEditing && initialData) {
+            setFormDataState({ ...makeEmpty(), ...initialData, date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+        }
+    }, [isOpen, initialData?.id]);
 
     function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
         setFormDataState((prev: ReturnType<typeof makeEmpty>) => {

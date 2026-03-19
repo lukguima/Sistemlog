@@ -33,8 +33,14 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
-        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), ...initialData, cte: initialData?.cte || initialData?.cte_number || '', value: initialData?.value || initialData?.gross_value || '', tolls_value: initialData?.tolls_value || initialData?.toll_expense || '', insurance_value: initialData?.insurance_value || initialData?.other_expenses || '' });
-    }, [initialData?.id]);
+        if (!isOpen) return;
+        if (isEditing && initialData) {
+            setFormDataState({ ...makeEmpty(), ...initialData, cte: initialData?.cte || initialData?.cte_number || '', value: initialData?.value || initialData?.gross_value || '', tolls_value: initialData?.tolls_value || initialData?.toll_expense || '', insurance_value: initialData?.insurance_value || initialData?.other_expenses || '' });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+        }
+    }, [isOpen, initialData?.id]);
 
     function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
         setFormDataState((prev: ReturnType<typeof makeEmpty>) => {

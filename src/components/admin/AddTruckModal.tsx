@@ -29,8 +29,14 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
-        if (isEditing && initialData) setFormDataState({ ...makeEmpty(), ...initialData });
-    }, [initialData?.id]);
+        if (!isOpen) return;
+        if (isEditing && initialData) {
+            setFormDataState({ ...makeEmpty(), ...initialData });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+        }
+    }, [isOpen, initialData?.id]);
 
     function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
         setFormDataState((prev: ReturnType<typeof makeEmpty>) => {

@@ -29,11 +29,16 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
     const [loading, setLoading] = useState(false);
 
     // Quando abre para edição, preenche com dados do supplier
+    // Reseta o form toda vez que o modal abre
     React.useEffect(() => {
+        if (!isOpen) return;
         if (isEditing && supplier) {
             setFormDataState({ ...EMPTY, ...supplier });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...EMPTY, ...(draft || {}) });
         }
-    }, [supplier?.id]);
+    }, [isOpen, supplier?.id]);
 
     function setFormData(partial: Partial<typeof EMPTY>) {
         setFormDataState((prev: typeof EMPTY) => {

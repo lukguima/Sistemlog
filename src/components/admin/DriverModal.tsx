@@ -23,8 +23,14 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
     const [loading, setLoading] = useState(false);
 
     React.useEffect(() => {
-        if (isEditing && initialData) setFormDataState({ ...EMPTY, ...initialData });
-    }, [initialData?.id]);
+        if (!isOpen) return;
+        if (isEditing && initialData) {
+            setFormDataState({ ...EMPTY, ...initialData });
+        } else if (!isEditing) {
+            const draft = loadDraft(DRAFT_KEY);
+            setFormDataState({ ...EMPTY, ...(draft || {}) });
+        }
+    }, [isOpen, initialData?.id]);
 
     function setFormData(partial: Partial<typeof EMPTY>) {
         setFormDataState((prev: typeof EMPTY) => {
