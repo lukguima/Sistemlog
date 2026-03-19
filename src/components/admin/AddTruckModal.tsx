@@ -70,6 +70,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
             }
             await onSave(dataToSave);
             clearDraftStore(DRAFT_KEY);
+            setFormDataState(makeEmpty());
             onClose();
         } catch (error: any) {
             console.error('Error saving truck:', error);

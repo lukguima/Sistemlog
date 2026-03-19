@@ -58,6 +58,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
         try {
             onSave(formData);
             clearDraftStore(DRAFT_KEY);
+            setFormDataState(makeEmpty());
             onClose();
         } catch (error) {
             console.error('Error saving fuel record:', error);

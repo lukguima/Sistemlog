@@ -58,6 +58,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
             } else {
                 await supplierService.addSupplier(data);
                 clearDraftStore(DRAFT_KEY);
+                setFormDataState({ ...EMPTY });
             }
             onSave();
             onClose();

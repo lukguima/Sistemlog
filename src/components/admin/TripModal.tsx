@@ -71,6 +71,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
         try {
             await onSave(formData);
             clearDraftStore(DRAFT_KEY);
+            setFormDataState(makeEmpty());
             onClose();
         } catch (error) {
             console.error('Error saving trip:', error);

@@ -45,6 +45,7 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
         try {
             await onSave(formData);
             clearDraftStore(DRAFT_KEY);
+            setFormDataState({ ...EMPTY });
             onClose();
         } catch (error: any) {
             const msg = error?.message || error?.details || JSON.stringify(error);

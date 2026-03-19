@@ -50,6 +50,7 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
         try {
             await onSave(formData);
             clearDraftStore(DRAFT_KEY);
+            setFormDataState(makeEmpty());
             onClose();
         } catch (error) {
             console.error('Error saving maintenance:', error);
