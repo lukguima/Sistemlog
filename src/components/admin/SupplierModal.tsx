@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 import { supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface SupplierModalProps {
     isOpen: boolean;
@@ -12,46 +13,27 @@ interface SupplierModalProps {
 
 export default function SupplierModal({ isOpen, onClose, onSave, supplier }: SupplierModalProps) {
     const { user } = useAuth();
-    const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
-        name: '',
-        category: 'Outros',
-        document: '',
-        phone: '',
-        email: '',
-        address: '',
-        city: '',
-        state: '',
-        company_id: (user as any)?.company_id
-    });
+    const isEditing = !!supplier;
 
-    useEffect(() => {
-        if (supplier) {
-            setFormData({
-                name: supplier.name || '',
-                category: supplier.category || 'Outros',
-                document: supplier.document || '',
-                phone: supplier.phone || '',
-                email: supplier.email || '',
-                address: supplier.address || '',
-                city: supplier.city || '',
-                state: supplier.state || '',
-                company_id: (user as any)?.company_id
-            });
-        } else {
-            setFormData({
-                name: '',
-                category: 'Outros',
-                document: '',
-                phone: '',
-                email: '',
-                address: '',
-                city: '',
-                state: '',
-                company_id: (user as any)?.company_id
-            });
-        }
-    }, [supplier, isOpen, user]);
+    const initialState = {
+        name: supplier?.name || '',
+        category: supplier?.category || 'Outros',
+        document: supplier?.document || '',
+        phone: supplier?.phone || '',
+        email: supplier?.email || '',
+        address: supplier?.address || '',
+        city: supplier?.city || '',
+        state: supplier?.state || '',
+        company_id: (user as any)?.company_id
+    };
+
+    const { formData, setFormData, clearDraft } = usePersistedForm(
+        'supplier',
+        initialState,
+        isEditing
+    );
+
+    const [loading, setLoading] = React.useState(false);
 
     if (!isOpen) return null;
 
@@ -63,9 +45,10 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
         try {
             setLoading(true);
             if (supplier) {
-                await supplierService.updateSupplier(supplier.id, formData);
+                await supplierService.updateSupplier(supplier.id, { ...formData, company_id: (user as any)?.company_id });
             } else {
-                await supplierService.addSupplier(formData);
+                await supplierService.addSupplier({ ...formData, company_id: (user as any)?.company_id });
+                clearDraft();
             }
             onSave();
             onClose();
@@ -96,7 +79,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                             className={inputStyle}
                             placeholder="Ex: Posto do Caminhoneiro"
                             value={formData.name}
-                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            onChange={e => setFormData({ name: e.target.value })}
                         />
                     </div>
 
@@ -107,7 +90,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 required
                                 className={inputStyle}
                                 value={formData.category}
-                                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                onChange={e => setFormData({ category: e.target.value })}
                             >
                                 <option value="">Selecione...</option>
                                 <option value="Combustível">Combustível</option>
@@ -122,7 +105,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 className={inputStyle}
                                 placeholder="00.000.000/0001-00"
                                 value={formData.document}
-                                onChange={e => setFormData({ ...formData, document: e.target.value })}
+                                onChange={e => setFormData({ document: e.target.value })}
                             />
                         </div>
                     </div>
@@ -134,7 +117,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 type="text"
                                 className={inputStyle}
                                 value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                onChange={e => setFormData({ phone: e.target.value })}
                                 placeholder="(00) 00000-0000"
                             />
                         </div>
@@ -144,7 +127,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 type="email"
                                 className={inputStyle}
                                 value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                onChange={e => setFormData({ email: e.target.value })}
                                 placeholder="contato@fornecedor.com"
                             />
                         </div>
@@ -156,7 +139,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                             type="text"
                             className={inputStyle}
                             value={formData.address}
-                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            onChange={e => setFormData({ address: e.target.value })}
                             placeholder="Rua, Número, Bairro..."
                         />
                     </div>
@@ -168,7 +151,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 type="text"
                                 className={inputStyle}
                                 value={formData.city}
-                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                onChange={e => setFormData({ city: e.target.value })}
                                 placeholder="Ex: São Paulo"
                             />
                         </div>
@@ -178,7 +161,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                                 type="text"
                                 className={inputStyle}
                                 value={formData.state}
-                                onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase() })}
+                                onChange={e => setFormData({ state: e.target.value.toUpperCase() })}
                                 maxLength={2}
                                 placeholder="UF"
                             />

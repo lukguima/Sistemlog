@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface FuelModalProps {
     isOpen: boolean;
@@ -12,49 +13,23 @@ interface FuelModalProps {
 }
 
 export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, suppliers, initialData }: FuelModalProps) {
-    const [formData, setFormData] = useState({
-        vehicle_id: '',
-        driver_id: '',
-        supplier_id: '',
-        km_reading: '',
-        liters: '',
-        price_per_liter: '',
-        total_value: '',
-        fuel_type: 'Diesel',
-        location: '',
-        date: new Date().toISOString().split('T')[0]
-    });
+    const isEditing = !!initialData;
+    const initialState = {
+        vehicle_id: initialData?.vehicle_id || '',
+        driver_id: initialData?.driver_id || '',
+        supplier_id: initialData?.supplier_id || '',
+        km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '',
+        liters: initialData?.liters?.toString() || '',
+        price_per_liter: initialData?.price_per_liter?.toString() || '',
+        total_value: initialData?.total_value?.toString() || '',
+        fuel_type: initialData?.fuel_type || 'Diesel',
+        location: initialData?.location || '',
+        date: initialData?.created_at
+            ? new Date(initialData.created_at).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0]
+    };
+    const { formData, setFormData, clearDraft } = usePersistedForm('fuel', initialState, isEditing);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData({
-                vehicle_id: initialData.vehicle_id || '',
-                driver_id: initialData.driver_id || '',
-                supplier_id: initialData.supplier_id || '',
-                km_reading: (initialData.km_reading || initialData.odometer)?.toString() || '',
-                liters: initialData.liters?.toString() || '',
-                price_per_liter: initialData.price_per_liter?.toString() || '',
-                total_value: initialData.total_value?.toString() || '',
-                fuel_type: initialData.fuel_type || 'Diesel',
-                location: initialData.location || '',
-                date: initialData.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-            });
-        } else {
-            setFormData({
-                vehicle_id: '',
-                driver_id: '',
-                supplier_id: '',
-                km_reading: '',
-                liters: '',
-                price_per_liter: '',
-                total_value: '',
-                fuel_type: 'Diesel',
-                location: '',
-                date: new Date().toISOString().split('T')[0]
-            });
-        }
-    }, [initialData, isOpen]);
 
     useEffect(() => {
         const liters = parseFloat(formData.liters);
@@ -74,6 +49,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
         setLoading(true);
         try {
             onSave(formData);
+            clearDraft();
             onClose();
         } catch (error) {
             console.error('Error saving fuel record:', error);

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Truck } from 'lucide-react';
 import { TRUCK_TYPES, type TruckTypeId } from '../../lib/constants';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface AddTruckModalProps {
     isOpen: boolean;
@@ -10,67 +11,27 @@ interface AddTruckModalProps {
 }
 
 export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: AddTruckModalProps) {
-    const [formData, setFormData] = useState({
-        plate: '',
-        model: '',
-        year: new Date().getFullYear(),
-        initial_km: 0,
-        current_km: 0,
-        truck_type: '' as TruckTypeId | '',
-        axle_count: 0,
-        maint_oil_interval: 15000,
-        maint_filter_interval: 30000,
-        maint_tyre_interval: 60000,
-        last_oil_change_km: 0,
-        last_filter_change_km: 0,
-        last_tyre_change_km: 0,
-        insurance_value: 0,
-        document_expiry: '',
-        antt_expiry: '',
-    });
+    const isEditing = !!initialData;
+    const initialState = {
+        plate: initialData?.plate || '',
+        model: initialData?.model || '',
+        year: initialData?.year || new Date().getFullYear(),
+        initial_km: initialData?.initial_km || 0,
+        current_km: initialData?.current_km || 0,
+        truck_type: (initialData?.truck_type || '') as TruckTypeId | '',
+        axle_count: initialData?.axle_count || 0,
+        maint_oil_interval: initialData?.maint_oil_interval || 15000,
+        maint_filter_interval: initialData?.maint_filter_interval || 30000,
+        maint_tyre_interval: initialData?.maint_tyre_interval || 60000,
+        last_oil_change_km: initialData?.last_oil_change_km || 0,
+        last_filter_change_km: initialData?.last_filter_change_km || 0,
+        last_tyre_change_km: initialData?.last_tyre_change_km || 0,
+        insurance_value: initialData?.insurance_value || 0,
+        document_expiry: initialData?.document_expiry || '',
+        antt_expiry: initialData?.antt_expiry || '',
+    };
+    const { formData, setFormData, clearDraft } = usePersistedForm('truck', initialState, isEditing);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData({
-                plate: initialData.plate || '',
-                model: initialData.model || '',
-                year: initialData.year || new Date().getFullYear(),
-                initial_km: initialData.initial_km || 0,
-                current_km: initialData.current_km || 0,
-                truck_type: initialData.truck_type || '',
-                axle_count: initialData.axle_count || 0,
-                maint_oil_interval: initialData.maint_oil_interval || 15000,
-                maint_filter_interval: initialData.maint_filter_interval || 30000,
-                maint_tyre_interval: initialData.maint_tyre_interval || 60000,
-                last_oil_change_km: initialData.last_oil_change_km || 0,
-                last_filter_change_km: initialData.last_filter_change_km || 0,
-                last_tyre_change_km: initialData.last_tyre_change_km || 0,
-                insurance_value: initialData.insurance_value || 0,
-                document_expiry: initialData.document_expiry || '',
-                antt_expiry: initialData.antt_expiry || '',
-            });
-        } else {
-            setFormData({
-                plate: '',
-                model: '',
-                year: new Date().getFullYear(),
-                initial_km: 0,
-                current_km: 0,
-                truck_type: '',
-                axle_count: 0,
-                maint_oil_interval: 15000,
-                maint_filter_interval: 30000,
-                maint_tyre_interval: 60000,
-                last_oil_change_km: 0,
-                last_filter_change_km: 0,
-                last_tyre_change_km: 0,
-                insurance_value: 0,
-                document_expiry: '',
-                antt_expiry: '',
-            });
-        }
-    }, [initialData, isOpen]);
 
     if (!isOpen) return null;
 
@@ -101,6 +62,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                 if (!dataToSave.current_km) dataToSave.current_km = dataToSave.initial_km;
             }
             await onSave(dataToSave);
+            clearDraft();
             onClose();
         } catch (error: any) {
             console.error('Error saving truck:', error);

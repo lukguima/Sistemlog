@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface MaintenanceModalProps {
     isOpen: boolean;
@@ -11,55 +12,23 @@ interface MaintenanceModalProps {
 }
 
 export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, suppliers, initialData }: MaintenanceModalProps) {
-    const [formData, setFormData] = useState({
-        vehicle_id: '',
-        supplier_id: '',
-        type: 'preventive', // preventive, corrective, tyres, oil
-        date: new Date().toISOString().split('T')[0],
-        km: 0,
-        cost: 0,
-        description: '',
-        workshop: '',
-        notes: '',
-        preventive_type: '',
-        next_maintenance_km: 0,
-        maintenance_interval: 0
-    });
+    const isEditing = !!initialData;
+    const initialState = {
+        vehicle_id: initialData?.vehicle_id || '',
+        supplier_id: initialData?.supplier_id || '',
+        type: initialData?.type || 'preventive',
+        date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        km: initialData?.km || 0,
+        cost: initialData?.cost || 0,
+        description: initialData?.description || '',
+        workshop: initialData?.workshop || '',
+        notes: initialData?.notes || '',
+        preventive_type: initialData?.preventive_type || '',
+        next_maintenance_km: initialData?.next_maintenance_km || 0,
+        maintenance_interval: initialData?.maintenance_interval || 0
+    };
+    const { formData, setFormData, clearDraft } = usePersistedForm('maintenance', initialState, isEditing);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData({
-                vehicle_id: initialData.vehicle_id || '',
-                supplier_id: initialData.supplier_id || '',
-                type: initialData.type || 'preventive',
-                date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                km: initialData.km || 0,
-                cost: initialData.cost || 0,
-                description: initialData.description || '',
-                workshop: initialData.workshop || '',
-                notes: initialData.notes || '',
-                preventive_type: initialData.preventive_type || '',
-                next_maintenance_km: initialData.next_maintenance_km || 0,
-                maintenance_interval: initialData.maintenance_interval || 0
-            });
-        } else {
-            setFormData({
-                vehicle_id: '',
-                supplier_id: '',
-                type: 'preventive',
-                date: new Date().toISOString().split('T')[0],
-                km: 0,
-                cost: 0,
-                description: '',
-                workshop: '',
-                notes: '',
-                preventive_type: '',
-                next_maintenance_km: 0,
-                maintenance_interval: 0
-            });
-        }
-    }, [initialData, isOpen]);
 
     if (!isOpen) return null;
 
@@ -71,6 +40,7 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
         setLoading(true);
         try {
             await onSave(formData);
+            clearDraft();
             onClose();
         } catch (error) {
             console.error('Error saving maintenance:', error);

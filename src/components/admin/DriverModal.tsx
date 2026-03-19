@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface DriverModalProps {
     isOpen: boolean;
@@ -10,37 +11,17 @@ interface DriverModalProps {
 }
 
 export default function DriverModal({ isOpen, onClose, onSave, initialData, loading: externalLoading }: DriverModalProps) {
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        license_number: '',
-        license_expiry: '',
-        phone: '',
-        status: 'available'
-    });
+    const isEditing = !!(initialData && initialData.id);
+    const initialState = {
+        name: initialData?.name || '',
+        email: initialData?.email || '',
+        license_number: initialData?.license_number || '',
+        license_expiry: initialData?.license_expiry || '',
+        phone: initialData?.phone || '',
+        status: initialData?.status || 'available'
+    };
+    const { formData, setFormData, clearDraft } = usePersistedForm('driver', initialState, isEditing);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (initialData && Object.keys(initialData).length > 0) {
-            setFormData({
-                name: initialData.name || '',
-                email: initialData.email || '',
-                license_number: initialData.license_number || '',
-                license_expiry: initialData.license_expiry || '',
-                phone: initialData.phone || '',
-                status: initialData.status || 'available'
-            });
-        } else {
-            setFormData({
-                name: '',
-                email: '',
-                license_number: '',
-                license_expiry: '',
-                phone: '',
-                status: 'available'
-            });
-        }
-    }, [initialData, isOpen]);
 
     if (!isOpen) return null;
 
@@ -52,6 +33,7 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
         setLoading(true);
         try {
             await onSave(formData);
+            clearDraft();
             onClose();
         } catch (error: any) {
             const msg = error?.message || error?.details || JSON.stringify(error);
@@ -89,9 +71,8 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
                     </div>
 
                     <div className="space-y-1">
-                        <label className={labelStyle}>Email (Login do Motorista)</label>
+                        <label className={labelStyle}>Email (Login do Motorista) - Opcional</label>
                         <input
-                            required
                             type="email"
                             className={inputStyle}
                             placeholder="joao@exemplo.com"

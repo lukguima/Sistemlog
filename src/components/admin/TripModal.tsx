@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { fixedRouteService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
+import { usePersistedForm } from '../../hooks/usePersistedForm';
 
 interface TripModalProps {
     isOpen: boolean;
@@ -16,74 +17,29 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const { user } = useAuth();
     const companyId = (user as any)?.company_id;
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
-    const [formData, setFormData] = useState({
-        vehicle_id: '',
-        driver_id: '',
-        cargo_description: '',
-        origin: '',
-        destination: '',
-        date: new Date().toISOString().split('T')[0],
-        start_km: '',
-        end_km: '',
-        cte: '',
-        weight: '',
-        value: '',
-        tax_rate: '',
-        commission_rate: '',
-        estimated_cost: '',
-        advance_value: '',
-        tolls_value: '',
-        insurance_value: '',
-        status: 'pending'
-    });
+    const isEditing = !!initialData;
+    const initialState = {
+        vehicle_id: initialData?.vehicle_id || '',
+        driver_id: initialData?.driver_id || '',
+        cargo_description: initialData?.cargo_description || '',
+        origin: initialData?.origin || '',
+        destination: initialData?.destination || '',
+        date: initialData?.date || new Date().toISOString().split('T')[0],
+        start_km: initialData?.start_km || '',
+        end_km: initialData?.end_km || '',
+        cte: initialData?.cte || initialData?.cte_number || '',
+        weight: initialData?.weight || '',
+        value: initialData?.value || initialData?.gross_value || '',
+        tax_rate: initialData?.tax_rate || '',
+        commission_rate: initialData?.commission_rate || '',
+        estimated_cost: initialData?.estimated_cost || '',
+        advance_value: initialData?.advance_value || '',
+        tolls_value: initialData?.tolls_value || initialData?.toll_expense || '',
+        insurance_value: initialData?.insurance_value || initialData?.other_expenses || '',
+        status: initialData?.status || 'pending'
+    };
+    const { formData, setFormData, clearDraft } = usePersistedForm('trip', initialState, isEditing);
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData({
-                ...initialData,
-                vehicle_id: initialData.vehicle_id || '',
-                driver_id: initialData.driver_id || '',
-                cargo_description: initialData.cargo_description || '',
-                origin: initialData.origin || '',
-                destination: initialData.destination || '',
-                date: initialData.date || new Date().toISOString().split('T')[0],
-                start_km: initialData.start_km || '',
-                end_km: initialData.end_km || '',
-                cte: initialData.cte || initialData.cte_number || '',
-                weight: initialData.weight || '',
-                value: initialData.value || initialData.gross_value || '',
-                tax_rate: initialData.tax_rate || '',
-                commission_rate: initialData.commission_rate || '',
-                estimated_cost: initialData.estimated_cost || '',
-                advance_value: initialData.advance_value || '',
-                tolls_value: initialData.tolls_value || initialData.toll_expense || '',
-                insurance_value: initialData.insurance_value || initialData.other_expenses || '',
-                status: initialData.status || 'pending'
-            });
-        } else {
-            setFormData({
-                vehicle_id: '',
-                driver_id: '',
-                cargo_description: '',
-                origin: '',
-                destination: '',
-                date: new Date().toISOString().split('T')[0],
-                start_km: '',
-                end_km: '',
-                cte: '',
-                weight: '',
-                value: '',
-                tax_rate: '',
-                commission_rate: '',
-                estimated_cost: '',
-                advance_value: '',
-                tolls_value: '',
-                insurance_value: '',
-                status: 'pending'
-            });
-        }
-    }, [initialData, isOpen]);
 
     useEffect(() => {
         if (isOpen && companyId) {
@@ -111,6 +67,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
         setLoading(true);
         try {
             await onSave(formData);
+            clearDraft();
             onClose();
         } catch (error) {
             console.error('Error saving trip:', error);
