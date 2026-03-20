@@ -47,10 +47,22 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
         custo: (t.tolls_value || 0) + (t.fuel_expense || 0)
     })).reverse() : [];
 
-    const efficiencyData = data?.history?.fuels ? data.history.fuels.map((f: any) => ({
-        name: new Date(f.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        kmPerLiter: f.liters > 0 ? (Number(f.km_reading) / Number(f.liters)) : 0
-    })).reverse() : [];
+    const efficiencyData = (() => {
+        if (!data?.history?.fuels?.length) return [];
+        const sorted = [...data.history.fuels].sort((a: any, b: any) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        return sorted.map((f: any, i: number) => {
+            const prev = i > 0 ? sorted[i - 1] : null;
+            const kmDelta = prev && Number(f.odometer) > Number(prev.odometer)
+                ? Number(f.odometer) - Number(prev.odometer) : null;
+            const liters = Number(f.liters) || 0;
+            return {
+                name: new Date(f.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                kmPerLiter: kmDelta !== null && liters > 0 ? parseFloat((kmDelta / liters).toFixed(2)) : 0
+            };
+        });
+    })();
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -187,7 +199,7 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                                 <div>
                                                     <div className="font-bold text-xs text-slate-800 dark:text-slate-200">{trip.cargo_description || 'Frete Geral'}</div>
                                                     <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-tighter">
-                                                        {trip.origin_city} ➔ {trip.destination_city}
+                                                        {trip.origin} ➔ {trip.destination}
                                                     </div>
                                                 </div>
                                                 <div className="text-right">

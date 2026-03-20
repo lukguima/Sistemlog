@@ -840,10 +840,10 @@ export const dashboardService = {
             { data: fuels, error: fError },
             { data: maintenances, error: mError }
         ] = await Promise.all([
-            supabase.from('vehicles').select('*').eq('id', vehicleId).single(),
-            supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).order('created_at', { ascending: false }),
-            supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).order('created_at', { ascending: false }),
-            supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).order('date', { ascending: false })
+            supabase.from('vehicles').select('*').eq('id', vehicleId).eq('company_id', companyId).single(),
+            supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false }),
+            supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false }),
+            supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('date', { ascending: false })
         ]);
 
         if (vError || tError || fError || mError) throw vError || tError || fError || mError;
