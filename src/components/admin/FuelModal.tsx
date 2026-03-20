@@ -286,6 +286,27 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         </p>
                     </div>
 
+                    {/* Resumo de totais */}
+                    {(() => {
+                        const diesel = parseFloat(formData.total_value) || 0;
+                        const arla   = parseFloat(formData.arla_value)  || 0;
+                        const total  = diesel + arla;
+                        if (total === 0) return null;
+                        const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        return (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-slate-100 rounded-xl px-4 py-3">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total ARLA</p>
+                                    <p className="text-lg font-black text-teal-600">{fmt(arla)}</p>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Diesel + ARLA</p>
+                                    <p className="text-lg font-black text-blue-700">{fmt(total)}</p>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     <div className="flex gap-4 pt-2">
                         <button
                             type="button"
