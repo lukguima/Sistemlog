@@ -5,12 +5,15 @@ import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedF
 import React from 'react';
 
 const DRAFT_KEY = 'truck';
+const IMPLEMENT_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'BITREM', 'RODOTREM'];
+
 const makeEmpty = () => ({
     plate: '', model: '', year: new Date().getFullYear(),
     initial_km: 0, current_km: 0, truck_type: '' as TruckTypeId | '',
     axle_count: 0, maint_oil_interval: 15000, maint_filter_interval: 30000,
     maint_tyre_interval: 60000, last_oil_change_km: 0, last_filter_change_km: 0,
     last_tyre_change_km: 0, insurance_value: 0, document_expiry: '', antt_expiry: '',
+    implement_plate_1: '', implement_plate_2: '',
 });
 
 interface AddTruckModalProps {
@@ -197,6 +200,33 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                             />
                         </div>
                     </div>
+
+                    {/* Placas dos Implementos — aparece apenas para tipos que usam cavalo */}
+                    {formData.truck_type && IMPLEMENT_TYPES.includes(formData.truck_type as TruckTypeId) && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Placas dos Implementos</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className={labelStyle}>Implemento 1 (Carreta/Reboque)</label>
+                                    <input
+                                        className={inputStyle}
+                                        placeholder="ABC-1234"
+                                        value={formData.implement_plate_1}
+                                        onChange={e => setFormData({ implement_plate_1: e.target.value.toUpperCase() })}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelStyle}>Implemento 2 (Opcional)</label>
+                                    <input
+                                        className={inputStyle}
+                                        placeholder="ABC-1234"
+                                        value={formData.implement_plate_2}
+                                        onChange={e => setFormData({ implement_plate_2: e.target.value.toUpperCase() })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
