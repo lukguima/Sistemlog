@@ -250,7 +250,7 @@ export default function Fuel() {
                                             )}
                                         </td>
                                         <td className="px-6 py-5 text-right">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex justify-end gap-2">
                                                 <button
                                                     onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
                                                     className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"
