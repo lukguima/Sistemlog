@@ -29,7 +29,7 @@ export default function Maintenance() {
             ]);
             setHistory(maintData || []);
             setVehicles(vehiclesData || []);
-            setSuppliers((suppliersData || []).filter((s: any) => ['Oficina', 'Peças'].includes(s.category)));
+            setSuppliers((suppliersData || []).filter((s: any) => ['Manutenção', 'Peças', 'Outros'].includes(s.category)));
 
             // Calcular estatísticas
             const now = new Date();
