@@ -126,7 +126,8 @@ export default function Trips() {
                 start_km: toNum(rest.start_km),
                 end_km: rest.end_km !== '' && rest.end_km != null ? Number(rest.end_km) : null,
                 company_id: companyId,
-                created_at: date ? new Date(date).toISOString() : new Date().toISOString()
+                // Usa meio-dia UTC para evitar deslocamento de fuso (UTC-3 recuaria para o dia anterior)
+                created_at: date ? `${date}T12:00:00.000Z` : new Date().toISOString()
             };
 
             if (editingId) {
@@ -204,7 +205,7 @@ export default function Trips() {
     const handleExportPDF = () => {
         const headers = [['Data', 'Caminhão', 'Motorista', 'Origem', 'Destino', 'Peso', 'CT-e', 'Valor Bruto', 'Status']];
         const data = filteredTrips.map(t => [
-            t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '-',
+            t.created_at ? (() => { const [y,m,d] = t.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })() : '-',
             t.vehicle?.plate || '-',
             t.driver?.name || '-',
             t.origin,
@@ -219,7 +220,7 @@ export default function Trips() {
 
     const handleExportExcel = () => {
         const data = filteredTrips.map(t => ({
-            Data: t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '-',
+            Data: t.created_at ? (() => { const [y,m,d] = t.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })() : '-',
             Veiculo: t.vehicle?.plate || '-',
             Motorista: t.driver?.name || '-',
             Origem: t.origin,
@@ -324,7 +325,7 @@ export default function Trips() {
                                 paginatedTrips.map(trip => (
                                     <tr key={trip.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                         <td className="px-4 py-4 text-xs font-medium text-slate-500">
-                                            {trip.created_at ? new Date(trip.created_at).toLocaleDateString('pt-BR') : '-'}
+                                            {trip.created_at ? (() => { const [y,m,d] = trip.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })() : '-'}
                                         </td>
                                         <td className="px-4 py-4 font-mono text-xs">{trip.vehicle?.plate || '-'}</td>
                                         <td className="px-4 py-4 font-bold text-sm">{trip.driver?.name || '-'}</td>

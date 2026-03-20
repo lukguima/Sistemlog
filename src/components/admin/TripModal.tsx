@@ -26,8 +26,19 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const companyId = (user as any)?.company_id;
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
     const isEditing = !!initialData;
+    const buildEditData = (data: any) => ({
+        ...makeEmpty(),
+        ...data,
+        cte: data?.cte || data?.cte_number || '',
+        value: data?.value || data?.gross_value || '',
+        tolls_value: data?.tolls_value || data?.toll_expense || '',
+        insurance_value: data?.insurance_value || data?.other_expenses || '',
+        // Extrai a data de created_at sem converter fuso (slice dos 10 primeiros chars)
+        date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
+    });
+
     const [formData, setFormDataState] = useState(() => {
-        if (isEditing) return { ...makeEmpty(), ...initialData, cte: initialData?.cte || initialData?.cte_number || '', value: initialData?.value || initialData?.gross_value || '', tolls_value: initialData?.tolls_value || initialData?.toll_expense || '', insurance_value: initialData?.insurance_value || initialData?.other_expenses || '' };
+        if (isEditing) return buildEditData(initialData);
         return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
     });
     const [loading, setLoading] = useState(false);
@@ -35,7 +46,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     React.useEffect(() => {
         if (!isOpen) return;
         if (isEditing && initialData) {
-            setFormDataState({ ...makeEmpty(), ...initialData, cte: initialData?.cte || initialData?.cte_number || '', value: initialData?.value || initialData?.gross_value || '', tolls_value: initialData?.tolls_value || initialData?.toll_expense || '', insurance_value: initialData?.insurance_value || initialData?.other_expenses || '' });
+            setFormDataState(buildEditData(initialData));
         } else if (!isEditing) {
             const draft = loadDraft(DRAFT_KEY);
             setFormDataState({ ...makeEmpty(), ...(draft || {}) });
