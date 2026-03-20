@@ -242,7 +242,10 @@ export default function MasterDashboard() {
                                             <tr key={company.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                                                 <td className="px-5 py-4">
                                                     <p className="font-bold text-slate-900 dark:text-white">{company.name}</p>
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">{sub?.kiwify_customer_email || 'email não vinculado'}</p>
+                                                    <p className="text-[10px] text-slate-400 mt-0.5">{sub?.kiwify_customer_email || company.adminEmail || 'email não vinculado'}</p>
+                                                    {company.adminPhone && (
+                                                        <p className="text-[10px] text-slate-500 mt-0.5">{company.adminPhone}</p>
+                                                    )}
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">

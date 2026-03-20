@@ -14,9 +14,11 @@ const PLAN_LIMITS: Record<string, number | null> = {
 
 function getVehicleLimit(subscription: any): number | null {
     if (!subscription) return PLAN_LIMITS['trial'] as number;
-    // vehicle_limit explícito no banco tem prioridade
+    // Enterprise é sempre ilimitado, independente do valor no banco
+    if (subscription.plan === 'enterprise') return null;
+    // vehicle_limit explícito no banco tem prioridade (para outros planos)
     if (subscription.vehicle_limit !== undefined && subscription.vehicle_limit !== null) return subscription.vehicle_limit;
-    // null = ilimitado (enterprise), undefined/desconhecido = 3
+    // Fallback pelo plano
     const planLimit = PLAN_LIMITS[subscription.plan];
     return planLimit !== undefined ? planLimit : 3;
 }
@@ -488,7 +490,7 @@ export default function Fleet() {
                             <h2 className="text-xl font-bold">Limite do plano atingido</h2>
                         </div>
                         <p className="text-white/80 text-sm">
-                            Seu plano <strong>{subscription?.plan === 'basico' ? 'Básico' : subscription?.plan === 'trial' ? 'Trial' : subscription?.plan}</strong> permite até <strong>{vehicleLimit} veículos</strong>. Faça upgrade para continuar crescendo.
+                            Seu plano <strong>{subscription?.plan === 'basico' ? 'Básico' : subscription?.plan === 'pro' ? 'Pro' : subscription?.plan === 'trial' ? 'Trial' : subscription?.plan}</strong> permite até <strong>{vehicleLimit !== null ? `${vehicleLimit} veículos` : 'veículos ilimitados'}</strong>. Faça upgrade para continuar crescendo.
                         </p>
                     </div>
 
