@@ -274,13 +274,13 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     {/* Financeiro: Valor, Imposto, Comissão */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
-                            <label className={labelStyle}>Valor do Frete</label>
+                            <label className={labelStyle}>Tarifa (R$/kg)</label>
                             <input
                                 required
                                 type="number"
-                                step="0.01"
+                                step="0.0001"
                                 className={inputStyle}
-                                placeholder="0,00"
+                                placeholder="0,0000"
                                 value={formData.value}
                                 onChange={e => setFormData({ ...formData, value: e.target.value })}
                             />
@@ -306,6 +306,26 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             />
                         </div>
                     </div>
+
+                    {/* Valor Total Bruto previsto */}
+                    {(() => {
+                        const peso = parseFloat(formData.weight);
+                        const tarifa = parseFloat(formData.value);
+                        if (!isNaN(peso) && !isNaN(tarifa) && peso > 0 && tarifa > 0) {
+                            const total = peso * tarifa;
+                            const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                            return (
+                                <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-0.5">Valor Total Bruto Previsto</p>
+                                        <p className="text-[10px] text-blue-400">{peso.toLocaleString('pt-BR')} kg × {fmt(tarifa)}/kg</p>
+                                    </div>
+                                    <p className="text-2xl font-black text-blue-700">{fmt(total)}</p>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
 
                     {/* Custos e Vale */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

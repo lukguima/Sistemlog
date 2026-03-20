@@ -112,9 +112,11 @@ export default function Trips() {
 
             const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
 
+            const weight = toNum(rest.weight);
+            const tarifa = toNum(value);
             const dataToSave = {
                 ...rest,
-                gross_value: toNum(value),
+                gross_value: weight > 0 && tarifa > 0 ? weight * tarifa : tarifa,
                 cte_number: cte || '',
                 weight: toNum(rest.weight),
                 tax_rate: toNum(rest.tax_rate),
