@@ -801,14 +801,14 @@ export const dashboardService = {
 
         if (tError || fError) throw tError || fError;
 
-        const profitByTruck: Record<string, { plate: string; gross: number; expenses: number; net: number }> = {};
+        const profitByTruck: Record<string, { vehicle_id: string; plate: string; gross: number; expenses: number; net: number }> = {};
 
         trips?.forEach(t => {
             const vId = t.vehicle_id;
             if (!vId) return;
             if (!profitByTruck[vId]) {
                 const vehicleData: any = t.vehicle;
-                profitByTruck[vId] = { plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
+                profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
             profitByTruck[vId].gross += Number(t.gross_value) || 0;
             profitByTruck[vId].expenses += (Number((t as any).tolls_value) || 0) + (Number((t as any).insurance_value) || 0);
@@ -819,7 +819,7 @@ export const dashboardService = {
             if (!vId) return;
             if (!profitByTruck[vId]) {
                 const vehicleData: any = f.vehicle;
-                profitByTruck[vId] = { plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
+                profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
             profitByTruck[vId].expenses += (Number(f.total_value) || 0) + (Number((f as any).arla_value) || 0);
         });
@@ -1216,7 +1216,7 @@ export const dashboardService = {
         const [{ data: fuels, error: fError }, { data: trips, error: tError }] = await Promise.all([fuelQuery, tripQuery]);
         if (fError || tError) throw fError || tError;
 
-        const vehicleStats: Record<string, { plate: string; model: string; liters: number; fuelCost: number; arlaCost: number; kmDriven: number; revenue: number; lastOdometer: number }> = {};
+        const vehicleStats: Record<string, { vehicle_id: string; plate: string; model: string; liters: number; fuelCost: number; arlaCost: number; kmDriven: number; revenue: number; lastOdometer: number }> = {};
 
         const vehicleKmBaseline: Record<string, number> = {};
         if (startDate && fuels && fuels.length > 0) {
@@ -1240,7 +1240,7 @@ export const dashboardService = {
             if (!f.vehicle_id) return;
             const vData: any = f.vehicle;
             if (!vehicleStats[f.vehicle_id]) {
-                vehicleStats[f.vehicle_id] = { plate: vData?.plate || '---', model: vData?.model || '', liters: 0, fuelCost: 0, arlaCost: 0, kmDriven: 0, revenue: 0, lastOdometer: 0 };
+                vehicleStats[f.vehicle_id] = { vehicle_id: f.vehicle_id, plate: vData?.plate || '---', model: vData?.model || '', liters: 0, fuelCost: 0, arlaCost: 0, kmDriven: 0, revenue: 0, lastOdometer: 0 };
             }
             if (!fuelByVehicle[f.vehicle_id]) fuelByVehicle[f.vehicle_id] = [];
             fuelByVehicle[f.vehicle_id].push(f);
@@ -1278,6 +1278,7 @@ export const dashboardService = {
         });
 
         return Object.values(vehicleStats).map(v => ({
+            vehicle_id: v.vehicle_id,
             vehicle: v.plate + (v.model ? ` — ${v.model}` : ''),
             plate: v.plate,
             revenue: v.revenue,
