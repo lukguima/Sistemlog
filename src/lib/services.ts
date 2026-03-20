@@ -314,7 +314,7 @@ export const financeService = {
 
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('total_value')
+            .select('total_value, arla_value')
             .eq('company_id', companyId);
 
         let maintenanceQuery = supabase
@@ -358,6 +358,7 @@ export const financeService = {
         const expectedGrossRevenue = trips?.filter(t => !validStatuses.includes(t.status)).reduce((acc, trip) => acc + (Number(trip.gross_value) || 0), 0) || 0;
         
         const fuelExpenses = fuel?.reduce((acc, record) => acc + (Number(record.total_value) || 0), 0) || 0;
+        const arlaExpenses = fuel?.reduce((acc, record) => acc + (Number((record as any).arla_value) || 0), 0) || 0;
         const maintenanceExpenses = maintenance?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
         
         // Custos de Viagem (Pedágio e Seguro por viagem)
@@ -367,12 +368,13 @@ export const financeService = {
         // Custos Fixos de Veículo (Seguro fixo - escalonado pelo período se necessário, mas aqui somaremos o total cadastrado)
         const fixedInsurance = vehicles?.reduce((acc, vehicle) => acc + (Number((vehicle as any).insurance_value) || 0), 0) || 0;
 
-        const totalExpenses = fuelExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance;
+        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance;
 
         return {
             grossRevenue,
             expectedGrossRevenue,
             fuelExpenses,
+            arlaExpenses,
             maintenanceExpenses,
             tripTolls,
             tripInsurance,
@@ -394,7 +396,7 @@ export const financeService = {
 
         const { data: fuel, error: fError } = await supabase
             .from('fuel_records')
-            .select('total_value, created_at')
+            .select('total_value, arla_value, created_at')
             .eq('company_id', companyId)
             .gte('created_at', sixMonthsAgo);
 
@@ -429,7 +431,7 @@ export const financeService = {
         fuel?.forEach(f => {
             const d = new Date(f.created_at);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
-            if (result[key]) result[key].expenses += Number(f.total_value) || 0;
+            if (result[key]) result[key].expenses += (Number(f.total_value) || 0) + (Number((f as any).arla_value) || 0);
         });
 
         maintenance?.forEach(m => {
@@ -767,7 +769,7 @@ export const dashboardService = {
 
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('vehicle_id, total_value, created_at, vehicle:vehicles(plate)')
+            .select('vehicle_id, total_value, arla_value, created_at, vehicle:vehicles(plate)')
             .eq('company_id', companyId);
 
         if (startDate) {
@@ -796,7 +798,6 @@ export const dashboardService = {
                 profitByTruck[vId] = { plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
             profitByTruck[vId].gross += Number(t.gross_value) || 0;
-            // Deduzir pedágio e seguro da viagem
             profitByTruck[vId].expenses += (Number((t as any).tolls_value) || 0) + (Number((t as any).insurance_value) || 0);
         });
 
@@ -807,7 +808,7 @@ export const dashboardService = {
                 const vehicleData: any = f.vehicle;
                 profitByTruck[vId] = { plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
-            profitByTruck[vId].expenses += Number(f.total_value) || 0;
+            profitByTruck[vId].expenses += (Number(f.total_value) || 0) + (Number((f as any).arla_value) || 0);
         });
 
         Object.values(profitByTruck).forEach(truck => {
@@ -1181,7 +1182,7 @@ export const dashboardService = {
     async getVehicleEfficiency(companyId: string, startDate?: string, endDate?: string) {
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('vehicle_id, total_value, liters, created_at, odometer, vehicle:vehicles(plate, model)')
+            .select('vehicle_id, total_value, arla_value, liters, created_at, odometer, vehicle:vehicles(plate, model)')
             .eq('company_id', companyId)
             .order('odometer', { ascending: true });
 
@@ -1202,7 +1203,7 @@ export const dashboardService = {
         const [{ data: fuels, error: fError }, { data: trips, error: tError }] = await Promise.all([fuelQuery, tripQuery]);
         if (fError || tError) throw fError || tError;
 
-        const vehicleStats: Record<string, { plate: string; model: string; liters: number; fuelCost: number; kmDriven: number; revenue: number; lastOdometer: number }> = {};
+        const vehicleStats: Record<string, { plate: string; model: string; liters: number; fuelCost: number; arlaCost: number; kmDriven: number; revenue: number; lastOdometer: number }> = {};
 
         const vehicleKmBaseline: Record<string, number> = {};
         if (startDate && fuels && fuels.length > 0) {
@@ -1226,7 +1227,7 @@ export const dashboardService = {
             if (!f.vehicle_id) return;
             const vData: any = f.vehicle;
             if (!vehicleStats[f.vehicle_id]) {
-                vehicleStats[f.vehicle_id] = { plate: vData?.plate || '---', model: vData?.model || '', liters: 0, fuelCost: 0, kmDriven: 0, revenue: 0, lastOdometer: 0 };
+                vehicleStats[f.vehicle_id] = { plate: vData?.plate || '---', model: vData?.model || '', liters: 0, fuelCost: 0, arlaCost: 0, kmDriven: 0, revenue: 0, lastOdometer: 0 };
             }
             if (!fuelByVehicle[f.vehicle_id]) fuelByVehicle[f.vehicle_id] = [];
             fuelByVehicle[f.vehicle_id].push(f);
@@ -1239,9 +1240,11 @@ export const dashboardService = {
             let totalKm = 0;
             let previousKm = vehicleKmBaseline[vId] || 0;
 
+            let totalArlaCost = 0;
             records.forEach(r => {
                 totalLiters += Number(r.liters) || 0;
                 totalCost += Number(r.total_value) || 0;
+                totalArlaCost += Number(r.arla_value) || 0;
                 const currentKm = Number(r.odometer);
                 if (previousKm > 0) {
                     const diff = currentKm - previousKm;
@@ -1252,6 +1255,7 @@ export const dashboardService = {
 
             vehicleStats[vId].liters += totalLiters;
             vehicleStats[vId].fuelCost += totalCost;
+            vehicleStats[vId].arlaCost += totalArlaCost;
             vehicleStats[vId].kmDriven += totalKm;
         });
 
@@ -1265,14 +1269,17 @@ export const dashboardService = {
             plate: v.plate,
             revenue: v.revenue,
             fuelCost: v.fuelCost,
-            kmPerLiter: v.liters > 0 && v.kmDriven > 0 ? v.kmDriven / v.liters : 0
+            arlaCost: v.arlaCost,
+            totalFuelCost: v.fuelCost + v.arlaCost,
+            kmPerLiter: v.liters > 0 && v.kmDriven > 0 ? v.kmDriven / v.liters : 0,
+            costPerKm: v.kmDriven > 0 ? (v.fuelCost + v.arlaCost) / v.kmDriven : 0
         })).sort((a, b) => b.kmPerLiter - a.kmPerLiter);
     },
 
     async getCostDistribution(companyId: string, startDate?: string, endDate?: string) {
         let fuelQuery = supabase
            .from('fuel_records')
-           .select('total_value, created_at')
+           .select('total_value, arla_value, created_at')
            .eq('company_id', companyId);
 
         let maintenanceQuery = supabase
@@ -1314,18 +1321,22 @@ export const dashboardService = {
 
         if (fError || mError || aError) throw fError || mError || aError;
         const fuelTotal = fuel?.reduce((acc, f) => acc + (Number(f.total_value) || 0), 0) || 0;
+        const arlaTotal = fuel?.reduce((acc, f) => acc + (Number((f as any).arla_value) || 0), 0) || 0;
         const maintenanceTotal = maintenance?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
         const advancesTotal = advances?.reduce((acc, a) => acc + (Number(a.amount) || 0), 0) || 0;
         const commissionsTotal = settlements?.reduce((acc, s) => acc + (Number(s.net_paid) || 0), 0) || 0;
         const laborTotal = advancesTotal + commissionsTotal;
 
-        const total = fuelTotal + maintenanceTotal + laborTotal;
-        
-        return [
+        const total = fuelTotal + arlaTotal + maintenanceTotal + laborTotal;
+
+        const items = [
            { label: 'Diesel', value: fuelTotal, percentage: total ? (fuelTotal / total) * 100 : 0, color: '#2563EB' },
+           { label: 'ARLA 32', value: arlaTotal, percentage: total ? (arlaTotal / total) * 100 : 0, color: '#0D9488' },
            { label: 'Manutenção', value: maintenanceTotal, percentage: total ? (maintenanceTotal / total) * 100 : 0, color: '#F43F5E' },
            { label: 'Pessoal', value: laborTotal, percentage: total ? (laborTotal / total) * 100 : 0, color: '#10B981' },
         ];
+        // Omite ARLA do gráfico se não houver lançamentos de ARLA
+        return arlaTotal > 0 ? items : items.filter(i => i.label !== 'ARLA 32');
     }
 };
 

@@ -1,4 +1,4 @@
-import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus } from 'lucide-react';
+import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { driverService, fleetService, supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +10,7 @@ export default function Fuel() {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [records, setRecords] = useState<any[]>([]);
-    const [stats, setStats] = useState({ totalLiters: 0, totalValue: 0, count: 0 });
+    const [stats, setStats] = useState({ totalLiters: 0, totalValue: 0, count: 0, totalArlaLiters: 0, totalArlaValue: 0 });
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
     const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -36,12 +36,10 @@ export default function Fuel() {
 
             const totalLiters = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0);
             const totalValue = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
+            const totalArlaLiters = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.arla_liters) || 0), 0);
+            const totalArlaValue = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.arla_value) || 0), 0);
 
-            setStats({
-                totalLiters,
-                totalValue,
-                count: (fuelData || []).length
-            });
+            setStats({ totalLiters, totalValue, count: (fuelData || []).length, totalArlaLiters, totalArlaValue });
         } catch (error) {
             console.error('Erro ao carregar abastecimentos:', error);
         } finally {
@@ -50,15 +48,12 @@ export default function Fuel() {
     };
 
     useEffect(() => {
-        if (user?.company_id) {
-            loadData();
-        }
+        if (user?.company_id) loadData();
     }, [user, startDate, endDate]);
 
     const handleSave = async (data: any) => {
         if (!user?.company_id) return;
         try {
-            // Remove 'date' e mapeia km_reading (campo do form) → odometer (coluna do banco)
             const { date, km_reading, ...rest } = data;
             const toUuid = (v: any) => (v === '' || v == null) ? null : v;
             const toNum  = (v: any) => (v === '' || v == null) ? null : Number(v) || null;
@@ -71,6 +66,8 @@ export default function Fuel() {
                 liters:          toNum(rest.liters),
                 price_per_liter: toNum(rest.price_per_liter),
                 total_value:     toNum(rest.total_value),
+                arla_liters:     toNum(rest.arla_liters),
+                arla_value:      toNum(rest.arla_value),
                 created_at:      date ? new Date(date).toISOString() : new Date().toISOString()
             };
 
@@ -107,6 +104,8 @@ export default function Fuel() {
         );
     }
 
+    const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
     return (
         <div className="space-y-8 pb-12 font-display">
             <div className="flex justify-between items-end">
@@ -115,51 +114,69 @@ export default function Fuel() {
                     <p className="text-slate-500 mt-1 uppercase text-xs font-bold tracking-widest">Controle de consumo e gastos com combustível</p>
                 </div>
                 <button
-                    onClick={() => {
-                        setEditingRecord(null);
-                        setIsModalOpen(true);
-                    }}
+                    onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
                     className="bg-primary-500 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-primary-600 transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20"
                 >
                     <Plus size={18} /> Novo Registro
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-primary-50 rounded-2xl text-primary-600">
-                            <FuelIcon size={24} />
-                        </div>
+            {/* Stats cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-primary-50 rounded-2xl text-primary-600"><FuelIcon size={20} /></div>
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase">Total Litros</p>
-                            <h3 className="text-2xl font-black text-slate-900">{stats.totalLiters.toLocaleString()} L</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Litros Diesel</p>
+                            <h3 className="text-xl font-black text-slate-900">{stats.totalLiters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L</h3>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600">
-                            <CheckCircle2 size={24} />
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-50 rounded-2xl text-emerald-600"><CheckCircle2 size={20} /></div>
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase">Investimento Total</p>
-                            <h3 className="text-2xl font-black text-slate-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalValue)}</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Custo Diesel</p>
+                            <h3 className="text-xl font-black text-slate-900">{fmt(stats.totalValue)}</h3>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-amber-50 rounded-2xl text-amber-600">
-                            <Clock size={24} />
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={20} /></div>
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase">Registros</p>
-                            <h3 className="text-2xl font-black text-slate-900">{stats.count.toString().padStart(2, '0')}</h3>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Litros ARLA</p>
+                            <h3 className="text-xl font-black text-slate-900">{stats.totalArlaLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</h3>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={20} /></div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Custo ARLA</p>
+                            <h3 className="text-xl font-black text-slate-900">{fmt(stats.totalArlaValue)}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-600"><Clock size={20} /></div>
+                        <div>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase">Registros</p>
+                            <h3 className="text-xl font-black text-slate-900">{stats.count.toString().padStart(2, '0')}</h3>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Custo total combustível */}
+            {(stats.totalValue + stats.totalArlaValue) > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-600">Custo Total Combustível (Diesel + ARLA)</span>
+                    <span className="text-xl font-black text-slate-900">{fmt(stats.totalValue + stats.totalArlaValue)}</span>
+                </div>
+            )}
 
             <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-xl">
                 <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-white">
@@ -187,44 +204,55 @@ export default function Fuel() {
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-white">
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Veículo</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motorista</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Litros</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Total</th>
-                                <th className="px-8 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Veículo</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motorista</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Diesel (L)</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Diesel</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">ARLA (L)</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">Valor ARLA</th>
+                                <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {records.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                    <td colSpan={8} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
                                         Nenhum abastecimento registrado
                                     </td>
                                 </tr>
                             ) : (
                                 records.map((r) => (
                                     <tr key={r.id} className="hover:bg-slate-50/10 transition-colors group">
-                                        <td className="px-8 py-6 text-slate-500 text-sm">
+                                        <td className="px-6 py-5 text-slate-500 text-sm">
                                             {format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                                         </td>
-                                        <td className="px-8 py-6 font-black text-slate-900">
-                                            <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono">
+                                        <td className="px-6 py-5 font-black text-slate-900">
+                                            <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm">
                                                 {r.vehicle?.plate || '---'}
                                             </span>
                                         </td>
-                                        <td className="px-8 py-6 font-bold text-slate-700">{r.driver?.name || '---'}</td>
-                                        <td className="px-8 py-6 font-bold text-slate-900">{Number(r.liters).toLocaleString()} L</td>
-                                        <td className="px-8 py-6 font-bold text-primary-600">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.total_value)}
+                                        <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
+                                        <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
+                                        <td className="px-6 py-5 font-bold text-primary-600 text-sm">{fmt(Number(r.total_value) || 0)}</td>
+                                        <td className="px-6 py-5 text-sm">
+                                            {r.arla_liters ? (
+                                                <span className="font-bold text-teal-700">{Number(r.arla_liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
+                                            ) : (
+                                                <span className="text-slate-300">—</span>
+                                            )}
                                         </td>
-                                        <td className="px-8 py-6 text-right">
+                                        <td className="px-6 py-5 text-sm">
+                                            {r.arla_value ? (
+                                                <span className="font-bold text-teal-600">{fmt(Number(r.arla_value))}</span>
+                                            ) : (
+                                                <span className="text-slate-300">—</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5 text-right">
                                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
-                                                    onClick={() => {
-                                                        setEditingRecord(r);
-                                                        setIsModalOpen(true);
-                                                    }}
+                                                    onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
                                                     className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"
                                                 >
                                                     <Edit2 size={16} />
@@ -247,10 +275,7 @@ export default function Fuel() {
 
             <FuelModal
                 isOpen={isModalOpen}
-                onClose={() => {
-                    setIsModalOpen(false);
-                    setEditingRecord(null);
-                }}
+                onClose={() => { setIsModalOpen(false); setEditingRecord(null); }}
                 onSave={handleSave}
                 vehicles={vehicles}
                 drivers={drivers}

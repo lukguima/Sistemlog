@@ -6,7 +6,8 @@ const DRAFT_KEY = 'fuel';
 const makeEmpty = () => ({
     vehicle_id: '', driver_id: '', supplier_id: '', km_reading: '',
     liters: '', price_per_liter: '', total_value: '', fuel_type: 'Diesel',
-    location: '', date: new Date().toISOString().split('T')[0]
+    location: '', date: new Date().toISOString().split('T')[0],
+    arla_liters: '', arla_value: ''
 });
 
 interface FuelModalProps {
@@ -22,7 +23,21 @@ interface FuelModalProps {
 export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, suppliers, initialData }: FuelModalProps) {
     const isEditing = !!initialData;
     const [formData, setFormDataState] = useState(() => {
-        if (isEditing) return { ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] };
+        if (isEditing) return {
+            ...makeEmpty(),
+            vehicle_id: initialData?.vehicle_id || '',
+            driver_id: initialData?.driver_id || '',
+            supplier_id: initialData?.supplier_id || '',
+            km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '',
+            liters: initialData?.liters?.toString() || '',
+            price_per_liter: initialData?.price_per_liter?.toString() || '',
+            total_value: initialData?.total_value?.toString() || '',
+            fuel_type: initialData?.fuel_type || 'Diesel',
+            location: initialData?.location || '',
+            date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            arla_liters: initialData?.arla_liters?.toString() || '',
+            arla_value: initialData?.arla_value?.toString() || '',
+        };
         return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
     });
     const [loading, setLoading] = useState(false);
@@ -30,7 +45,21 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
     React.useEffect(() => {
         if (!isOpen) return;
         if (isEditing && initialData) {
-            setFormDataState({ ...makeEmpty(), vehicle_id: initialData?.vehicle_id || '', driver_id: initialData?.driver_id || '', supplier_id: initialData?.supplier_id || '', km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '', liters: initialData?.liters?.toString() || '', price_per_liter: initialData?.price_per_liter?.toString() || '', total_value: initialData?.total_value?.toString() || '', fuel_type: initialData?.fuel_type || 'Diesel', location: initialData?.location || '', date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
+            setFormDataState({
+                ...makeEmpty(),
+                vehicle_id: initialData?.vehicle_id || '',
+                driver_id: initialData?.driver_id || '',
+                supplier_id: initialData?.supplier_id || '',
+                km_reading: (initialData?.km_reading || initialData?.odometer)?.toString() || '',
+                liters: initialData?.liters?.toString() || '',
+                price_per_liter: initialData?.price_per_liter?.toString() || '',
+                total_value: initialData?.total_value?.toString() || '',
+                fuel_type: initialData?.fuel_type || 'Diesel',
+                location: initialData?.location || '',
+                date: initialData?.created_at ? new Date(initialData.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                arla_liters: initialData?.arla_liters?.toString() || '',
+                arla_value: initialData?.arla_value?.toString() || '',
+            });
         } else if (!isEditing) {
             const draft = loadDraft(DRAFT_KEY);
             setFormDataState({ ...makeEmpty(), ...(draft || {}) });
@@ -45,6 +74,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
         });
     }
 
+    // Auto-calcula valor total do diesel
     useEffect(() => {
         const liters = parseFloat(formData.liters);
         const price = parseFloat(formData.price_per_liter);
@@ -57,6 +87,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     const labelStyle = "text-[10px] font-black text-[#8B95B1] uppercase tracking-widest ml-1 mb-1.5 block";
     const inputStyle = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-300 appearance-none";
+
+    const arlaLitersSuggestion = formData.liters ? (parseFloat(formData.liters) * 0.05).toFixed(1) : null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -95,11 +127,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 onChange={(e) => {
                                     const vId = e.target.value;
                                     const vehicle = vehicles.find(v => v.id === vId);
-                                    setFormData({ 
-                                        ...formData, 
-                                        vehicle_id: vId,
-                                        km_reading: vehicle?.current_km?.toString() || ''
-                                    });
+                                    setFormData({ vehicle_id: vId, km_reading: vehicle?.current_km?.toString() || '' });
                                 }}
                                 className={inputStyle}
                             >
@@ -115,7 +143,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <select
                                 required
                                 value={formData.driver_id}
-                                onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+                                onChange={(e) => setFormData({ driver_id: e.target.value })}
                                 className={inputStyle}
                             >
                                 <option value="">Selecionar Motorista</option>
@@ -129,7 +157,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <label className={labelStyle}>Fornecedor (Posto)</label>
                             <select
                                 value={formData.supplier_id}
-                                onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
+                                onChange={(e) => setFormData({ supplier_id: e.target.value })}
                                 className={inputStyle}
                             >
                                 <option value="">Selecionar Fornecedor</option>
@@ -145,11 +173,12 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 type="date"
                                 required
                                 value={formData.date}
-                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                onChange={(e) => setFormData({ date: e.target.value })}
                                 className={inputStyle}
                             />
                         </div>
                     </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Cidade/Local</label>
@@ -158,7 +187,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={inputStyle}
                                 placeholder="Ex: Posto Graal, São Paulo"
                                 value={formData.location}
-                                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                onChange={e => setFormData({ location: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
@@ -169,14 +198,15 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={inputStyle}
                                 placeholder="0"
                                 value={formData.km_reading}
-                                onChange={e => setFormData({ ...formData, km_reading: e.target.value })}
+                                onChange={e => setFormData({ km_reading: e.target.value })}
                             />
                         </div>
                     </div>
 
+                    {/* Diesel */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
-                            <label className={labelStyle}>Litros</label>
+                            <label className={labelStyle}>Litros Diesel</label>
                             <input
                                 required
                                 type="number"
@@ -184,11 +214,11 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={inputStyle}
                                 placeholder="0,00"
                                 value={formData.liters}
-                                onChange={e => setFormData({ ...formData, liters: e.target.value })}
+                                onChange={e => setFormData({ liters: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Preço/Litro (R$)</label>
+                            <label className={labelStyle}>Preço/Litro Diesel (R$)</label>
                             <input
                                 required
                                 type="number"
@@ -196,11 +226,11 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={inputStyle}
                                 placeholder="0,000"
                                 value={formData.price_per_liter}
-                                onChange={e => setFormData({ ...formData, price_per_liter: e.target.value })}
+                                onChange={e => setFormData({ price_per_liter: e.target.value })}
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Valor Total (R$)</label>
+                            <label className={labelStyle}>Valor Total Diesel (R$)</label>
                             <input
                                 required
                                 type="number"
@@ -208,9 +238,52 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={`${inputStyle} bg-slate-50 font-bold border-blue-100 text-blue-600 cursor-not-allowed`}
                                 placeholder="Calculado..."
                                 value={formData.total_value}
-                                onChange={e => setFormData({ ...formData, total_value: e.target.value })}
+                                onChange={e => setFormData({ total_value: e.target.value })}
                             />
                         </div>
+                    </div>
+
+                    {/* ARLA 32 */}
+                    <div className="bg-teal-50/60 border border-teal-100 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">ARLA 32 (Opcional)</p>
+                            {arlaLitersSuggestion && (
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ arla_liters: arlaLitersSuggestion })}
+                                    className="text-[10px] font-bold text-teal-600 bg-teal-100 hover:bg-teal-200 px-2.5 py-1 rounded-lg transition-colors"
+                                >
+                                    Sugerir {arlaLitersSuggestion} L (5% do diesel)
+                                </button>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className={`${labelStyle} text-teal-600`}>Litros de ARLA 32</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className={`${inputStyle} focus:ring-teal-500/20`}
+                                    placeholder="Ex: 5,00"
+                                    value={formData.arla_liters}
+                                    onChange={e => setFormData({ arla_liters: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className={`${labelStyle} text-teal-600`}>Valor Total ARLA (R$)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className={`${inputStyle} focus:ring-teal-500/20`}
+                                    placeholder="0,00"
+                                    value={formData.arla_value}
+                                    onChange={e => setFormData({ arla_value: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-[10px] text-teal-500 ml-1">
+                            Consumo médio: ~5% do diesel. Para {formData.liters ? `${formData.liters} L de diesel → ~${arlaLitersSuggestion} L de ARLA` : '100 L de diesel → ~5 L de ARLA'}.
+                        </p>
                     </div>
 
                     <div className="flex gap-4 pt-2">
