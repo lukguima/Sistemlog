@@ -1556,7 +1556,7 @@ export const masterService = {
     async changePlan(companyId: string, plan: string) {
         const limitMap: Record<string, number | null> = {
             basico: 5,
-            pro: 10,
+            pro: 20,
             enterprise: null,   // null = ilimitado
         };
         const mrrMap: Record<string, number> = {

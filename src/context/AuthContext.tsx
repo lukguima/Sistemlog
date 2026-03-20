@@ -159,6 +159,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => { supabase.removeChannel(channel); };
     }, [(user as any)?.company_id]);
 
+    // Fallback: re-busca a subscription quando o usuário volta para a aba
+    useEffect(() => {
+        const companyId = (user as any)?.company_id;
+        if (!companyId || (user as any)?.role === 'master') return;
+        const handleFocus = () => fetchSubscription(companyId);
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, [(user as any)?.company_id]);
+
     // Verificação de status
     const BLOCKED_STATUSES = ['overdue', 'canceled', 'blocked'];
 

@@ -13,9 +13,12 @@ const PLAN_LIMITS: Record<string, number | null> = {
 };
 
 function getVehicleLimit(subscription: any): number | null {
-    if (!subscription) return PLAN_LIMITS['trial'];
+    if (!subscription) return PLAN_LIMITS['trial'] as number;
+    // vehicle_limit explícito no banco tem prioridade
     if (subscription.vehicle_limit !== undefined && subscription.vehicle_limit !== null) return subscription.vehicle_limit;
-    return PLAN_LIMITS[subscription.plan] ?? 3;
+    // null = ilimitado (enterprise), undefined/desconhecido = 3
+    const planLimit = PLAN_LIMITS[subscription.plan];
+    return planLimit !== undefined ? planLimit : 3;
 }
 import { exportToExcel, exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
@@ -369,7 +372,7 @@ export default function Fleet() {
                                         <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-6 py-4">
                                                 <span className="font-bold text-slate-900 dark:text-white block">{d.name}</span>
-                                                <span className="text-xs text-slate-500">{d.email}</span>
+                                                <span className="text-xs text-slate-500">{d.email || 'Sem email'}</span>
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-600 dark:text-slate-400">{d.license_number}</td>
                                             <td className="px-6 py-4 text-sm font-medium">{d.phone}</td>
