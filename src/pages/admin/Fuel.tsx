@@ -14,6 +14,7 @@ export default function Fuel() {
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
     const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [kmPerLiterMap, setKmPerLiterMap] = useState<Record<string, number | null>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -29,6 +30,22 @@ export default function Fuel() {
                 fleetService.getDrivers(user.company_id),
                 supplierService.getSuppliers(user.company_id)
             ]);
+            // Calcula KM/L por registro: ordena por veículo + odômetro, pega delta entre consecutivos
+            const sorted = [...(fuelData || [])].sort((a: any, b: any) =>
+                a.vehicle_id === b.vehicle_id
+                    ? (Number(a.odometer) || 0) - (Number(b.odometer) || 0)
+                    : 0
+            );
+            const kmPerLiterMap: Record<string, number | null> = {};
+            for (let i = 0; i < sorted.length; i++) {
+                const r = sorted[i];
+                const prev = i > 0 && sorted[i - 1].vehicle_id === r.vehicle_id ? sorted[i - 1] : null;
+                const kmDelta = prev && Number(r.odometer) > Number(prev.odometer)
+                    ? Number(r.odometer) - Number(prev.odometer) : null;
+                const liters = Number(r.liters) || 0;
+                kmPerLiterMap[r.id] = kmDelta !== null && liters > 0 ? kmDelta / liters : null;
+            }
+            setKmPerLiterMap(kmPerLiterMap);
             setRecords(fuelData || []);
             setVehicles(vehiclesData || []);
             setDrivers(driversData || []);
@@ -229,9 +246,18 @@ export default function Fuel() {
                                             {format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                                         </td>
                                         <td className="px-6 py-5 font-black text-slate-900">
-                                            <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm">
-                                                {r.vehicle?.plate || '---'}
-                                            </span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm w-fit">
+                                                    {r.vehicle?.plate || '---'}
+                                                </span>
+                                                {kmPerLiterMap[r.id] !== null && kmPerLiterMap[r.id] !== undefined ? (
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                                        {kmPerLiterMap[r.id]!.toFixed(2)} km/L
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
                                         <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
