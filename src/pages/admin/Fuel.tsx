@@ -54,7 +54,7 @@ export default function Fuel() {
     const handleSave = async (data: any) => {
         if (!user?.company_id) return;
         try {
-            const { date, km_reading, ...rest } = data;
+            const { date, km_reading, arla_price_per_liter: _arlaPpl, ...rest } = data;
             const toUuid = (v: any) => (v === '' || v == null) ? null : v;
             const toNum  = (v: any) => (v === '' || v == null) ? null : Number(v) || null;
             const payload = {
@@ -211,13 +211,14 @@ export default function Fuel() {
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Diesel</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">ARLA (L)</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">Valor ARLA</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Total Diesel+ARLA</th>
                                 <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {records.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                    <td colSpan={9} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
                                         Nenhum abastecimento registrado
                                     </td>
                                 </tr>
@@ -248,6 +249,9 @@ export default function Fuel() {
                                             ) : (
                                                 <span className="text-slate-300">—</span>
                                             )}
+                                        </td>
+                                        <td className="px-6 py-5 text-sm">
+                                            <span className="font-black text-slate-900">{fmt((Number(r.total_value) || 0) + (Number(r.arla_value) || 0))}</span>
                                         </td>
                                         <td className="px-6 py-5 text-right">
                                             <div className="flex justify-end gap-2">

@@ -529,6 +529,19 @@ export const driverService = {
         if (error) throw error;
         return data;
     },
+    /** Retorna o registro anterior ao excludeId (usado no modal de edição para calcular KM/L) */
+    async getPreviousFuelRecord(vehicleId: string, excludeId: string) {
+        const { data, error } = await supabase
+            .from('fuel_records')
+            .select('odometer, created_at')
+            .eq('vehicle_id', vehicleId)
+            .neq('id', excludeId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error) throw error;
+        return data;
+    },
     async getFuelRecords(companyId: string, startDate?: string, endDate?: string) {
         let query = supabase
             .from('fuel_records')
