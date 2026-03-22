@@ -187,6 +187,114 @@ export default function LandingPage() {
                     </div>
                 </section>
 
+                {/* ── Product Screenshots ── */}
+                <section className="py-32 px-6 lg:px-12 bg-white/[0.02] border-y border-white/5">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center max-w-3xl mx-auto mb-20">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-900/30 border border-primary-500/20 text-primary-400 text-xs font-black uppercase tracking-widest mb-6">
+                                <BarChart3 size={12} />
+                                Veja o Sistema em Ação
+                            </div>
+                            <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">Interface feita para quem trabalha de verdade</h2>
+                            <p className="text-xl text-slate-400 font-medium leading-relaxed">
+                                Cada tela foi desenhada para dar visibilidade máxima com o mínimo de cliques.
+                            </p>
+                        </div>
+
+                        {/* Screenshot 1 — Dashboard */}
+                        <div className="grid md:grid-cols-2 gap-12 items-center mb-24">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-900/20 border border-primary-500/20 text-primary-400 text-xs font-black uppercase tracking-widest mb-5">
+                                    <BarChart3 size={11} /> Dashboard Analítico
+                                </div>
+                                <h3 className="text-3xl md:text-4xl font-black tracking-tighter mb-5 leading-tight">
+                                    Tudo que importa em um único painel
+                                </h3>
+                                <p className="text-slate-400 font-medium leading-relaxed mb-6">
+                                    Receita, lucro líquido, custo por veículo, top motoristas e composição de custos — recalculados automaticamente a cada lançamento, sem precisar de planilha.
+                                </p>
+                                <ul className="space-y-3">
+                                    {[
+                                        'KPIs financeiros em tempo real',
+                                        'Ranking de veículos por lucratividade',
+                                        'Gráfico de composição de custos',
+                                        'Alertas automáticos de desvios',
+                                    ].map((item) => (
+                                        <li key={item} className="flex items-center gap-3 text-sm text-slate-300 font-medium">
+                                            <div className="w-5 h-5 rounded-full bg-primary-500/20 border border-primary-500/30 flex items-center justify-center flex-shrink-0">
+                                                <CheckCircle size={12} className="text-primary-400" />
+                                            </div>
+                                            {item}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div className="relative">
+                                <div className="absolute -inset-2 bg-gradient-to-r from-primary-500/20 to-blue-600/10 rounded-[2rem] blur-2xl pointer-events-none" />
+                                <div className="bg-[#161B26]/80 p-2 rounded-[1.5rem] border border-white/10 shadow-2xl backdrop-blur-sm overflow-hidden relative">
+                                    <div className="h-7 bg-[#0B0F17]/50 rounded-t-[1rem] border-b border-white/5 flex items-center px-5 gap-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-[#FF5F57]" />
+                                        <div className="w-2 h-2 rounded-full bg-[#FEBC2E]" />
+                                        <div className="w-2 h-2 rounded-full bg-[#28C840]" />
+                                        <div className="ml-3 text-[9px] font-bold text-slate-600">Dashboard</div>
+                                    </div>
+                                    <img
+                                        src="/images/screenshot-dashboard.png"
+                                        alt="Dashboard SistemLog"
+                                        className="w-full h-auto rounded-b-[1rem] opacity-95"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Screenshot 2 — Pneus */}
+                        <div className="grid md:grid-cols-2 gap-12 items-center">
+                            <div className="order-2 md:order-1 relative">
+                                <div className="absolute -inset-2 bg-gradient-to-r from-purple-500/15 to-cyan-600/10 rounded-[2rem] blur-2xl pointer-events-none" />
+                                <div className="bg-[#161B26]/80 p-2 rounded-[1.5rem] border border-white/10 shadow-2xl backdrop-blur-sm overflow-hidden relative">
+                                    <div className="h-7 bg-[#0B0F17]/50 rounded-t-[1rem] border-b border-white/5 flex items-center px-5 gap-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-[#FF5F57]" />
+                                        <div className="w-2 h-2 rounded-full bg-[#FEBC2E]" />
+                                        <div className="w-2 h-2 rounded-full bg-[#28C840]" />
+                                        <div className="ml-3 text-[9px] font-bold text-slate-600">Gestão de Pneus</div>
+                                    </div>
+                                    <img
+                                        src="/images/screenshot-tires.png"
+                                        alt="Gestão Técnica de Pneus SistemLog"
+                                        className="w-full h-auto rounded-b-[1rem] opacity-95"
+                                    />
+                                </div>
+                            </div>
+                            <div className="order-1 md:order-2">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-900/20 border border-purple-500/20 text-purple-400 text-xs font-black uppercase tracking-widest mb-5">
+                                    <Cpu size={11} /> Inspeção 3D de Pneus
+                                </div>
+                                <h3 className="text-3xl md:text-4xl font-black tracking-tighter mb-5 leading-tight">
+                                    Monitoramento técnico que nenhum concorrente tem
+                                </h3>
+                                <p className="text-slate-400 font-medium leading-relaxed mb-6">
+                                    Visualize o estado de cada pneu da frota em uma inspeção visual 3D. Identifique pneus críticos antes que virem uma parada de estrada.
+                                </p>
+                                <ul className="space-y-3">
+                                    {[
+                                        'Mapa visual 3D posição a posição',
+                                        'Alerta vermelho, amarelo e verde por sulco',
+                                        'Histórico de trocas e vida útil estimada',
+                                        'Controle de marca, número de série e km',
+                                    ].map((item) => (
+                                        <li key={item} className="flex items-center gap-3 text-sm text-slate-300 font-medium">
+                                            <div className="w-5 h-5 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
+                                                <CheckCircle size={12} className="text-purple-400" />
+                                            </div>
+                                            {item}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* ── Why SistemLog ── */}
                 <section className="py-20 px-6 lg:px-12 bg-white/[0.02] border-y border-white/5">
                     <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
