@@ -14,8 +14,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const analytics = getAnalytics(app);
 
-// Evento: usuário completou o cadastro
-export const trackSignUp = () => logEvent(analytics, 'sign_up');
+// Evento: usuário completou o cadastro (Firebase + Meta Pixel)
+export const trackSignUp = () => {
+    logEvent(analytics, 'sign_up');
+    if (typeof (window as any).fbq === 'function') {
+        (window as any).fbq('track', 'CompleteRegistration');
+    }
+};
 
 // Evento: usuário fez login
 export const trackLogin = () => logEvent(analytics, 'login');
