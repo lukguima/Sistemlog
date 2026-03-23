@@ -12,10 +12,11 @@ import { useNavigate } from 'react-router-dom';
 export default function AdminDashboard() {
     const { user } = useAuth();
     const [trips, setTrips] = useState<any[]>([]);
-    const [kpis, setKpis] = useState({ 
-        grossRevenue: 0, 
-        fuelExpenses: 0, 
-        maintenanceExpenses: 0, 
+    const [kpis, setKpis] = useState({
+        grossRevenue: 0,
+        expectedGrossRevenue: 0,
+        fuelExpenses: 0,
+        maintenanceExpenses: 0,
         netRevenue: 0,
         tripTolls: 0,
         tripInsurance: 0,
@@ -285,8 +286,20 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* KPI Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
                     <MetricCard title="Receita Realizada" value={kpis.grossRevenue} icon={<DollarSign className="text-emerald-500" />} isCurrency />
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-blue-200 dark:border-blue-800 p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Receita Prevista</span>
+                            <TrendingUp className="text-blue-500 w-5 h-5" />
+                        </div>
+                        <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                            R$ {(kpis.grossRevenue + kpis.expectedGrossRevenue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                            Realizada + <span className="text-amber-500 font-semibold">R$ {kpis.expectedGrossRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span> em aberto
+                        </p>
+                    </div>
                     <MetricCard title="Lucro Líquido" value={kpis.netRevenue} icon={<TrendingUp className="text-blue-500" />} isCurrency />
                     <MetricCard title="Custo Diesel" value={kpis.fuelExpenses} icon={<Fuel className="text-orange-500" />} isCurrency />
                     <MetricCard title="Custo Manutenção" value={kpis.maintenanceExpenses} icon={<Wrench className="text-rose-500" />} isCurrency />
