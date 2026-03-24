@@ -460,7 +460,7 @@ export const maintenanceService = {
         return data;
     },
     async addMaintenance(maintenance: any) {
-        const { id: _id, ...maintenanceData } = maintenance;
+        const { id: _id, vehicle: _vehicle, ...maintenanceData } = maintenance;
         const { data, error } = await supabase
             .from('maintenance')
             .insert([maintenanceData])
@@ -478,9 +478,10 @@ export const maintenanceService = {
         return data;
     },
     async updateMaintenance(id: string, updates: any) {
+        const { vehicle: _v, id: _id, ...cleanUpdates } = updates;
         const { data, error } = await supabase
             .from('maintenance')
-            .update(updates)
+            .update(cleanUpdates)
             .eq('id', id)
             .select()
             .single();
