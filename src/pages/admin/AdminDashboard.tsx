@@ -558,7 +558,7 @@ function MetricCard({ title, value, icon, trend, up, isCurrency }: { title: stri
             </div>
             <div className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">{title}</div>
             <div className="text-2xl font-bold tracking-tight">
-                {isCurrency && "R$ "} {(value || 0).toLocaleString('pt-BR')}
+                {isCurrency && "R$ "} {(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
         </div>
     );
