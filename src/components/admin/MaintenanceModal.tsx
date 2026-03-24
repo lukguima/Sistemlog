@@ -177,6 +177,8 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
                                         type="number"
                                         className={inputStyle}
                                         placeholder="10000"
+                                        min={0}
+                                        max={999999}
                                         value={formData.maintenance_interval}
                                         onChange={e => {
                                             const interval = Number(e.target.value);
@@ -193,6 +195,8 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
                                     <input
                                         type="number"
                                         className={`${inputStyle} bg-white-50 font-bold text-blue-600`}
+                                        min={0}
+                                        max={9999999}
                                         value={formData.next_maintenance_km}
                                         onChange={e => setFormData({ ...formData, next_maintenance_km: Number(e.target.value) })}
                                     />
@@ -209,6 +213,8 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
                                 type="number"
                                 className={inputStyle}
                                 placeholder="0"
+                                min={0}
+                                max={9999999}
                                 value={formData.km}
                                 onChange={e => setFormData({ ...formData, km: Number(e.target.value) })}
                             />
@@ -221,6 +227,8 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
                                 step="0.01"
                                 className={inputStyle}
                                 placeholder="0,00"
+                                min={0}
+                                max={9999999}
                                 value={formData.cost}
                                 onChange={e => setFormData({ ...formData, cost: Number(e.target.value) })}
                             />

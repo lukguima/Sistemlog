@@ -235,6 +235,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 type="number"
                                 className={inputStyle}
                                 placeholder="0"
+                                min={0}
+                                max={9999999}
                                 value={formData.km_reading}
                                 onChange={e => setFormData({ km_reading: e.target.value })}
                             />
@@ -251,6 +253,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 step="0.01"
                                 className={inputStyle}
                                 placeholder="0,00"
+                                min={0}
+                                max={99999}
                                 value={formData.liters}
                                 onChange={e => setFormData({ liters: e.target.value })}
                             />
@@ -263,6 +267,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 step="0.001"
                                 className={inputStyle}
                                 placeholder="0,000"
+                                min={0}
+                                max={999}
                                 value={formData.price_per_liter}
                                 onChange={e => setFormData({ price_per_liter: e.target.value })}
                             />
@@ -303,6 +309,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                     step="0.01"
                                     className={`${inputStyle} focus:ring-teal-500/20`}
                                     placeholder="Ex: 5,00"
+                                    min={0}
+                                    max={9999}
                                     value={formData.arla_liters}
                                     onChange={e => setFormData({ arla_liters: e.target.value })}
                                 />
@@ -314,6 +322,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                     step="0.001"
                                     className={`${inputStyle} focus:ring-teal-500/20`}
                                     placeholder="0,000"
+                                    min={0}
+                                    max={999}
                                     value={formData.arla_price_per_liter}
                                     onChange={e => setFormData({ arla_price_per_liter: e.target.value })}
                                 />

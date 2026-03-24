@@ -167,6 +167,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                 type="number"
                                 className={inputStyle}
                                 placeholder="2023"
+                                min={1950}
+                                max={2100}
                                 value={formData.year}
                                 onChange={e => setFormData({ ...formData, year: parseInt(e.target.value) })}
                             />
@@ -178,6 +180,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                 type="number"
                                 className={inputStyle}
                                 placeholder="0"
+                                min={0}
+                                max={9999999}
                                 value={initialData ? formData.current_km : formData.initial_km}
                                 onChange={e => {
                                     const val = parseInt(e.target.value);
@@ -195,6 +199,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                 type="number"
                                 className={inputStyle}
                                 placeholder="0,00"
+                                min={0}
+                                max={999999}
                                 value={formData.insurance_value}
                                 onChange={e => setFormData({ ...formData, insurance_value: parseFloat(e.target.value) })}
                             />
@@ -211,6 +217,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         className={inputStyle}
                                         placeholder="ABC-1234"
+                                        maxLength={8}
                                         value={formData.implement_plate_1}
                                         onChange={e => setFormData({ implement_plate_1: e.target.value.toUpperCase() })}
                                     />
@@ -220,6 +227,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         className={inputStyle}
                                         placeholder="ABC-1234"
+                                        maxLength={8}
                                         value={formData.implement_plate_2}
                                         onChange={e => setFormData({ implement_plate_2: e.target.value.toUpperCase() })}
                                     />
@@ -258,6 +266,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={999999}
                                         value={formData.maint_oil_interval}
                                         onChange={e => setFormData({ ...formData, maint_oil_interval: parseInt(e.target.value) })}
                                     />
@@ -267,6 +276,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={999999}
                                         value={formData.maint_filter_interval}
                                         onChange={e => setFormData({ ...formData, maint_filter_interval: parseInt(e.target.value) })}
                                     />
@@ -276,6 +286,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={999999}
                                         value={formData.maint_tyre_interval}
                                         onChange={e => setFormData({ ...formData, maint_tyre_interval: parseInt(e.target.value) })}
                                     />
@@ -285,6 +296,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={9999999}
                                         value={formData.last_oil_change_km}
                                         onChange={e => setFormData({ ...formData, last_oil_change_km: parseInt(e.target.value) })}
                                     />
@@ -294,6 +306,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={9999999}
                                         value={formData.last_filter_change_km}
                                         onChange={e => setFormData({ ...formData, last_filter_change_km: parseInt(e.target.value) })}
                                     />
@@ -303,6 +316,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                     <input
                                         type="number"
                                         className={inputStyle}
+                                        min={0} max={9999999}
                                         value={formData.last_tyre_change_km}
                                         onChange={e => setFormData({ ...formData, last_tyre_change_km: parseInt(e.target.value) })}
                                     />

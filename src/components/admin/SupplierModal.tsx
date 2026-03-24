@@ -116,11 +116,13 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                         <div className="space-y-1">
                             <label className={labelStyle}>Telefone</label>
                             <input type="text" className={inputStyle} placeholder="(00) 00000-0000"
+                                maxLength={20}
                                 value={formData.phone} onChange={e => setFormData({ phone: e.target.value })} />
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>E-mail</label>
                             <input type="email" className={inputStyle} placeholder="contato@fornecedor.com"
+                                maxLength={150}
                                 value={formData.email} onChange={e => setFormData({ email: e.target.value })} />
                         </div>
                     </div>
@@ -128,6 +130,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                     <div className="space-y-1">
                         <label className={labelStyle}>Endereço Completo</label>
                         <input type="text" className={inputStyle} placeholder="Rua, Número, Bairro..."
+                            maxLength={200}
                             value={formData.address} onChange={e => setFormData({ address: e.target.value })} />
                     </div>
 
@@ -135,6 +138,7 @@ export default function SupplierModal({ isOpen, onClose, onSave, supplier }: Sup
                         <div className="space-y-1">
                             <label className={labelStyle}>Cidade</label>
                             <input type="text" className={inputStyle} placeholder="Ex: São Paulo"
+                                maxLength={100}
                                 value={formData.city} onChange={e => setFormData({ city: e.target.value })} />
                         </div>
                         <div className="space-y-1">

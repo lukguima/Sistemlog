@@ -46,7 +46,7 @@ export default function Register() {
 
             // Supabase retorna identities vazio quando o e-mail já está cadastrado
             if (data?.user?.identities?.length === 0) {
-                setError('Este e-mail já está cadastrado. Faça login ou use outro e-mail.');
+                setError('Não foi possível criar a conta. Verifique os dados e tente novamente.');
                 return;
             }
 
@@ -57,7 +57,7 @@ export default function Register() {
         } catch (err: any) {
             const msg = err?.message || '';
             if (msg.includes('already registered') || msg.includes('User already registered')) {
-                setError('Este e-mail já está cadastrado. Faça login ou use outro e-mail.');
+                setError('Não foi possível criar a conta. Verifique os dados e tente novamente.');
             } else if (msg.includes('Password should be at least')) {
                 setError('A senha deve ter pelo menos 6 caracteres.');
             } else if (msg.includes('invalid')) {
@@ -152,6 +152,7 @@ export default function Register() {
                                 type="text"
                                 className="input-field"
                                 placeholder="Seu nome"
+                                maxLength={100}
                                 value={formData.full_name}
                                 onChange={e => { setError(''); setFormData({ ...formData, full_name: e.target.value }); }}
                             />
@@ -164,6 +165,7 @@ export default function Register() {
                                 type="email"
                                 className="input-field"
                                 placeholder="email@suaempresa.com"
+                                maxLength={150}
                                 value={formData.email}
                                 onChange={e => { setError(''); setFormData({ ...formData, email: e.target.value }); }}
                             />
@@ -178,6 +180,7 @@ export default function Register() {
                                     className="input-field pr-10"
                                     placeholder="Mínimo 6 caracteres"
                                     minLength={6}
+                                    maxLength={128}
                                     value={formData.password}
                                     onChange={e => { setError(''); setFormData({ ...formData, password: e.target.value }); }}
                                 />
@@ -199,6 +202,7 @@ export default function Register() {
                                     type="text"
                                     className="input-field"
                                     placeholder="Nome da empresa"
+                                    maxLength={100}
                                     value={formData.company_name}
                                     onChange={e => setFormData({ ...formData, company_name: e.target.value })}
                                 />
@@ -210,6 +214,7 @@ export default function Register() {
                                     type="tel"
                                     className="input-field"
                                     placeholder="(00) 00000-0000"
+                                    maxLength={20}
                                     value={formData.phone}
                                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
                                 />

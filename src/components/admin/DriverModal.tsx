@@ -80,12 +80,14 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
                     <div className="space-y-1">
                         <label className={labelStyle}>Nome Completo</label>
                         <input required className={inputStyle} placeholder="Ex: João da Silva"
+                            maxLength={100}
                             value={formData.name} onChange={e => setFormData({ name: e.target.value })} />
                     </div>
 
                     <div className="space-y-1">
                         <label className={labelStyle}>Email (Login do Motorista) - Opcional</label>
                         <input type="email" className={inputStyle} placeholder="joao@exemplo.com"
+                            maxLength={150}
                             value={formData.email} onChange={e => setFormData({ email: e.target.value })} />
                     </div>
 
@@ -93,6 +95,7 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
                         <div className="space-y-1">
                             <label className={labelStyle}>CNH</label>
                             <input required className={inputStyle} placeholder="123456789"
+                                maxLength={20}
                                 value={formData.license_number} onChange={e => setFormData({ license_number: e.target.value })} />
                         </div>
                         <div className="space-y-1">
