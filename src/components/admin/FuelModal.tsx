@@ -236,7 +236,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 className={inputStyle}
                                 placeholder="0"
                                 min={0}
-                                max={9999999}
+                                max={999999999}
                                 value={formData.km_reading}
                                 onChange={e => setFormData({ km_reading: e.target.value })}
                             />
