@@ -80,12 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-            // Prioridade: app_metadata (sincronizado via trigger) > user_metadata > profiles DB
+            // Prioridade: app_metadata (trigger server-side, não manipulável) > profiles DB
+            // user_metadata é ignorado intencionalmente — pode ser alterado pelo próprio usuário via API client
             const appMeta = (sessionUser as any).app_metadata || {};
-            const userMeta = sessionUser.user_metadata || {};
 
-            const metadataCompanyId = appMeta.company_id || userMeta.company_id;
-            const metadataRole      = appMeta.role       || userMeta.role;
+            const metadataCompanyId = appMeta.company_id;
+            const metadataRole      = appMeta.role;
 
             let finalUser: any = {
                 ...sessionUser,
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 role: metadataRole,
             };
 
-            // Fallback: busca do banco só se JWT ainda não tem os claims
+            // Fallback: busca do banco se app_metadata ainda não foi populado pelo trigger
             if (!metadataCompanyId || !metadataRole) {
                 const { data: profile, error } = await supabase
                     .from('profiles')
