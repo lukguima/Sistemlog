@@ -33,7 +33,9 @@ export default function Settings() {
         primary_color: '#2563EB',
         system_name: '',
         active_modules: ['portal', 'driver_app', 'monitoring'],
-        logo_url: ''
+        logo_url: '',
+        default_commission_rate: '12',
+        default_tax_rate: '6',
     });
     const [companyProfile, setCompanyProfile] = useState({
         company_name: '',
@@ -119,7 +121,9 @@ export default function Settings() {
                     primary_color: data.primary_color || '#2563EB',
                     system_name: data.system_name || '',
                     active_modules: data.active_modules || data.modules || ['portal', 'driver_app', 'monitoring'],
-                    logo_url: data.logo_url || ''
+                    logo_url: data.logo_url || '',
+                    default_commission_rate: String(data.default_commission_rate ?? '12'),
+                    default_tax_rate: String(data.default_tax_rate ?? '6'),
                 });
             }
 
@@ -367,8 +371,58 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        <div className="pt-4 flex justify-end">
-                            <button 
+                        <div className="pt-6 border-t border-slate-100">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                                    <CreditCard size={18} />
+                                </div>
+                                <div>
+                                    <p className="font-black text-slate-900 text-sm">Padrões de Viagem</p>
+                                    <p className="text-[11px] text-slate-400">Valores pré-preenchidos ao lançar nova viagem</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="text-[10px] font-black text-[#8B95B1] uppercase tracking-widest block mb-2 px-1">Comissão Padrão (%)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={0.1}
+                                        className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-900 w-full outline-none focus:border-blue-500 transition-colors"
+                                        placeholder="12"
+                                        value={settings.default_commission_rate}
+                                        onChange={e => setSettings({ ...settings, default_commission_rate: e.target.value })}
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1.5 px-1">Percentual pago ao motorista por viagem</p>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-[#8B95B1] uppercase tracking-widest block mb-2 px-1">Imposto Padrão (%)</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        step={0.1}
+                                        className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-900 w-full outline-none focus:border-blue-500 transition-colors"
+                                        placeholder="6"
+                                        value={settings.default_tax_rate}
+                                        onChange={e => setSettings({ ...settings, default_tax_rate: e.target.value })}
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1.5 px-1">Percentual de imposto aplicado ao frete</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-4 flex justify-end gap-3">
+                            <button
+                                onClick={handleSaveSettings}
+                                disabled={loading}
+                                className="bg-amber-500 hover:bg-amber-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Save size={18} />
+                                {loading ? 'Salvando...' : 'Salvar Padrões'}
+                            </button>
+                            <button
                                 onClick={handleSaveProfile}
                                 disabled={loading}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"

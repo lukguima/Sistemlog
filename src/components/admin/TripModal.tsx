@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { fixedRouteService } from '../../lib/services';
+import { fixedRouteService, settingsService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
 
@@ -64,6 +64,18 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     useEffect(() => {
         if (isOpen && companyId) {
             fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes);
+            // Carrega padrões de comissão e imposto das configurações (só nova viagem)
+            if (!isEditing) {
+                settingsService.getSettings(companyId).then(s => {
+                    if (s) {
+                        setFormDataState((prev: ReturnType<typeof makeEmpty>) => ({
+                            ...prev,
+                            commission_rate: prev.commission_rate || String(s.default_commission_rate ?? 12),
+                            tax_rate: prev.tax_rate || String(s.default_tax_rate ?? 6),
+                        }));
+                    }
+                }).catch(() => {});
+            }
         }
     }, [isOpen, companyId]);
 
