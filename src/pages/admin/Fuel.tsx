@@ -139,51 +139,41 @@ export default function Fuel() {
             </div>
 
             {/* Stats cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-primary-50 rounded-2xl text-primary-600"><FuelIcon size={20} /></div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">Litros Diesel</p>
-                            <h3 className="text-xl font-black text-slate-900">{stats.totalLiters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L</h3>
-                        </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-primary-50 rounded-2xl text-primary-600"><FuelIcon size={18} /></div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Litros Diesel</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{stats.totalLiters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L</h3>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-emerald-50 rounded-2xl text-emerald-600"><CheckCircle2 size={20} /></div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">Custo Diesel</p>
-                            <h3 className="text-xl font-black text-slate-900">{fmt(stats.totalValue)}</h3>
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-emerald-50 rounded-2xl text-emerald-600"><CheckCircle2 size={18} /></div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Custo Diesel</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{fmt(stats.totalValue)}</h3>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={20} /></div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">Litros ARLA</p>
-                            <h3 className="text-xl font-black text-slate-900">{stats.totalArlaLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</h3>
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={18} /></div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Litros ARLA</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{stats.totalArlaLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</h3>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={20} /></div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">Custo ARLA</p>
-                            <h3 className="text-xl font-black text-slate-900">{fmt(stats.totalArlaValue)}</h3>
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={18} /></div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Custo ARLA</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{fmt(stats.totalArlaValue)}</h3>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-600"><Clock size={20} /></div>
-                        <div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">Registros</p>
-                            <h3 className="text-xl font-black text-slate-900">{stats.count.toString().padStart(2, '0')}</h3>
-                        </div>
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-600"><Clock size={18} /></div>
                     </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Registros</p>
+                    <h3 className="text-xl font-black text-slate-900">{stats.count.toString().padStart(2, '0')}</h3>
                 </div>
             </div>
 
