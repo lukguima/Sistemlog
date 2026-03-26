@@ -65,15 +65,16 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
         if (isOpen && companyId) {
             fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes);
             // Carrega padrões de comissão e imposto das configurações (só nova viagem)
+            // Sempre sobrescreve — Settings é a fonte da verdade para defaults
             if (!isEditing) {
                 settingsService.getSettings(companyId).then(s => {
-                    if (s) {
-                        setFormDataState((prev: ReturnType<typeof makeEmpty>) => ({
-                            ...prev,
-                            commission_rate: prev.commission_rate || String(s.default_commission_rate ?? 12),
-                            tax_rate: prev.tax_rate || String(s.default_tax_rate ?? 6),
-                        }));
-                    }
+                    const commissionDefault = s?.default_commission_rate != null ? String(s.default_commission_rate) : '12';
+                    const taxDefault = s?.default_tax_rate != null ? String(s.default_tax_rate) : '6';
+                    setFormDataState((prev: ReturnType<typeof makeEmpty>) => ({
+                        ...prev,
+                        commission_rate: commissionDefault,
+                        tax_rate: taxDefault,
+                    }));
                 }).catch(() => {});
             }
         }
