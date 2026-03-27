@@ -152,7 +152,7 @@ export default function Fuel() {
                         <div className="p-2.5 bg-emerald-50 rounded-2xl text-emerald-600"><CheckCircle2 size={18} /></div>
                     </div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Custo Diesel</p>
-                    <h3 className="text-xl font-black text-slate-900 truncate">{fmt(stats.totalValue)}</h3>
+                    <h3 className="text-base font-black text-slate-900 truncate">{fmt(stats.totalValue)}</h3>
                 </div>
                 <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-sm min-w-0">
                     <div className="flex justify-between items-start mb-3">
@@ -166,7 +166,7 @@ export default function Fuel() {
                         <div className="p-2.5 bg-teal-50 rounded-2xl text-teal-600"><Droplets size={18} /></div>
                     </div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Custo ARLA</p>
-                    <h3 className="text-xl font-black text-slate-900 truncate">{fmt(stats.totalArlaValue)}</h3>
+                    <h3 className="text-base font-black text-slate-900 truncate">{fmt(stats.totalArlaValue)}</h3>
                 </div>
                 <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm min-w-0">
                     <div className="flex justify-between items-start mb-3">
