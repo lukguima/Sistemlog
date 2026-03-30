@@ -1,4 +1,4 @@
-import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets } from 'lucide-react';
+import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { driverService, fleetService, supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,8 @@ export default function Fuel() {
     const [editingRecord, setEditingRecord] = useState<any>(null);
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [filterPlate, setFilterPlate] = useState('');
+    const [filterDriver, setFilterDriver] = useState('');
 
     const loadData = async () => {
         if (!user?.company_id) return;
@@ -191,7 +193,27 @@ export default function Fuel() {
                         <FuelIcon className="text-primary-500" size={24} />
                         Histórico de Abastecimento
                     </h3>
-                    <div className="flex gap-2 items-center">
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Placa..."
+                                className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-28"
+                                value={filterPlate}
+                                onChange={e => setFilterPlate(e.target.value)}
+                            />
+                        </div>
+                        <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Motorista..."
+                                className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-36"
+                                value={filterDriver}
+                                onChange={e => setFilterDriver(e.target.value)}
+                            />
+                        </div>
                         <input
                             type="date"
                             className="bg-white border border-slate-200 text-slate-900 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50"
@@ -223,14 +245,21 @@ export default function Fuel() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {records.length === 0 ? (
-                                <tr>
-                                    <td colSpan={9} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
-                                        Nenhum abastecimento registrado
-                                    </td>
-                                </tr>
-                            ) : (
-                                records.map((r) => (
+                            {(() => {
+                                const filtered = records.filter(r => {
+                                    const plate = (r.vehicle?.plate || '').toLowerCase();
+                                    const driver = (r.driver?.name || '').toLowerCase();
+                                    return plate.includes(filterPlate.toLowerCase()) &&
+                                           driver.includes(filterDriver.toLowerCase());
+                                });
+                                if (filtered.length === 0) return (
+                                    <tr>
+                                        <td colSpan={9} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                            Nenhum abastecimento encontrado
+                                        </td>
+                                    </tr>
+                                );
+                                return filtered.map((r: any) => (
                                     <tr key={r.id} className="hover:bg-slate-50/10 transition-colors group">
                                         <td className="px-6 py-5 text-slate-500 text-sm">
                                             {format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -286,8 +315,8 @@ export default function Fuel() {
                                             </div>
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                ));
+                            })()}
                         </tbody>
                     </table>
                 </div>
