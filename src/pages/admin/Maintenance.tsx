@@ -1,4 +1,4 @@
-import { Wrench, Clock, CheckCircle2, AlertTriangle, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, AlertTriangle, Loader2, Edit2, Trash2, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { maintenanceService, fleetService, supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,8 @@ export default function Maintenance() {
     const [editingMaintenance, setEditingMaintenance] = useState<any>(null);
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [filterPlate, setFilterPlate] = useState('');
+    const [filterType, setFilterType] = useState('');
 
     const loadData = async () => {
         if (!user?.company_id) return;
@@ -157,7 +159,30 @@ export default function Maintenance() {
                         <Wrench className="text-primary-500" size={24} />
                         Histórico de Manutenção
                     </h3>
-                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <div className="flex flex-col md:flex-row gap-3 items-center flex-wrap">
+                        <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Placa..."
+                                className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-28"
+                                value={filterPlate}
+                                onChange={(e) => setFilterPlate(e.target.value)}
+                            />
+                        </div>
+                        <select
+                            className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                        >
+                            <option value="">Todos os tipos</option>
+                            <option value="preventive">Preventiva</option>
+                            <option value="corrective">Corretiva</option>
+                            <option value="oil">Óleo</option>
+                            <option value="tyres">Pneus</option>
+                            <option value="mechanical">Mecânica</option>
+                            <option value="electrical">Elétrica</option>
+                        </select>
                         <div className="flex gap-2 items-center">
                             <input
                                 type="date"
@@ -197,14 +222,20 @@ export default function Maintenance() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {history.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
-                                        Nenhuma manutenção registrada
-                                    </td>
-                                </tr>
-                            ) : (
-                                history.map((m) => (
+                            {(() => {
+                                const filtered = history.filter(m => {
+                                    const matchesPlate = (m.vehicle?.plate || '').toLowerCase().includes(filterPlate.toLowerCase());
+                                    const matchesType = filterType === '' || m.type === filterType;
+                                    return matchesPlate && matchesType;
+                                });
+                                if (filtered.length === 0) return (
+                                    <tr>
+                                        <td colSpan={6} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                            Nenhuma manutenção encontrada
+                                        </td>
+                                    </tr>
+                                );
+                                return filtered.map((m) => (
                                     <tr key={m.id} className="hover:bg-slate-50/10 transition-colors group">
                                         <td className="px-8 py-6 font-black text-slate-900">{m.vehicle?.plate || 'N/A'}</td>
                                         <td className="px-8 py-6 font-bold text-slate-700">{Number(m.km).toLocaleString()} km</td>
@@ -241,8 +272,8 @@ export default function Maintenance() {
                                             </div>
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                ));
+                            })()}
                         </tbody>
                     </table>
                 </div>

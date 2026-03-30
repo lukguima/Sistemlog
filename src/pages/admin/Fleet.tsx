@@ -43,6 +43,7 @@ export default function Fleet() {
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [isExporting, setIsExporting] = useState(false);
     const [showLimitModal, setShowLimitModal] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const companyId = (user as any)?.company_id;
     const vehicleLimit = getVehicleLimit(subscription);
@@ -248,7 +249,7 @@ export default function Fleet() {
 
             <div className="flex border-b border-slate-200 dark:border-slate-800">
                 <button
-                    onClick={() => setActiveTab('vehicles')}
+                    onClick={() => { setActiveTab('vehicles'); setSearchTerm(''); }}
                     className={`px-6 py-3 text-sm font-bold transition-colors border-b-2 ${activeTab === 'vehicles' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                 >
                     <div className="flex items-center gap-2">
@@ -256,7 +257,7 @@ export default function Fleet() {
                     </div>
                 </button>
                 <button
-                    onClick={() => setActiveTab('drivers')}
+                    onClick={() => { setActiveTab('drivers'); setSearchTerm(''); }}
                     className={`px-6 py-3 text-sm font-bold transition-colors border-b-2 ${activeTab === 'drivers' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                 >
                     <div className="flex items-center gap-2">
@@ -269,7 +270,13 @@ export default function Fleet() {
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-4 justify-between bg-slate-50 dark:bg-slate-800/30 items-center">
                     <div className="relative flex-1 max-w-md w-full">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input type="text" placeholder="Buscar..." className="input-field pl-10 py-2 text-sm" />
+                        <input
+                            type="text"
+                            placeholder={activeTab === 'vehicles' ? 'Buscar por placa...' : 'Buscar por nome do motorista...'}
+                            className="input-field pl-10 py-2 text-sm"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
@@ -340,8 +347,14 @@ export default function Fleet() {
                                     </td>
                                 </tr>
                             ) : activeTab === 'vehicles' ? (
-                                vehicles.length > 0 ? (
-                                    vehicles.map(v => (
+                                vehicles.filter(v =>
+                                    (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    (v.model || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                ).length > 0 ? (
+                                    vehicles.filter(v =>
+                                        (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (v.model || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map(v => (
                                         <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-6 py-4 font-mono font-bold text-slate-900 dark:text-white uppercase">{v.plate}</td>
                                             <td className="px-6 py-4">
@@ -365,12 +378,16 @@ export default function Fleet() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum veículo cadastrado.</td>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum veículo encontrado.</td>
                                     </tr>
                                 )
                             ) : (
-                                drivers.length > 0 ? (
-                                    drivers.map(d => (
+                                drivers.filter(d =>
+                                    (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                ).length > 0 ? (
+                                    drivers.filter(d =>
+                                        (d.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map(d => (
                                         <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-6 py-4">
                                                 <span className="font-bold text-slate-900 dark:text-white block">{d.name}</span>
@@ -394,7 +411,7 @@ export default function Fleet() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum motorista cadastrado.</td>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum motorista encontrado.</td>
                                     </tr>
                                 )
                             )}

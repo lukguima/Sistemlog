@@ -11,6 +11,7 @@ export default function Trips() {
     const [trips, setTrips] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalData, setModalData] = useState<any>({});
     const [vehicles, setVehicles] = useState<any[]>([]);
@@ -132,20 +133,29 @@ export default function Trips() {
                 created_at: date ? `${date}T12:00:00.000Z` : new Date().toISOString()
             };
 
-            if (editingId) {
+            const idParaExcluir = data.id || editingId;
+
+            if (editingId || data.id) {
                 // Verifica conflitos ao editar (exclui a própria viagem da verificação)
-                const conflicts = await tripService.checkConflicts(dataToSave.driver_id || null, dataToSave.vehicle_id || null, editingId);
+                const conflicts = await tripService.checkConflicts(dataToSave.driver_id || null, dataToSave.vehicle_id || null, idParaExcluir);
                 const msgs: string[] = [];
-                if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.from_city} → ${conflicts.driverTrip?.to_city}).`);
-                if (conflicts.vehicleBusy) msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                
+                // Trava de segurança: só alerta se o ID encontrado for DIFERENTE do ID atual
+                if (conflicts.driverBusy && conflicts.driverTrip?.id !== idParaExcluir) {
+                    msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
+                }
+                if (conflicts.vehicleBusy && conflicts.vehicleTrip?.id !== idParaExcluir) {
+                    msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                }
+                
                 if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja salvar mesmo assim?`)) return;
-                await tripService.updateTrip(editingId, dataToSave);
-                await settlementService.recalculateSettlementForTrip(editingId);
+                await tripService.updateTrip(idParaExcluir, dataToSave);
+                await settlementService.recalculateSettlementForTrip(idParaExcluir);
             } else {
                 // Verifica conflitos ao criar nova viagem
                 const conflicts = await tripService.checkConflicts(dataToSave.driver_id || null, dataToSave.vehicle_id || null);
                 const msgs: string[] = [];
-                if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.from_city} → ${conflicts.driverTrip?.to_city}).`);
+                if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
                 if (conflicts.vehicleBusy) msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
                 if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja registrar mesmo assim?`)) return;
                 await tripService.addTrip({
@@ -186,13 +196,16 @@ export default function Trips() {
         setIsModalOpen(true);
     };
 
-    const filteredTrips = trips.filter(t =>
-        t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.vehicle?.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.origin_city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.destination_city?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredTrips = trips.filter(t => {
+        const matchesSearch =
+            t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.vehicle?.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.destination?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === '' || (t.status?.toLowerCase() === filterStatus);
+        return matchesSearch && matchesStatus;
+    });
 
     const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
     const safePage = Math.min(currentPage, totalPages);
@@ -271,15 +284,29 @@ export default function Trips() {
 
             <div className="card overflow-hidden">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50 dark:bg-slate-800/30">
-                    <div className="relative w-full max-w-md">
-                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Filtrar por placa, motorista ou rota..."
-                            className="input-field pl-10 py-2 text-sm"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                        <div className="relative w-full max-w-md">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Filtrar por placa, motorista ou rota..."
+                                className="input-field pl-10 py-2 text-sm"
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            />
+                        </div>
+                        <select
+                            className="input-field py-2 text-sm"
+                            value={filterStatus}
+                            onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                        >
+                            <option value="">Todos os status</option>
+                            <option value="pending">Pendente</option>
+                            <option value="in_transit">Em Trânsito</option>
+                            <option value="completed">Concluído</option>
+                            <option value="validated">Validado</option>
+                            <option value="paid">Pago</option>
+                        </select>
                     </div>
                     <div className="flex gap-2 items-center">
                         <input
