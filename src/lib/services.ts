@@ -113,12 +113,14 @@ export const tripService = {
     },
     async checkConflicts(driverId: string | null, vehicleId: string | null, excludeTripId?: string): Promise<{ driverBusy: boolean; vehicleBusy: boolean; driverTrip: any; vehicleTrip: any }> {
         const ACTIVE = ['pending', 'in_transit'];
+        const idToExclude = excludeTripId || '00000000-0000-0000-0000-000000000000';
+
         const [driverRes, vehicleRes] = await Promise.all([
             driverId
-                ? supabase.from('trips').select('id, from_city, to_city, created_at, vehicle:vehicles(plate)').eq('driver_id', driverId).in('status', ACTIVE).neq('id', excludeTripId || '00000000-0000-0000-0000-000000000000').limit(1).maybeSingle()
+                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles(plate)').eq('driver_id', driverId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
             vehicleId
-                ? supabase.from('trips').select('id, from_city, to_city, created_at, driver:drivers(name)').eq('vehicle_id', vehicleId).in('status', ACTIVE).neq('id', excludeTripId || '00000000-0000-0000-0000-000000000000').limit(1).maybeSingle()
+                ? supabase.from('trips').select('id, origin, destination, created_at, driver:drivers(name)').eq('vehicle_id', vehicleId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
         ]);
         return {
@@ -380,7 +382,7 @@ export const financeService = {
             tripInsurance,
             fixedInsurance,
             totalExpenses,
-            netRevenue: grossRevenue - totalExpenses,
+            netRevenue: (grossRevenue + expectedGrossRevenue) - totalExpenses,
             expectedNetRevenue: expectedGrossRevenue
         };
     },
