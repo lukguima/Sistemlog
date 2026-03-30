@@ -307,7 +307,7 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                     <MetricCard title="Lucro Líquido" value={kpis.netRevenue} icon={<TrendingUp className="text-blue-500" />} isCurrency />
-                    <MetricCard title="Custo Diesel" value={kpis.fuelExpenses} icon={<Fuel className="text-orange-500" />} isCurrency />
+                    <MetricCard title="Custo Diesel + ARLA" value={(kpis.fuelExpenses || 0) + ((kpis as any).arlaExpenses || 0)} icon={<Fuel className="text-orange-500" />} isCurrency />
                     <MetricCard title="Custo Manutenção" value={kpis.maintenanceExpenses} icon={<Wrench className="text-rose-500" />} isCurrency />
                 </div>
 

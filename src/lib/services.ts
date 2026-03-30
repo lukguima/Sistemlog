@@ -382,7 +382,7 @@ export const financeService = {
             tripInsurance,
             fixedInsurance,
             totalExpenses,
-            netRevenue: (grossRevenue + expectedGrossRevenue) - fuelExpenses - maintenanceExpenses,
+            netRevenue: (grossRevenue + expectedGrossRevenue) - fuelExpenses - arlaExpenses - maintenanceExpenses,
             expectedNetRevenue: expectedGrossRevenue
         };
     },
