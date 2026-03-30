@@ -25,18 +25,18 @@ export default function Fuel() {
         if (!user?.company_id) return;
         try {
             setLoading(true);
-            const [fuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
+            const [fuelData, allFuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
                 driverService.getFuelRecords(user.company_id, startDate, endDate),
+                driverService.getFuelRecords(user.company_id), // todos os registros para calcular KM/L
                 fleetService.getVehicles(user.company_id),
                 fleetService.getDrivers(user.company_id),
                 supplierService.getSuppliers(user.company_id)
             ]);
-            // Calcula KM/L por registro: ordena por veículo + odômetro, pega delta entre consecutivos
-            const sorted = [...(fuelData || [])].sort((a: any, b: any) =>
-                a.vehicle_id === b.vehicle_id
-                    ? (Number(a.odometer) || 0) - (Number(b.odometer) || 0)
-                    : 0
-            );
+            // Calcula KM/L usando TODOS os registros (sem filtro de data) para ter registro anterior sempre disponível
+            const sorted = [...(allFuelData || [])].sort((a: any, b: any) => {
+                if (a.vehicle_id !== b.vehicle_id) return a.vehicle_id.localeCompare(b.vehicle_id);
+                return (Number(a.odometer) || 0) - (Number(b.odometer) || 0);
+            });
             const kmPerLiterMap: Record<string, number | null> = {};
             for (let i = 0; i < sorted.length; i++) {
                 const r = sorted[i];
