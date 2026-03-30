@@ -197,12 +197,14 @@ export default function Trips() {
     };
 
     const filteredTrips = trips.filter(t => {
-        const matchesSearch =
+        const matchesSearch = searchTerm === '' || (
             t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.vehicle?.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            t.destination?.toLowerCase().includes(searchTerm.toLowerCase());
+            t.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.cte_number?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
         const matchesStatus = filterStatus === '' || (t.status?.toLowerCase() === filterStatus);
         return matchesSearch && matchesStatus;
     });
@@ -289,7 +291,7 @@ export default function Trips() {
                             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Filtrar por placa, motorista ou rota..."
+                                placeholder="Buscar por placa, motorista, rota ou CT-e..."
                                 className="input-field pl-10 py-2 text-sm"
                                 value={searchTerm}
                                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}

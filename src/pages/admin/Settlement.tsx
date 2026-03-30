@@ -87,9 +87,24 @@ export default function Settlement() {
     };
 
     // Bloco C: Cálculo do Cérebro (Base Financeira de Acerto)
+    const statusLabel = (status: string) => {
+        if (!status) return '';
+        const s = status.toLowerCase();
+        if (s === 'paid') return 'pago';
+        if (s === 'pending') return 'pendente';
+        if (s === 'in_transit') return 'em viagem';
+        if (s === 'completed') return 'finalizado';
+        if (s === 'validated') return 'validado';
+        return s;
+    };
+
     const filteredViagens = viagens.filter(v =>
-        v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        searchTerm === '' || (
+            v.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            v.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            statusLabel(v.status).includes(searchTerm.toLowerCase()) ||
+            (v.status || '').toLowerCase().includes(searchTerm.toLowerCase())
+        )
     );
     const settleTotalPages = Math.max(1, Math.ceil(filteredViagens.length / SETTLE_PAGE_SIZE));
     const settleSafePage = Math.min(settlePage, settleTotalPages);
@@ -302,7 +317,7 @@ export default function Settlement() {
                                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Filtrar motorista ou ID..."
+                                            placeholder="Buscar motorista, status ou ID..."
                                             className="input-field pl-9 py-1.5"
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}

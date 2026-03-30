@@ -17,6 +17,7 @@ export default function Maintenance() {
     const [editingMaintenance, setEditingMaintenance] = useState<any>(null);
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [filterPlate, setFilterPlate] = useState('');
     const [filterType, setFilterType] = useState('');
 
@@ -164,6 +165,16 @@ export default function Maintenance() {
                             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
+                                placeholder="Buscar descrição, oficina, observações..."
+                                className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-56"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <div className="relative">
+                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
                                 placeholder="Placa..."
                                 className="bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-7 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-28"
                                 value={filterPlate}
@@ -226,7 +237,13 @@ export default function Maintenance() {
                                 const filtered = history.filter(m => {
                                     const matchesPlate = (m.vehicle?.plate || '').toLowerCase().includes(filterPlate.toLowerCase());
                                     const matchesType = filterType === '' || m.type === filterType;
-                                    return matchesPlate && matchesType;
+                                    const matchesSearch = searchTerm === '' || (
+                                        (m.vehicle?.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (m.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (m.workshop || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (m.notes || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                    );
+                                    return matchesPlate && matchesType && matchesSearch;
                                 });
                                 if (filtered.length === 0) return (
                                     <tr>
