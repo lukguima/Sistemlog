@@ -2,8 +2,7 @@ import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Dr
 import { useState, useEffect } from 'react';
 import { driverService, fleetService, supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+
 import FuelModal from '../../components/admin/FuelModal.tsx';
 
 export default function Fuel() {
@@ -87,7 +86,7 @@ export default function Fuel() {
                 total_value:     toNum(rest.total_value),
                 arla_liters:     toNum(rest.arla_liters),
                 arla_value:      toNum(rest.arla_value),
-                created_at:      date ? new Date(date).toISOString() : new Date().toISOString()
+                created_at:      date ? `${date}T12:00:00.000Z` : new Date().toISOString()
             };
 
             if (editingRecord) {
@@ -262,7 +261,7 @@ export default function Fuel() {
                                 return filtered.map((r: any) => (
                                     <tr key={r.id} className="hover:bg-slate-50/10 transition-colors group">
                                         <td className="px-6 py-5 text-slate-500 text-sm">
-                                            {format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                                            {(() => { const [y,m,d] = r.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })()}
                                         </td>
                                         <td className="px-6 py-5 font-black text-slate-900">
                                             <div className="flex flex-col gap-1">
