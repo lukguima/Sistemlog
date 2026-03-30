@@ -221,20 +221,19 @@ export function TruckScene3D({ pneus, activeTyre, onSelect, vehicleType }: any) 
 
                                 {/* Pneus */}
                                 {isDouble ? (
-                                    // 4 Pneus (EE, IE, ID, ED)
+                                    // 4 Pneus — E (Esquerdo) em x positivo, D (Direito) em x negativo
+                                    // (câmera em [8,5,8] inverte o eixo X visualmente)
                                     <>
-                                        {/* Esquerda */}
-                                        <TireWithData pos={`${axle.id}EE`} x={-1.3} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
-                                        <TireWithData pos={`${axle.id}IE`} x={-0.9} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
-                                        {/* Direita */}
-                                        <TireWithData pos={`${axle.id}ID`} x={0.9} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
-                                        <TireWithData pos={`${axle.id}ED`} x={1.3} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}EE`} x={1.3} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}IE`} x={0.9} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}ID`} x={-0.9} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}ED`} x={-1.3} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
                                     </>
                                 ) : (
-                                    // 2 Pneus (E, D)
+                                    // 2 Pneus — E em x positivo, D em x negativo
                                     <>
-                                        <TireWithData pos={`${axle.id}E`} x={-1.2} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
-                                        <TireWithData pos={`${axle.id}D`} x={1.2} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}E`} x={1.2} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
+                                        <TireWithData pos={`${axle.id}D`} x={-1.2} pneus={pneus} activeTyre={activeTyre} onSelect={onSelect} />
                                     </>
                                 )}
                             </group>
