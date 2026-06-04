@@ -75,7 +75,7 @@ export default function Reports() {
     const stats = [
         { label: 'Frete Bruto Total', value: `R$ ${(kpis?.grossRevenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, trend: '---', positive: true, icon: <DollarSign size={24} /> },
         { label: 'Lucro Líquido', value: `R$ ${(kpis?.netRevenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, trend: '---', positive: (kpis?.netRevenue || 0) >= 0, icon: <TrendingUp size={24} /> },
-        { label: 'Eficiência KM/L', value: `${avgKmL.toFixed(2)} KM/L`, trend: '---', positive: true, icon: <Fuel size={24} /> },
+        { label: 'Eficiência KM/L', value: `${avgKmL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM/L`, trend: '---', positive: true, icon: <Fuel size={24} /> },
         { label: 'Custos Operacionais', value: `R$ ${(kpis?.fuelExpenses + kpis?.maintenanceExpenses || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, trend: '---', icon: <BarChart3 size={24} /> },
     ];
 
@@ -246,7 +246,7 @@ export default function Reports() {
                                     <td className="px-8 py-6 font-bold text-slate-300">R$ {item.fuelCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                                     <td className="px-8 py-6">
                                         <span className={`px-3 py-1 text-xs font-black rounded-lg ${item.kmPerLiter > 2.5 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                            {item.kmPerLiter.toFixed(2)} KM/L
+                                            {item.kmPerLiter.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM/L
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 font-black text-primary-400">R$ {item.profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>

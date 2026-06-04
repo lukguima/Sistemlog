@@ -184,7 +184,7 @@ export default function TyreCheck() {
     }, [pneus]);
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8 font-display h-full pb-20">
+        <div className="max-w-7xl mx-auto space-y-8 font-display pb-20">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Gestão Técnica de Pneus</h1>

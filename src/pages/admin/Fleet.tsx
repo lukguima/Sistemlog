@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2 } from 'lucide-react';
+import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2, ArrowRightLeft } from 'lucide-react';
 
 const KIWIFY_BASICO = 'https://pay.kiwify.com.br/Xo5neXV';
 const KIWIFY_PRO = 'https://pay.kiwify.com.br/9f3rjhC';
@@ -28,6 +28,8 @@ import { fleetService, tripService, maintenanceService, driverService } from '..
 import { supabase } from '../../lib/supabase';
 import AddTruckModal from '../../components/admin/AddTruckModal';
 import DriverModal from '../../components/admin/DriverModal';
+import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
+import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 
 export default function Fleet() {
     const { user, subscription } = useAuth();
@@ -44,6 +46,10 @@ export default function Fleet() {
     const [isExporting, setIsExporting] = useState(false);
     const [showLimitModal, setShowLimitModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [swapVehicle, setSwapVehicle] = useState<any | null>(null);
+    const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
+
+    const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'BITREM', 'RODOTREM'];
 
     const companyId = (user as any)?.company_id;
     const vehicleLimit = getVehicleLimit(subscription);
@@ -214,7 +220,7 @@ export default function Fleet() {
 
     return (
         <>
-        <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in transition-all">
+        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in transition-all">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Frota e Motoristas</h1>
@@ -356,12 +362,19 @@ export default function Fleet() {
                                         (v.model || '').toLowerCase().includes(searchTerm.toLowerCase())
                                     ).map(v => (
                                         <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                            <td className="px-6 py-4 font-mono font-bold text-slate-900 dark:text-white uppercase">{v.plate}</td>
+                                            <td className="px-6 py-4">
+                                                <button
+                                                    onClick={() => setDetailVehicleId(v.id)}
+                                                    className="font-mono font-bold text-primary-600 hover:text-primary-800 hover:underline uppercase transition-colors"
+                                                >
+                                                    {v.plate}
+                                                </button>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className="font-medium text-slate-700 dark:text-slate-300">{v.model}</span>
                                                 <span className="block text-xs text-slate-500">{v.year}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-medium">{(v.current_km || 0).toLocaleString()} km</td>
+                                            <td className="px-6 py-4 text-sm font-medium">{(v.current_km || 0).toLocaleString('pt-BR')} km</td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${v.status?.toLowerCase() === 'active' || v.status === 'Ativo' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400'}`}>
                                                     {v.status?.toLowerCase() === 'active' ? 'Ativo' : v.status === 'maintenance' ? 'Em Manutenção' : v.status}
@@ -369,6 +382,15 @@ export default function Fleet() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2 text-slate-400">
+                                                    {IMPLEMENT_TYPES.includes(v.truck_type) && (
+                                                        <button
+                                                            onClick={() => setSwapVehicle(v)}
+                                                            title="Trocar Conjunto"
+                                                            className="p-1 hover:text-amber-500 transition-colors"
+                                                        >
+                                                            <ArrowRightLeft size={16} />
+                                                        </button>
+                                                    )}
                                                     <button onClick={() => openEditVehicle(v)} className="p-1 hover:text-primary transition-colors"><Edit2 size={16} /></button>
                                                     <button onClick={() => handleDelete(v.id)} className="p-1 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
                                                     <button className="p-1 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"><MoreVertical size={16} /></button>
@@ -567,6 +589,17 @@ export default function Fleet() {
                 </div>
             </div>
         )}
+        <SwapConjuntoModal
+            isOpen={!!swapVehicle}
+            vehicle={swapVehicle}
+            onClose={() => setSwapVehicle(null)}
+            onSuccess={fetchData}
+        />
+        <VehicleDetailsModal
+            isOpen={!!detailVehicleId}
+            vehicleId={detailVehicleId || ''}
+            onClose={() => setDetailVehicleId(null)}
+        />
         </>
     );
 }

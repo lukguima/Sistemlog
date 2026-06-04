@@ -4,12 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { tripService, fleetService, settlementService } from '../../lib/services';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
 import AddAdvanceModal from '../../components/admin/AddAdvanceModal';
+import DriverReport from './DriverReport';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export default function Settlement() {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'settlement' | 'advances'>('settlement');
+    const [activeTab, setActiveTab] = useState<'settlement' | 'advances' | 'production'>('settlement');
 
     // Settlement Tab State
     const [viagens, setViagens] = useState<any[]>([]);
@@ -269,8 +270,8 @@ export default function Settlement() {
     );
 
     return (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background-light dark:bg-background-dark font-display">
-            <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-dark px-8 flex justify-between items-center shrink-0">
+        <div className="flex flex-col font-display">
+            <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-dark px-4 md:px-8 py-4 flex flex-wrap gap-3 justify-between items-center">
                 <div>
                     <h2 className="font-bold text-xl flex items-center gap-2">
                         <Wallet size={20} className="text-emerald-500" />
@@ -289,7 +290,7 @@ export default function Settlement() {
                 </button>
             </header>
 
-            <div className="px-8 pt-6">
+            <div className="px-4 md:px-8 pt-6">
                 <div className="flex border-b border-slate-200 dark:border-slate-800">
                     <button
                         onClick={() => setActiveTab('settlement')}
@@ -303,11 +304,19 @@ export default function Settlement() {
                     >
                         Gerenciar Vales
                     </button>
+                    <button
+                        onClick={() => setActiveTab('production')}
+                        className={`px-6 py-3 text-sm font-bold transition-colors border-b-2 ${activeTab === 'production' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        Produção de Motoristas
+                    </button>
                 </div>
             </div>
 
-            <main className="flex-1 p-8 overflow-y-auto">
-                {activeTab === 'settlement' ? (
+            <main className="p-4 md:p-8">
+                {activeTab === 'production' ? (
+                    <DriverReport />
+                ) : activeTab === 'settlement' ? (
                     <div className="flex gap-8 flex-col xl:flex-row h-full">
                         {/* Painel Central: Listagem de Fretes pra Liquidar */}
                         <div className="flex-[2] space-y-6">
@@ -362,8 +371,8 @@ export default function Settlement() {
                                                             {viagem.driver?.name || 'S/ Motorista'}
                                                             <span className="block text-[10px] font-normal text-slate-500">{new Date(viagem.created_at).toLocaleDateString('pt-BR')}</span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-right font-medium">R$ {(viagem.gross_value || 0).toLocaleString('pt-BR')}</td>
-                                                        <td className="px-6 py-4 text-right font-medium text-rose-500">- R$ {((Number(viagem.advance_value) || 0) + (Number(viagem.estimated_cost) || 0)).toLocaleString('pt-BR')}</td>
+                                                        <td className="px-6 py-4 text-right font-medium">{(viagem.gross_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                                        <td className="px-6 py-4 text-right font-medium text-rose-500">- {((Number(viagem.advance_value) || 0) + (Number(viagem.estimated_cost) || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                         <td className="px-6 py-4">
                                                             <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded ${viagem.status?.toLowerCase() === 'paid' || viagem.status === 'Pago' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400'}`}>
                                                                 {viagem.status?.toLowerCase() === 'paid' ? 'Pago' :

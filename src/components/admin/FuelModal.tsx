@@ -368,10 +368,10 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 </div>
                                 <div className={`rounded-xl px-4 py-3 border ${kmL === null ? 'bg-slate-50 border-slate-200' : kmL >= 2.5 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                                        KM/L {prevKm !== null ? `(${prevKm.toLocaleString()} → ${kmAtual.toLocaleString()})` : ''}
+                                        KM/L {prevKm !== null ? `(${prevKm.toLocaleString('pt-BR')} → ${kmAtual.toLocaleString('pt-BR')})` : ''}
                                     </p>
                                     {kmL !== null
-                                        ? <p className={`text-lg font-black ${kmL >= 2.5 ? 'text-emerald-600' : 'text-rose-600'}`}>{kmL.toFixed(2)} km/L</p>
+                                        ? <p className={`text-lg font-black ${kmL >= 2.5 ? 'text-emerald-600' : 'text-rose-600'}`}>{kmL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L</p>
                                         : <p className="text-sm text-slate-400">{prevKm === null ? 'Aguardando KM anterior' : 'Informe KM e litros'}</p>
                                     }
                                 </div>

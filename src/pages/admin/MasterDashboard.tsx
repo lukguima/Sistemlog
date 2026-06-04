@@ -31,7 +31,7 @@ export default function MasterDashboard() {
     ];
 
     return (
-        <div className="min-h-screen bg-[#0B0F17] text-white p-8 space-y-8 font-display">
+        <div className="w-full text-white space-y-8 font-display">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>

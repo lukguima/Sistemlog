@@ -255,7 +255,7 @@ export default function Maintenance() {
                                 return filtered.map((m) => (
                                     <tr key={m.id} className="hover:bg-slate-50/10 transition-colors group">
                                         <td className="px-8 py-6 font-black text-slate-900">{m.vehicle?.plate || 'N/A'}</td>
-                                        <td className="px-8 py-6 font-bold text-slate-700">{Number(m.km).toLocaleString()} km</td>
+                                        <td className="px-8 py-6 font-bold text-slate-700">{Number(m.km).toLocaleString('pt-BR')} km</td>
                                         <td className="px-8 py-6 text-slate-500 text-sm">
                                             {format(new Date(m.date), "dd/MM/yyyy", { locale: ptBR })}
                                         </td>
@@ -303,6 +303,7 @@ export default function Maintenance() {
                 vehicles={vehicles}
                 suppliers={suppliers}
                 initialData={editingMaintenance}
+                companyId={user?.company_id}
             />
         </div>
     );

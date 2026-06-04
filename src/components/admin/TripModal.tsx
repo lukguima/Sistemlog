@@ -26,16 +26,35 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const companyId = (user as any)?.company_id;
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
     const isEditing = !!initialData;
-    const buildEditData = (data: any) => ({
-        ...makeEmpty(),
-        ...data,
-        cte: data?.cte || data?.cte_number || '',
-        value: data?.value || data?.gross_value || '',
-        tolls_value: data?.tolls_value || data?.toll_expense || '',
-        insurance_value: data?.insurance_value || data?.other_expenses || '',
-        // Extrai a data de created_at sem converter fuso (slice dos 10 primeiros chars)
-        date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
-    });
+    const buildEditData = (data: any) => {
+        const fmt = (v: any) => (v != null && v !== '') ? Number(v).toFixed(2) : '';
+        
+        // Se 'value' (tarifa) não existir, tenta extrair do gross_value/peso
+        const weight = parseFloat(data?.weight) || 0;
+        const gross = parseFloat(data?.gross_value) || 0;
+        let tarifa = data?.value;
+        if (tarifa == null || tarifa === '') {
+            tarifa = (weight > 0) ? (gross / weight) : gross;
+        }
+
+        return {
+            ...makeEmpty(),
+            ...data,
+            cte: data?.cte || data?.cte_number || '',
+            value: fmt(tarifa),
+            weight: fmt(data?.weight),
+            tax_rate: fmt(data?.tax_rate),
+            commission_rate: fmt(data?.commission_rate),
+            estimated_cost: fmt(data?.estimated_cost),
+            advance_value: fmt(data?.advance_value),
+            tolls_value: fmt(data?.tolls_value || data?.toll_expense),
+            insurance_value: fmt(data?.insurance_value || data?.other_expenses),
+            start_km: data?.start_km ?? '',
+            end_km: data?.end_km ?? '',
+            // Extrai a data de created_at sem converter fuso (slice dos 10 primeiros chars)
+            date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
+        };
+    };
 
     const [formData, setFormDataState] = useState(() => {
         if (isEditing) return buildEditData(initialData);
@@ -291,9 +310,9 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <input
                                 required
                                 type="number"
-                                step="0.0001"
+                                step="0.01"
                                 className={inputStyle}
-                                placeholder="0,0000"
+                                placeholder="0,00"
                                 value={formData.value}
                                 onChange={e => setFormData({ ...formData, value: e.target.value })}
                             />

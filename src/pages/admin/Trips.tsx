@@ -229,7 +229,7 @@ export default function Trips() {
             t.destination,
             `${t.weight} kg`,
             t.cte_number || '-',
-            `R$ ${t.gross_value || 0}`,
+            (t.gross_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
             t.status
         ]);
         exportToPDF('Relatório de Viagens e Fretes', headers, data, 'viagens_logistica');
@@ -244,20 +244,20 @@ export default function Trips() {
             Destino: t.destination,
             Peso: t.weight,
             CT_e: t.cte_number || '-',
-            ValorBruto: t.gross_value || 0,
+            'Valor Bruto (R$)': (t.gross_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             Status: t.status
         }));
         exportToExcel(data, 'viagens_logistica');
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in transition-all">
+        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in transition-all">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Histórico de Viagens</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">Histórico de Viagens</h1>
                     <p className="text-slate-500 dark:text-slate-400">Controle completo de fretes, origens e destinos.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <button
                         onClick={() => {
                             setEditingId(null);
@@ -373,10 +373,10 @@ export default function Trips() {
                                         </td>
                                         <td className="px-4 py-4 text-sm font-bold">{trip.weight} kg</td>
                                         <td className="px-4 py-4 font-mono text-xs">{trip.cte_number || '-'}</td>
-                                        <td className="px-4 py-4 text-sm font-medium">R$ {(Number(trip.gross_value) || 0).toLocaleString('pt-BR')}</td>
+                                        <td className="px-4 py-4 text-sm font-medium">{(Number(trip.gross_value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-4 py-4 text-sm">{trip.tax_rate || 0}%</td>
                                         <td className="px-4 py-4 text-sm">{trip.commission_rate || 0}%</td>
-                                        <td className="px-4 py-4 text-sm font-medium text-rose-500">R$ {(Number(trip.estimated_cost) || 0).toLocaleString('pt-BR')}</td>
+                                        <td className="px-4 py-4 text-sm font-medium text-rose-500">{(Number(trip.estimated_cost) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-4 py-4">
                                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
                                                 trip.status?.toLowerCase() === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
@@ -446,4 +446,4 @@ export default function Trips() {
             />
         </div>
     );
-}
+}

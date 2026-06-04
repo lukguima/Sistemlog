@@ -110,7 +110,7 @@ export default function DriverApp() {
                                 <h3 className="text-2xl font-black text-white italic">{activeTrip.vehicle?.plate || 'S/ Placa'}</h3>
                             </div>
                             <div className="bg-primary-600/10 text-primary-400 px-3 py-1 rounded-lg text-xs font-black border border-primary-500/20">
-                                KM: {(activeTrip.vehicle?.last_km || 0).toLocaleString()}
+                                KM: {(activeTrip.vehicle?.last_km || 0).toLocaleString('pt-BR')}
                             </div>
                         </div>
 

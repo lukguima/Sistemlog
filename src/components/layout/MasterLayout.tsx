@@ -105,7 +105,7 @@ export default function MasterLayout() {
                     </button>
                 </header>
 
-                <div className="flex-1 p-8 lg:p-12 overflow-y-auto relative z-10 w-full max-w-[1600px] mx-auto">
+                <div className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto relative z-10 w-full max-w-[1600px] mx-auto">
                     <Outlet />
                 </div>
             </main>

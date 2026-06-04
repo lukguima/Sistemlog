@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, MapPin } from 'lucide-react';
+import { X, Plus, Trash2, MapPin, Pencil } from 'lucide-react';
 import { fixedRouteService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,6 +13,7 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
     const [loading, setLoading] = useState(false);
     const [routes, setRoutes] = useState<any[]>([]);
     const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         origin: '',
         destination: '',
@@ -40,8 +41,21 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
         if (isOpen) {
             fetchRoutes();
             setShowForm(false);
+            setEditingId(null);
         }
     }, [isOpen, companyId]);
+
+    const handleEdit = (route: any) => {
+        setFormData({
+            origin: route.origin,
+            destination: route.destination,
+            freight_value: String(route.freight_value),
+            distance_km: route.distance_km ? String(route.distance_km) : '',
+            company_id: companyId
+        });
+        setEditingId(route.id);
+        setShowForm(true);
+    };
 
     if (!isOpen) return null;
 
@@ -49,13 +63,20 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
         e.preventDefault();
         try {
             setLoading(true);
-            await fixedRouteService.addFixedRoute({
-                ...formData,
+            const payload = {
+                origin: formData.origin,
+                destination: formData.destination,
                 freight_value: parseFloat(formData.freight_value.toString()),
                 distance_km: formData.distance_km ? parseFloat(formData.distance_km.toString()) : null,
                 company_id: companyId
-            });
+            };
+            if (editingId) {
+                await fixedRouteService.updateFixedRoute(editingId, payload);
+            } else {
+                await fixedRouteService.addFixedRoute(payload);
+            }
             setFormData({ origin: '', destination: '', freight_value: '', distance_km: '', company_id: companyId });
+            setEditingId(null);
             setShowForm(false);
             fetchRoutes();
         } catch (error) {
@@ -105,6 +126,9 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     {showForm ? (
                         <form onSubmit={handleSubmit} className="space-y-4 animate-in slide-in-from-top-4 duration-300">
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                {editingId ? 'Editar Trecho' : 'Novo Trecho'}
+                            </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className={labelStyle}>Cidade de Origem</label>
@@ -156,7 +180,7 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
                             <div className="flex gap-3 pt-4">
                                 <button
                                     type="button"
-                                    onClick={() => setShowForm(false)}
+                                    onClick={() => { setShowForm(false); setEditingId(null); setFormData({ origin: '', destination: '', freight_value: '', distance_km: '', company_id: companyId }); }}
                                     className="flex-1 px-6 py-3 rounded-xl font-bold text-xs uppercase text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all"
                                 >
                                     Cancelar
@@ -166,7 +190,7 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
                                     disabled={loading}
                                     className="flex-1 bg-[#2563EB] text-white px-6 py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25"
                                 >
-                                    {loading ? 'Salvando...' : 'Salvar Trecho'}
+                                    {loading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Salvar Trecho'}
                                 </button>
                             </div>
                         </form>
@@ -199,12 +223,22 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
                                                 </div>
                                             </div>
                                         </div>
-                                        <button 
-                                            onClick={() => handleDelete(route.id)}
-                                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleEdit(route)}
+                                                className="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                                                title="Editar trecho"
+                                            >
+                                                <Pencil size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(route.id)}
+                                                className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                                title="Excluir trecho"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))
                             ) : (

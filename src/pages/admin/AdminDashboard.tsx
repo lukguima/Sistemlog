@@ -230,8 +230,8 @@ export default function AdminDashboard() {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
-            <main className="flex-1 p-6 md:p-8 overflow-y-auto w-full">
+        <div className="w-full text-slate-900 dark:text-slate-100 font-display">
+            <div className="w-full">
 
                 {/* 1. Header do Dashboard com Navegador de Data */}
                 <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-8">
@@ -348,7 +348,7 @@ export default function AdminDashboard() {
                                                             {truck.plate}
                                                         </button>
                                                     </div>
-                                                    <span className="text-emerald-500 font-bold text-sm">R$ {Math.max(0, truck.net).toLocaleString('pt-BR')}</span>
+                                                    <span className="text-emerald-500 font-bold text-sm">{Math.max(0, truck.net).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                                 </div>
                                                 <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                     <div 
@@ -392,7 +392,7 @@ export default function AdminDashboard() {
                                             driverEfficiency.slice(0, 3).map((d: any, idx: number) => (
                                                 <tr key={idx}>
                                                     <td className="px-4 py-3 font-bold truncate max-w-[100px]">{d.driver}</td>
-                                                    <td className="px-4 py-3 text-right font-medium">R$ {Math.round(d.revenue || 0).toLocaleString('pt-BR')}</td>
+                                                    <td className="px-4 py-3 text-right font-medium">{(d.revenue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                                 </tr>
                                             ))
                                         ) : (
@@ -418,7 +418,7 @@ export default function AdminDashboard() {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value: any) => `R$ ${value.toLocaleString()}`} />
+                                    <Tooltip formatter={(value: any) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
@@ -509,7 +509,7 @@ export default function AdminDashboard() {
                                                     {f.vehicle?.plate || '---'}
                                                 </button>
                                             </td>
-                                            <td className="px-6 py-4 font-bold">R$ {(f.gross_value || 0).toLocaleString('pt-BR')}</td>
+                                            <td className="px-6 py-4 font-bold">{(f.gross_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                             <td className="px-6 py-4 text-right">
                                                 <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border
                                                     ${(f.status === 'completed' || f.status === 'Concluído' || f.status === 'paid') ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
@@ -527,7 +527,7 @@ export default function AdminDashboard() {
                         </table>
                     </div>
                 </div>
-            </main>
+            </div>
 
             <FreightSimulatorModal 
                 isOpen={isSimulatorOpen} 

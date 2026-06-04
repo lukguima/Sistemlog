@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, TrendingUp, DollarSign, Fuel, Wrench, Calendar, Truck, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
-import { dashboardService } from '../../lib/services';
+import { X, TrendingUp, DollarSign, Fuel, Wrench, Calendar, Truck, Activity, ArrowRightLeft } from 'lucide-react';
+import { dashboardService, conjuntoHistoryService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
@@ -14,23 +14,51 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
+    const [conjuntoHistory, setConjuntoHistory] = useState<any[]>([]);
     const companyId = (user as any)?.company_id;
 
-    useEffect(() => {
-        if (isOpen && vehicleId) {
-            if (companyId) {
-                fetchAnalytics();
-            } else {
-                setLoading(false);
-            }
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const defaultEnd = now.toISOString().split('T')[0];
+    const [startDate, setStartDate] = useState(defaultStart);
+    const [endDate, setEndDate] = useState(defaultEnd);
+    const [period, setPeriod] = useState<'month' | 'quarter' | 'year' | 'all' | 'custom'>('month');
+
+    function applyPreset(preset: 'month' | 'quarter' | 'year' | 'all') {
+        const d = new Date();
+        let s = '';
+        let e = d.toISOString().split('T')[0];
+        if (preset === 'month') {
+            s = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+        } else if (preset === 'quarter') {
+            const q = Math.floor(d.getMonth() / 3);
+            s = new Date(d.getFullYear(), q * 3, 1).toISOString().split('T')[0];
+        } else if (preset === 'year') {
+            s = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
+        } else {
+            s = '';
+            e = '';
         }
-    }, [isOpen, vehicleId, companyId]);
+        setPeriod(preset);
+        setStartDate(s);
+        setEndDate(e);
+    }
+
+    useEffect(() => {
+        if (isOpen && vehicleId && companyId) {
+            fetchAnalytics();
+        }
+    }, [isOpen, vehicleId, companyId, startDate, endDate]);
 
     const fetchAnalytics = async () => {
         try {
             setLoading(true);
-            const res = await dashboardService.getVehicleAnalytics(companyId, vehicleId);
+            const [res, history] = await Promise.all([
+                dashboardService.getVehicleAnalytics(companyId, vehicleId, startDate || undefined, endDate || undefined),
+                conjuntoHistoryService.getHistory(vehicleId).catch(() => [])
+            ]);
             setData(res);
+            setConjuntoHistory(history);
         } catch (error) {
             console.error('Erro ao buscar análise do veículo:', error);
         } finally {
@@ -69,25 +97,56 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
             <div className="bg-white dark:bg-slate-900 w-full max-w-5xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300">
                 
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-900">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary-600 flex items-center justify-center text-white shadow-lg shadow-primary-500/20">
-                            <Truck size={24} />
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800/50 dark:to-slate-900">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-primary-600 flex items-center justify-center text-white shadow-lg shadow-primary-500/20">
+                                <Truck size={24} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                                    {data?.vehicle?.plate || '---'}
+                                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] uppercase tracking-wider rounded-lg font-bold">Ativo</span>
+                                </h2>
+                                <p className="text-xs text-slate-500 font-medium">Análise de Performance e Rentabilidade</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
-                                {data?.vehicle?.plate || '---'}
-                                <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] uppercase tracking-wider rounded-lg font-bold">Ativo</span>
-                            </h2>
-                            <p className="text-xs text-slate-500 font-medium">Análise de Performance e Rentabilidade</p>
-                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+                        >
+                            <X size={24} />
+                        </button>
                     </div>
-                    <button 
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600"
-                    >
-                        <X size={24} />
-                    </button>
+
+                    {/* Seletor de período */}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                        {(['month', 'quarter', 'year', 'all'] as const).map(p => (
+                            <button
+                                key={p}
+                                onClick={() => applyPreset(p)}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${period === p ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'}`}
+                            >
+                                {p === 'month' ? 'Mês Atual' : p === 'quarter' ? 'Trimestre' : p === 'year' ? 'Ano' : 'Todo Período'}
+                            </button>
+                        ))}
+                        <div className="flex items-center gap-1 ml-2">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={e => { setStartDate(e.target.value); setPeriod('custom'); }}
+                                className="text-[10px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                            />
+                            <span className="text-[10px] text-slate-400 font-bold">até</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={e => { setEndDate(e.target.value); setPeriod('custom'); }}
+                                className="text-[10px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                            />
+                        </div>
+                        {period === 'all' && <span className="text-[10px] text-slate-400 italic">histórico completo</span>}
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 lg:p-8">
@@ -98,36 +157,89 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                         </div>
                     ) : (
                         <div className="space-y-8">
-                            
-                            {/* KPI Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <DetailKPI 
-                                    label="Receita Bruta" 
-                                    value={`R$ ${(data?.stats?.totalGross || 0).toLocaleString('pt-BR')}`}
-                                    percent="+12%" 
-                                    up
+
+                            {/* KPI Grid — 4 cards principais */}
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                <DetailKPI
+                                    label="Faturamento Bruto"
+                                    value={(data?.stats?.totalGross || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     icon={<DollarSign size={18} className="text-blue-500" />}
                                 />
-                                <DetailKPI 
-                                    label="Lucro Líquido" 
-                                    value={`R$ ${(data?.stats?.netProfit || 0).toLocaleString('pt-BR')}`}
-                                    percent="+8.4%" 
-                                    up
+                                <DetailKPI
+                                    label="Resultado Líquido"
+                                    value={(data?.stats?.netProfit || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     icon={<TrendingUp size={18} className="text-emerald-500" />}
+                                    up={(data?.stats?.netProfit || 0) >= 0}
                                 />
-                                <DetailKPI 
-                                    label="Consumo Médio" 
-                                    value={`${(data?.stats?.avgKmPerLiter || 0).toFixed(2)} KM/L`}
-                                    percent="-2.1%" 
+                                <DetailKPI
+                                    label="Consumo Médio"
+                                    value={`${(data?.stats?.avgKmPerLiter || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM/L`}
                                     icon={<Fuel size={18} className="text-orange-500" />}
                                 />
-                                <DetailKPI 
-                                    label="Custo Manutenção" 
-                                    value={`R$ ${(data?.stats?.totalMaint || 0).toLocaleString('pt-BR')}`}
-                                    percent="+5.4%" 
+                                <DetailKPI
+                                    label="Custo Manutenção"
+                                    value={(data?.stats?.totalMaint || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                     icon={<Wrench size={18} className="text-rose-500" />}
                                 />
                             </div>
+
+                            {/* Tabela de Resultado Detalhado */}
+                            {(() => {
+                                const s = data?.stats || {};
+                                const gross = s.totalGross || 0;
+                                const pct = (v: number) => gross > 0 ? ((v / gross) * 100).toFixed(1) + '%' : '—';
+                                const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                                const rows = [
+                                    { label: 'Combustível + ARLA', value: (s.totalFuel || 0) + (s.totalArla || 0), color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/10' },
+                                    { label: 'Comissão Motorista', value: s.totalCommission || 0, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/10' },
+                                    { label: 'Manutenção', value: s.totalMaint || 0, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/10' },
+                                    { label: 'Imposto', value: s.totalTax || 0, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/10' },
+                                    { label: 'Pedágio', value: s.totalTolls || 0, color: 'text-slate-600', bg: '' },
+                                ];
+                                return (
+                                    <div className="card rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800">
+                                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 flex items-center gap-2">
+                                            <Activity size={16} className="text-primary-500" />
+                                            <span className="font-black text-sm text-slate-800 dark:text-white">Resultado Detalhado</span>
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest ml-1">— histórico completo</span>
+                                        </div>
+                                        <table className="w-full text-sm">
+                                            <tbody>
+                                                {/* Faturamento */}
+                                                <tr className="border-b border-slate-100 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-900/10">
+                                                    <td className="px-6 py-3 font-black text-slate-800 dark:text-white">Faturamento Bruto</td>
+                                                    <td className="px-6 py-3 text-right font-black text-slate-800 dark:text-white">{fmt(gross)}</td>
+                                                    <td className="px-6 py-3 text-right">
+                                                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-black rounded-lg">100%</span>
+                                                    </td>
+                                                </tr>
+                                                {/* Linhas de custo */}
+                                                {rows.map(r => (
+                                                    <tr key={r.label} className={`border-b border-slate-100 dark:border-slate-800 ${r.bg}`}>
+                                                        <td className="px-6 py-3 text-slate-600 dark:text-slate-400 font-medium">{r.label}</td>
+                                                        <td className={`px-6 py-3 text-right font-bold ${r.color}`}>{r.value > 0 ? `- ${fmt(r.value)}` : fmt(0)}</td>
+                                                        <td className="px-6 py-3 text-right">
+                                                            <span className="text-[10px] font-bold text-slate-400">{pct(r.value)}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {/* Resultado */}
+                                                <tr className={(s.netProfit || 0) >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/10' : 'bg-rose-50 dark:bg-rose-900/10'}>
+                                                    <td className="px-6 py-4 font-black text-slate-800 dark:text-white">Resultado Líquido</td>
+                                                    <td className={`px-6 py-4 text-right font-black text-lg ${(s.netProfit || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {fmt(s.netProfit || 0)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className={`px-2 py-0.5 text-[10px] font-black rounded-lg ${(s.netProfit || 0) >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'}`}>
+                                                            {pct(s.netProfit || 0)}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Charts Section */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -185,6 +297,58 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                 </div>
                             </div>
 
+                            {/* Histórico de Conjunto */}
+                            {conjuntoHistory.length > 0 && (
+                                <div>
+                                    <h3 className="font-black text-sm text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                                        <ArrowRightLeft size={18} className="text-amber-500" /> Histórico de Conjunto
+                                    </h3>
+                                    <div className="relative pl-5">
+                                        {/* Linha vertical da timeline */}
+                                        <div className="absolute left-1.5 top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
+
+                                        <div className="space-y-3">
+                                            {conjuntoHistory.map((h: any) => {
+                                                const fmtDate = (ts: string) => {
+                                                    const [y, m, d] = ts.slice(0, 10).split('-');
+                                                    return `${d}/${m}/${y}`;
+                                                };
+                                                const isCurrent = !h.ended_at;
+                                                return (
+                                                    <div key={h.id} className="relative flex items-start gap-3">
+                                                        {/* Dot */}
+                                                        <div className={`absolute -left-3.5 mt-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${isCurrent ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                                                        <div className={`flex-1 p-3 rounded-2xl border text-xs ${isCurrent ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'}`}>
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className={`font-black text-[10px] uppercase tracking-widest ${isCurrent ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                                    {isCurrent ? 'Atual' : `Encerrado em ${fmtDate(h.ended_at)}`}
+                                                                </span>
+                                                                <span className="text-slate-400 font-bold text-[10px]">
+                                                                    desde {fmtDate(h.started_at)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex gap-4 mt-1">
+                                                                <div>
+                                                                    <span className="text-slate-400 text-[10px] uppercase font-bold">Implemento 1</span>
+                                                                    <p className="font-black font-mono text-slate-800 dark:text-white">{h.implement_plate_1 || '—'}</p>
+                                                                </div>
+                                                                {h.implement_plate_2 && (
+                                                                    <div>
+                                                                        <span className="text-slate-400 text-[10px] uppercase font-bold">Implemento 2</span>
+                                                                        <p className="font-black font-mono text-slate-800 dark:text-white">{h.implement_plate_2}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {h.notes && <p className="mt-1 text-slate-500 italic text-[11px]">{h.notes}</p>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Tables Section */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                 
@@ -203,7 +367,7 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="font-black text-sm text-slate-900 dark:text-white">R$ {trip.gross_value.toLocaleString('pt-BR')}</div>
+                                                    <div className="font-black text-sm text-slate-900 dark:text-white">{(trip.gross_value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                                                     <span className="text-[9px] font-bold text-slate-400 italic">{new Date(trip.created_at).toLocaleDateString('pt-BR')}</span>
                                                 </div>
                                             </div>
@@ -229,7 +393,7 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                                             <div className="text-[10px] text-rose-500 font-bold uppercase">{m.type === 'preventive' ? 'Preventiva' : 'Corretiva'}</div>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right font-black text-xs">R$ {m.cost.toLocaleString('pt-BR')}</div>
+                                                    <div className="text-right font-black text-xs">{(m.cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                                                 </div>
                                             )) : <p className="text-xs text-slate-400 italic text-center py-4">Sem manutenções no período.</p>}
                                         </div>
@@ -255,21 +419,15 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
     );
 }
 
-function DetailKPI({ label, value, percent, icon, up }: { label: string, value: string, percent: string, icon: any, up?: boolean }) {
+function DetailKPI({ label, value, icon, up }: { label: string, value: string, icon: any, up?: boolean }) {
     return (
         <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col gap-3 group hover:border-primary-300 transition-all">
-            <div className="flex justify-between items-start">
-                <div className="p-2.5 bg-slate-50 dark:bg-slate-700 rounded-2xl group-hover:bg-primary-50 dark:group-hover:bg-primary-900/30 transition-colors">
-                    {icon}
-                </div>
-                <div className={`p-1.5 rounded-xl text-[9px] font-black flex items-center gap-1 ${up ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                    {up ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                    {percent}
-                </div>
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-700 rounded-2xl group-hover:bg-primary-50 dark:group-hover:bg-primary-900/30 transition-colors w-fit">
+                {icon}
             </div>
             <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-                <div className="text-xl font-black text-slate-800 dark:text-white mt-0.5 tracking-tight">{value}</div>
+                <div className={`text-xl font-black mt-0.5 tracking-tight ${up === false ? 'text-rose-600' : 'text-slate-800 dark:text-white'}`}>{value}</div>
             </div>
         </div>
     );

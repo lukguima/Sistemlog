@@ -270,7 +270,7 @@ export default function Fuel() {
                                                 </span>
                                                 {kmPerLiterMap[r.id] !== null && kmPerLiterMap[r.id] !== undefined ? (
                                                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-                                                        {kmPerLiterMap[r.id]!.toFixed(2)} km/L
+                                                        {kmPerLiterMap[r.id]!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L
                                                     </span>
                                                 ) : (
                                                     <span className="text-[10px] text-slate-300 ml-1">— km/L</span>

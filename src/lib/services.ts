@@ -463,6 +463,9 @@ export const maintenanceService = {
     },
     async addMaintenance(maintenance: any) {
         const { id: _id, vehicle: _vehicle, ...maintenanceData } = maintenance;
+        // Converte strings vazias em null para colunas de tipo date/integer
+        if (maintenanceData.next_maintenance_date === '') maintenanceData.next_maintenance_date = null;
+        if (maintenanceData.maintenance_interval_months === '' || maintenanceData.maintenance_interval_months === 0) maintenanceData.maintenance_interval_months = null;
         const { data, error } = await supabase
             .from('maintenance')
             .insert([maintenanceData])
@@ -470,17 +473,33 @@ export const maintenanceService = {
             .single();
         if (error) throw error;
 
-        if (maintenance.km || maintenance.current_km) {
-            const km = maintenance.km || maintenance.current_km;
+        // Atualiza current_km do veículo se informado
+        const kmDone = Number(maintenance.km || maintenance.current_km) || 0;
+        if (kmDone > 0) {
+            const vehicleUpdate: Record<string, any> = { current_km: kmDone };
+
+            // Sincroniza campos de histórico do veículo para manter alertas corretos
+            if (maintenance.type === 'preventive') {
+                if (maintenance.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
+                if (maintenance.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
+                if (maintenance.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
+            }
+            // Tipos diretos (oil/tyres) também atualizam os campos de histórico
+            if (maintenance.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
+            if (maintenance.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
+
             await supabase
                 .from('vehicles')
-                .update({ current_km: km })
+                .update(vehicleUpdate)
                 .eq('id', maintenance.vehicle_id);
         }
         return data;
     },
     async updateMaintenance(id: string, updates: any) {
         const { vehicle: _v, id: _id, ...cleanUpdates } = updates;
+        // Converte strings vazias em null para colunas de tipo date/integer
+        if (cleanUpdates.next_maintenance_date === '') cleanUpdates.next_maintenance_date = null;
+        if (cleanUpdates.maintenance_interval_months === '' || cleanUpdates.maintenance_interval_months === 0) cleanUpdates.maintenance_interval_months = null;
         const { data, error } = await supabase
             .from('maintenance')
             .update(cleanUpdates)
@@ -488,6 +507,21 @@ export const maintenanceService = {
             .select()
             .single();
         if (error) throw error;
+
+        // Sincroniza campos do veículo se manutenção preventiva de óleo/filtro foi atualizada
+        const kmDone = Number(updates.km || updates.current_km) || 0;
+        if (kmDone > 0 && updates.vehicle_id) {
+            const vehicleUpdate: Record<string, any> = { current_km: kmDone };
+            if (updates.type === 'preventive') {
+                if (updates.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
+                if (updates.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
+                if (updates.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
+            }
+            // Tipos diretos (oil/tyres) também atualizam os campos de histórico
+            if (updates.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
+            if (updates.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
+            await supabase.from('vehicles').update(vehicleUpdate).eq('id', updates.vehicle_id);
+        }
         return data;
     },
     async deleteMaintenance(id: string) {
@@ -495,6 +529,58 @@ export const maintenanceService = {
             .from('maintenance')
             .delete()
             .eq('id', id);
+        if (error) throw error;
+    }
+};
+
+export const preventiveTypesService = {
+    async getTypes(companyId: string) {
+        const { data, error } = await supabase
+            .from('preventive_types')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    },
+    async addType(companyId: string, type: { name: string; value: string; control_type: string; default_interval: number }) {
+        const { data, error } = await supabase
+            .from('preventive_types')
+            .insert([{ company_id: companyId, ...type }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+    async updateType(id: string, updates: { name: string; control_type: string; default_interval: number }) {
+        const { data, error } = await supabase
+            .from('preventive_types')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+    async deleteType(id: string) {
+        const { error } = await supabase
+            .from('preventive_types')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    },
+    async seedDefaults(companyId: string) {
+        const defaults = [
+            { name: 'Troca de Óleo', value: 'oleo', control_type: 'km', default_interval: 10000 },
+            { name: 'Filtros', value: 'filtros', control_type: 'km', default_interval: 10000 },
+            { name: 'Freios', value: 'freios', control_type: 'km', default_interval: 50000 },
+            { name: 'Correias', value: 'correias', control_type: 'km', default_interval: 80000 },
+            { name: 'Revisão Geral', value: 'revisao_geral', control_type: 'km', default_interval: 20000 },
+            { name: 'Aferição de Tacógrafo', value: 'tacografo', control_type: 'date', default_interval: 24 },
+        ];
+        const { error } = await supabase
+            .from('preventive_types')
+            .insert(defaults.map(d => ({ company_id: companyId, ...d })));
         if (error) throw error;
     }
 };
@@ -764,6 +850,113 @@ export const subscriptionService = {
     }
 };
 
+export const conjuntoHistoryService = {
+    async getHistory(vehicleId: string) {
+        const { data, error } = await supabase
+            .from('vehicle_implement_history')
+            .select('*')
+            .eq('vehicle_id', vehicleId)
+            .order('started_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+    },
+
+    async createInitialRecord(companyId: string, vehicleId: string, plate1: string | null, plate2: string | null) {
+        if (!plate1 && !plate2) return null;
+        const { data, error } = await supabase
+            .from('vehicle_implement_history')
+            .insert([{
+                company_id: companyId,
+                vehicle_id: vehicleId,
+                implement_plate_1: plate1 || null,
+                implement_plate_2: plate2 || null,
+                started_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+
+    async swapConjunto(vehicleId: string, companyId: string, newPlate1: string | null, newPlate2: string | null, swapDate: string, notes: string) {
+        const swapTs = `${swapDate}T12:00:00.000Z`;
+
+        // 1. Para cada novo implemento, verifica se já está em outro veículo
+        //    e remove de lá automaticamente (sem duplicidade)
+        const platesToCheck = [newPlate1, newPlate2].filter(Boolean) as string[];
+        for (const plate of platesToCheck) {
+            const { data: otherVehicles } = await supabase
+                .from('vehicles')
+                .select('id, implement_plate_1, implement_plate_2')
+                .neq('id', vehicleId)
+                .eq('company_id', companyId)
+                .or(`implement_plate_1.eq.${plate},implement_plate_2.eq.${plate}`);
+
+            for (const ov of otherVehicles || []) {
+                // Fecha histórico do veículo que perderá o implemento
+                await supabase
+                    .from('vehicle_implement_history')
+                    .update({ ended_at: swapTs })
+                    .eq('vehicle_id', ov.id)
+                    .is('ended_at', null);
+
+                // Remove só a placa conflitante, mantém a outra se existir
+                const ovPlate1 = ov.implement_plate_1 === plate ? null : ov.implement_plate_1;
+                const ovPlate2 = ov.implement_plate_2 === plate ? null : ov.implement_plate_2;
+
+                await supabase
+                    .from('vehicles')
+                    .update({ implement_plate_1: ovPlate1, implement_plate_2: ovPlate2 })
+                    .eq('id', ov.id);
+
+                // Cria novo registro de histórico para o veículo que perdeu o implemento
+                if (ovPlate1 || ovPlate2) {
+                    await supabase
+                        .from('vehicle_implement_history')
+                        .insert([{
+                            company_id: companyId,
+                            vehicle_id: ov.id,
+                            implement_plate_1: ovPlate1,
+                            implement_plate_2: ovPlate2,
+                            started_at: swapTs,
+                            notes: `Implemento ${plate} removido automaticamente por troca de conjunto`
+                        }]);
+                }
+            }
+        }
+
+        // 2. Encerra o registro atual do cavalo que está recebendo os novos implementos
+        const { error: closeError } = await supabase
+            .from('vehicle_implement_history')
+            .update({ ended_at: swapTs })
+            .eq('vehicle_id', vehicleId)
+            .is('ended_at', null);
+        if (closeError) throw closeError;
+
+        // 3. Atualiza as placas no veículo atual
+        const { error: vErr } = await supabase
+            .from('vehicles')
+            .update({ implement_plate_1: newPlate1 || null, implement_plate_2: newPlate2 || null })
+            .eq('id', vehicleId);
+        if (vErr) throw vErr;
+
+        // 4. Abre novo registro de histórico para o cavalo atual
+        if (newPlate1 || newPlate2) {
+            const { error: insertErr } = await supabase
+                .from('vehicle_implement_history')
+                .insert([{
+                    company_id: companyId,
+                    vehicle_id: vehicleId,
+                    implement_plate_1: newPlate1 || null,
+                    implement_plate_2: newPlate2 || null,
+                    started_at: swapTs,
+                    notes: notes || null
+                }]);
+            if (insertErr) throw insertErr;
+        }
+    }
+};
+
 export const leadService = {
     async createLead(lead: any) {
         const { data, error } = await supabase
@@ -778,31 +971,43 @@ export const leadService = {
 
 export const dashboardService = {
     async getTruckProfitability(companyId: string, startDate?: string, endDate?: string) {
+        const endDateFull = endDate ? `${endDate}T23:59:59.999Z` : undefined;
+
         let tripQuery = supabase
             .from('trips')
-            .select('vehicle_id, gross_value, created_at, vehicle:vehicles(plate)')
+            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, created_at, vehicle:vehicles(plate)')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('vehicle_id, total_value, arla_value, created_at, vehicle:vehicles(plate)')
+            .select('vehicle_id, total_value, arla_value, created_at')
+            .eq('company_id', companyId);
+
+        let maintQuery = supabase
+            .from('maintenance')
+            .select('vehicle_id, cost')
             .eq('company_id', companyId);
 
         if (startDate) {
             tripQuery = tripQuery.gte('created_at', startDate);
             fuelQuery = fuelQuery.gte('created_at', startDate);
+            maintQuery = maintQuery.gte('date', startDate);
+        }
+        if (endDateFull) {
+            tripQuery = tripQuery.lte('created_at', endDateFull);
+            fuelQuery = fuelQuery.lte('created_at', endDateFull);
         }
         if (endDate) {
-            tripQuery = tripQuery.lte('created_at', endDate);
-            fuelQuery = fuelQuery.lte('created_at', endDate);
+            maintQuery = maintQuery.lte('date', endDate);
         }
 
-        const [{ data: trips, error: tError }, { data: fuels, error: fError }] = await Promise.all([
-            tripQuery,
-            fuelQuery
-        ]);
+        const [
+            { data: trips, error: tError },
+            { data: fuels, error: fError },
+            { data: maints, error: mError }
+        ] = await Promise.all([tripQuery, fuelQuery, maintQuery]);
 
-        if (tError || fError) throw tError || fError;
+        if (tError || fError || mError) throw tError || fError || mError;
 
         const profitByTruck: Record<string, { vehicle_id: string; plate: string; gross: number; expenses: number; net: number }> = {};
 
@@ -813,18 +1018,31 @@ export const dashboardService = {
                 const vehicleData: any = t.vehicle;
                 profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
-            profitByTruck[vId].gross += Number(t.gross_value) || 0;
-            profitByTruck[vId].expenses += (Number((t as any).tolls_value) || 0) + (Number((t as any).insurance_value) || 0);
+            const gross = Number(t.gross_value) || 0;
+            const commission = gross * (Number((t as any).commission_rate) || 0) / 100;
+            const tax = gross * (Number((t as any).tax_rate) || 0) / 100;
+            const tolls = Number((t as any).tolls_value) || 0;
+            const insurance = Number((t as any).insurance_value) || 0;
+            profitByTruck[vId].gross += gross;
+            profitByTruck[vId].expenses += commission + tax + tolls + insurance;
         });
 
         fuels?.forEach(f => {
             const vId = f.vehicle_id;
             if (!vId) return;
             if (!profitByTruck[vId]) {
-                const vehicleData: any = f.vehicle;
-                profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
+                profitByTruck[vId] = { vehicle_id: vId, plate: '---', gross: 0, expenses: 0, net: 0 };
             }
             profitByTruck[vId].expenses += (Number(f.total_value) || 0) + (Number((f as any).arla_value) || 0);
+        });
+
+        maints?.forEach((m: any) => {
+            const vId = m.vehicle_id;
+            if (!vId) return;
+            if (!profitByTruck[vId]) {
+                profitByTruck[vId] = { vehicle_id: vId, plate: '---', gross: 0, expenses: 0, net: 0 };
+            }
+            profitByTruck[vId].expenses += Number(m.cost) || 0;
         });
 
         Object.values(profitByTruck).forEach(truck => {
@@ -834,8 +1052,26 @@ export const dashboardService = {
         return Object.values(profitByTruck).sort((a, b) => b.net - a.net);
     },
 
-    async getVehicleAnalytics(companyId: string, vehicleId: string) {
+    async getVehicleAnalytics(companyId: string, vehicleId: string, startDate?: string, endDate?: string) {
         if (!companyId || !vehicleId) throw new Error("ID da empresa ou do veículo não informado.");
+        const endDateFull = endDate ? `${endDate}T23:59:59.999Z` : undefined;
+
+        let tripsQuery = supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false });
+        let fuelsQuery = supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('odometer', { ascending: true });
+        let maintQuery = supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('date', { ascending: false });
+
+        if (startDate) {
+            tripsQuery = tripsQuery.gte('created_at', startDate);
+            fuelsQuery = fuelsQuery.gte('created_at', startDate);
+            maintQuery = maintQuery.gte('date', startDate);
+        }
+        if (endDateFull) {
+            tripsQuery = tripsQuery.lte('created_at', endDateFull);
+            fuelsQuery = fuelsQuery.lte('created_at', endDateFull);
+        }
+        if (endDate) {
+            maintQuery = maintQuery.lte('date', endDate);
+        }
 
         const [
             { data: vehicle, error: vError },
@@ -844,46 +1080,78 @@ export const dashboardService = {
             { data: maintenances, error: mError }
         ] = await Promise.all([
             supabase.from('vehicles').select('*').eq('id', vehicleId).eq('company_id', companyId).single(),
-            supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false }),
-            supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false }),
-            supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('date', { ascending: false })
+            tripsQuery,
+            fuelsQuery,
+            maintQuery
         ]);
 
         if (vError || tError || fError || mError) throw vError || tError || fError || mError;
 
-        // Calcular estatísticas
+        // Faturamento bruto (todas as viagens)
         const totalGross = trips?.reduce((acc, t) => acc + (Number(t.gross_value) || 0), 0) || 0;
+
+        // Combustível diesel + ARLA
         const totalFuel = fuels?.reduce((acc, f) => acc + (Number(f.total_value) || 0), 0) || 0;
+        const totalArla = fuels?.reduce((acc, f) => acc + (Number((f as any).arla_value) || 0), 0) || 0;
+
+        // Manutenção
         const totalMaint = maintenances?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
+
+        // Pedágio (custo por viagem)
         const totalTolls = trips?.reduce((acc, t) => acc + (Number((t as any).tolls_value) || 0), 0) || 0;
-        
-        const totalExpenses = totalFuel + totalMaint + totalTolls;
+
+        // Comissão motorista: gross_value * commission_rate / 100 por viagem
+        const totalCommission = trips?.reduce((acc, t) => {
+            const rate = Number((t as any).commission_rate) || 0;
+            return acc + (Number(t.gross_value) || 0) * rate / 100;
+        }, 0) || 0;
+
+        // Imposto: gross_value * tax_rate / 100 por viagem
+        const totalTax = trips?.reduce((acc, t) => {
+            const rate = Number((t as any).tax_rate) || 0;
+            return acc + (Number(t.gross_value) || 0) * rate / 100;
+        }, 0) || 0;
+
+        // Resultado líquido = Faturamento - todas as despesas
+        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalCommission + totalTax;
         const netProfit = totalGross - totalExpenses;
 
-        // Calcular médias de consumo
+        // KM/L: média das leituras consecutivas válidas (evita distorções por leituras extremas)
         let avgKmPerLiter = 0;
         if (fuels && fuels.length > 1) {
-            const sortedFuels = [...fuels].sort((a, b) => Number(a.odometer) - Number(b.odometer));
-            const rangeKm = Number(sortedFuels[sortedFuels.length - 1].odometer) - Number(sortedFuels[0].odometer);
-            const totalLiters = sortedFuels.slice(1).reduce((acc, f) => acc + (Number(f.liters) || 0), 0);
-            if (totalLiters > 0) avgKmPerLiter = rangeKm / totalLiters;
+            const sorted = [...fuels].sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
+            const readings: number[] = [];
+            for (let i = 1; i < sorted.length; i++) {
+                const kmDelta = Number(sorted[i].odometer) - Number(sorted[i - 1].odometer);
+                const liters = Number(sorted[i].liters) || 0;
+                // Filtra leituras inválidas (km negativo, 0 litros ou range absurdo > 5000 km)
+                if (kmDelta > 0 && liters > 0 && kmDelta < 5000) {
+                    readings.push(kmDelta / liters);
+                }
+            }
+            if (readings.length > 0) {
+                avgKmPerLiter = readings.reduce((a, b) => a + b, 0) / readings.length;
+            }
         }
 
         return {
             vehicle,
             stats: {
                 totalGross,
+                totalFuel,
+                totalArla,
+                totalMaint,
+                totalTolls,
+                totalCommission,
+                totalTax,
                 totalExpenses,
                 netProfit,
                 avgKmPerLiter,
-                totalMaint,
-                totalFuel,
-                totalTolls
             },
             history: {
-                trips: trips?.slice(0, 10) || [],
-                fuels: fuels?.slice(0, 10) || [],
-                maintenances: maintenances?.slice(0, 10) || []
+                trips: (trips || []).slice(0, 10),
+                fuels: [...(fuels || [])].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 10),
+                maintenances: (maintenances || []).slice(0, 10)
             }
         };
     },
@@ -970,20 +1238,21 @@ export const dashboardService = {
         const today = new Date();
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(today.getDate() + 30);
-        
-        // 1. Veículos (Manutenção e Documentos)
+
+        // 1. Veículos — inclui campos de manutenção para usar como fonte primária de alertas
         const { data: vehicles, error: vError } = await supabase
             .from('vehicles')
-            .select('id, plate, current_km, document_expiry, antt_expiry')
+            .select('id, plate, current_km, document_expiry, antt_expiry, maint_oil_interval, last_oil_change_km, maint_filter_interval, last_filter_change_km, maint_tyre_interval, last_tyre_change_km')
             .eq('company_id', companyId);
 
         if (vError) throw vError;
 
+        // Alertas de manutenção — freios/correias/revisao_geral/tacografo por km ou data
+        // Óleo/filtros: buscados também na tabela para garantir sincronia com registros diretos
         const { data: maintenances, error: mError } = await supabase
             .from('maintenance')
-            .select('vehicle_id, preventive_type, next_maintenance_km, maintenance_interval')
+            .select('vehicle_id, type, preventive_type, km, next_maintenance_km, maintenance_interval, next_maintenance_date')
             .eq('company_id', companyId)
-            .not('next_maintenance_km', 'is', null)
             .order('date', { ascending: false });
 
         if (mError) throw mError;
@@ -1005,40 +1274,109 @@ export const dashboardService = {
 
         if (tError) throw tError;
 
+        // Registro mais recente por veículo+tipo (apenas para os tipos especiais por KM/data)
+        const SPECIAL_TYPES = ['freios', 'correias', 'revisao_geral', 'tacografo'];
         const lastMaintenances: Record<string, any> = {};
+        // KM mais recente de óleo e filtros por veículo (da tabela de manutenção)
+        const lastOilKmByVehicle: Record<string, number> = {};
+        const lastFilterKmByVehicle: Record<string, number> = {};
+
         maintenances?.forEach(m => {
-            const key = `${m.vehicle_id}-${m.preventive_type}`;
-            if (!lastMaintenances[key]) lastMaintenances[key] = m;
+            // Só popula lastMaintenances para tipos especiais (evita alertas genéricos)
+            if (SPECIAL_TYPES.includes(m.preventive_type)) {
+                const key = `${m.vehicle_id}-${m.preventive_type}`;
+                if (!lastMaintenances[key]) lastMaintenances[key] = m;
+            }
+
+            // Captura km de óleo registrado diretamente como type='oil' ou preventive_type='oleo'
+            const mKm = Number(m.km) || 0;
+            if (mKm > 0) {
+                if (m.type === 'oil' || m.preventive_type === 'oleo') {
+                    if (!lastOilKmByVehicle[m.vehicle_id] || mKm > lastOilKmByVehicle[m.vehicle_id]) {
+                        lastOilKmByVehicle[m.vehicle_id] = mKm;
+                    }
+                }
+                if (m.preventive_type === 'filtros') {
+                    if (!lastFilterKmByVehicle[m.vehicle_id] || mKm > lastFilterKmByVehicle[m.vehicle_id]) {
+                        lastFilterKmByVehicle[m.vehicle_id] = mKm;
+                    }
+                }
+            }
         });
 
+        // Helper para gerar alerta de km
+        const pushKmAlert = (vehicleId: string, plate: string, typeKey: string, typeLabel: string, remaining: number, interval: number, currentKm: number) => {
+            const threshold = interval * 0.1;
+            // Alerta quando faltam <= 10% do intervalo ou já passou, mas não mais que um intervalo inteiro atrás
+            if (remaining <= threshold && remaining > -interval) {
+                alerts.push({
+                    id: `maint-${vehicleId}-${typeKey}`,
+                    type: 'Maintenance',
+                    title: `${typeLabel} - ${plate}`,
+                    message: remaining <= 0
+                        ? `ATENÇÃO: Quilometragem atingida (${currentKm.toLocaleString('pt-BR')}km). Realize a manutenção imediatamente.`
+                        : `Faltam ${remaining.toLocaleString('pt-BR')}km para a ${typeLabel.toLowerCase()}.`,
+                    severity: remaining <= 0 ? 'critical' : 'warning',
+                    date: new Date().toISOString()
+                });
+            }
+        };
+
         vehicles?.forEach(v => {
-            // Alertas de Manutenção
-            const vehicleMaintenances = Object.values(lastMaintenances).filter((m: any) => m.vehicle_id === v.id);
-            vehicleMaintenances.forEach((m: any) => {
-                const currentKm = Number(v.current_km);
-                const nextKm = Number(m.next_maintenance_km);
-                const interval = Number(m.maintenance_interval) || 10000; 
-                const remaining = nextKm - currentKm;
-                const threshold = interval * 0.1; 
+            const currentKm = Number(v.current_km) || 0;
 
-                if (remaining <= threshold && remaining > -interval) {
-                    const severity = remaining <= 0 ? 'critical' : 'warning';
-                    const typeLabel = m.preventive_type === 'oleo' ? 'Troca de Óleo' :
-                                    m.preventive_type === 'filtros' ? 'Troca de Filtros' :
-                                    m.preventive_type === 'freios' ? 'Revisão de Freios' :
-                                    m.preventive_type === 'correias' ? 'Troca de Correias' :
-                                    m.preventive_type === 'revisao_geral' ? 'Revisão Geral' : 'Manutenção';
+            // ── Óleo: usa o maior km entre campo do veículo e registros de manutenção ──
+            const oilInterval = Number(v.maint_oil_interval) || 0;
+            const lastOil = Math.max(Number(v.last_oil_change_km) || 0, lastOilKmByVehicle[v.id] || 0);
+            if (oilInterval > 0 && lastOil > 0) {
+                pushKmAlert(v.id, v.plate, 'oleo', 'Troca de Óleo', (lastOil + oilInterval) - currentKm, oilInterval, currentKm);
+            }
 
-                    alerts.push({
-                        id: `maint-${v.id}-${m.preventive_type}`,
-                        type: 'Maintenance',
-                        title: `${typeLabel} - ${v.plate}`,
-                        message: remaining <= 0 
-                            ? `ATENÇÃO: Quilometragem atingida (${currentKm.toLocaleString()}km). Realize a manutenção imediatamente.`
-                            : `Faltam apenas ${remaining.toLocaleString()}km para a ${typeLabel.toLowerCase()}.`,
-                        severity,
-                        date: new Date().toISOString()
-                    });
+            // ── Filtro: usa o maior km entre campo do veículo e registros de manutenção ──
+            const filterInterval = Number(v.maint_filter_interval) || 0;
+            const lastFilter = Math.max(Number(v.last_filter_change_km) || 0, lastFilterKmByVehicle[v.id] || 0);
+            if (filterInterval > 0 && lastFilter > 0) {
+                pushKmAlert(v.id, v.plate, 'filtros', 'Troca de Filtros', (lastFilter + filterInterval) - currentKm, filterInterval, currentKm);
+            }
+
+            // ── Pneu: usa campos do veículo ──
+            const tyreInterval = Number(v.maint_tyre_interval) || 0;
+            const lastTyre = Number(v.last_tyre_change_km) || 0;
+            if (tyreInterval > 0 && lastTyre > 0) {
+                pushKmAlert(v.id, v.plate, 'pneu', 'Troca de Pneus', (lastTyre + tyreInterval) - currentKm, tyreInterval, currentKm);
+            }
+
+            // ── Freios / Correias / Revisão Geral: usa registros da tabela de manutenção (por KM) ──
+            // ── Tacógrafo: usa registros da tabela de manutenção (por DATA) ──
+            const specialTypes = Object.values(lastMaintenances).filter((m: any) => m.vehicle_id === v.id);
+            specialTypes.forEach((m: any) => {
+                if (m.preventive_type === 'tacografo') {
+                    // Alerta por DATA
+                    if (!m.next_maintenance_date) return;
+                    const nextDate = new Date(m.next_maintenance_date);
+                    const diffMs = nextDate.getTime() - today.getTime();
+                    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                    // Alerta se vence em até 30 dias ou já venceu (mas não mais de 365 dias atrás)
+                    if (diffDays <= 30 && diffDays > -365) {
+                        alerts.push({
+                            id: `maint-${v.id}-tacografo`,
+                            type: 'Maintenance',
+                            title: `Aferição de Tacógrafo - ${v.plate}`,
+                            message: diffDays <= 0
+                                ? `ATENÇÃO: Aferição vencida em ${nextDate.toLocaleDateString('pt-BR')}. Regularize imediatamente.`
+                                : `Aferição do tacógrafo vence em ${diffDays} dia${diffDays > 1 ? 's' : ''} (${nextDate.toLocaleDateString('pt-BR')}).`,
+                            severity: diffDays <= 0 ? 'critical' : 'warning',
+                            date: new Date().toISOString()
+                        });
+                    }
+                } else {
+                    const nextKm = Number(m.next_maintenance_km);
+                    const interval = Number(m.maintenance_interval) || 10000;
+                    const remaining = nextKm - currentKm;
+                    const typeLabel = m.preventive_type === 'freios' ? 'Revisão de Freios' :
+                                      m.preventive_type === 'correias' ? 'Troca de Correias' :
+                                      m.preventive_type === 'revisao_geral' ? 'Revisão Geral' : 'Manutenção';
+                    if (nextKm > 0) pushKmAlert(v.id, v.plate, m.preventive_type, typeLabel, remaining, interval, currentKm);
                 }
             });
 
