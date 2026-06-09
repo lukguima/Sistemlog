@@ -79,10 +79,10 @@ export const generateDriverPaymentReceipt = (params: {
     doc.text('(-) Descontos/Vales:', 20, finalY + 25);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(fmt(summary.totalGross), 105, finalY + 9);
-    doc.text(fmt(summary.totalCommission), 105, finalY + 17);
+    doc.text(fmt(summary.totalGross), 118, finalY + 9, { align: 'right' });
+    doc.text(fmt(summary.totalCommission), 118, finalY + 17, { align: 'right' });
     doc.setTextColor(220, 38, 38);
-    doc.text(`- ${fmt(summary.totalAdvances)}`, 105, finalY + 25);
+    doc.text(`- ${fmt(summary.totalAdvances)}`, 118, finalY + 25, { align: 'right' });
 
     // Net highlight
     doc.setFillColor(22, 163, 74);
