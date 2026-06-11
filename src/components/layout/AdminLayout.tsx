@@ -14,7 +14,10 @@ import {
     X,
     Disc,
     Wrench,
-    Fuel
+    Fuel,
+    Banknote,
+    TrendingUp,
+    FileBarChart2
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -41,6 +44,9 @@ export default function AdminLayout() {
         { name: 'Abastecimento', href: '/admin/fuel', icon: Fuel },
         { name: 'Pneus', href: '/admin/tyre-check', icon: Disc },
         { name: 'Fornecedores', href: '/admin/suppliers', icon: Users },
+        { name: 'Financeiro', href: '/admin/financial', icon: Banknote },
+        { name: 'Fluxo de Caixa', href: '/admin/cash-flow', icon: TrendingUp },
+        { name: 'DRE', href: '/admin/dre', icon: FileBarChart2 },
         { name: 'Configurações', href: '/admin/settings', icon: SettingsIcon },
     ];
 

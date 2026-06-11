@@ -10,6 +10,9 @@ import Register from './pages/public/Register';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import Settings from './pages/admin/Settings';
 import Settlement from './pages/admin/Settlement';
+import Financial from './pages/admin/Financial';
+import CashFlow from './pages/admin/CashFlow';
+import DRE from './pages/admin/DRE';
 import Reports from './pages/admin/Reports';
 import Maintenance from './pages/admin/Maintenance';
 import TyreCheck from './pages/admin/TyreCheck';
@@ -59,6 +62,9 @@ function App() {
             <Route path="maintenance" element={<Maintenance />} />
             <Route path="fuel" element={<Fuel />} />
             <Route path="suppliers" element={<Suppliers />} />
+            <Route path="financial" element={<Financial />} />
+            <Route path="cash-flow" element={<CashFlow />} />
+            <Route path="dre" element={<DRE />} />
           </Route>
         </Route>
 
