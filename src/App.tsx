@@ -13,6 +13,15 @@ import Settlement from './pages/admin/Settlement';
 import Financial from './pages/admin/Financial';
 import CashFlow from './pages/admin/CashFlow';
 import DRE from './pages/admin/DRE';
+import VehicleProfitability from './pages/admin/VehicleProfitability';
+import Financings from './pages/admin/Financings';
+import InvestmentSimulator from './pages/admin/InvestmentSimulator';
+import Accounting from './pages/admin/Accounting';
+import AIManager from './pages/admin/AIManager';
+import AIMemory from './pages/admin/AIMemory';
+import Risks from './pages/admin/Risks';
+import ExecutiveDashboard from './pages/admin/ExecutiveDashboard';
+import ClientsAnalysis from './pages/admin/ClientsAnalysis';
 import Reports from './pages/admin/Reports';
 import Maintenance from './pages/admin/Maintenance';
 import TyreCheck from './pages/admin/TyreCheck';
@@ -65,6 +74,15 @@ function App() {
             <Route path="financial" element={<Financial />} />
             <Route path="cash-flow" element={<CashFlow />} />
             <Route path="dre" element={<DRE />} />
+            <Route path="vehicle-profitability" element={<VehicleProfitability />} />
+            <Route path="financings" element={<Financings />} />
+            <Route path="simulator" element={<InvestmentSimulator />} />
+            <Route path="accounting" element={<Accounting />} />
+            <Route path="ai-manager" element={<AIManager />} />
+            <Route path="ai-memory" element={<AIMemory />} />
+            <Route path="risks" element={<Risks />} />
+            <Route path="executive" element={<ExecutiveDashboard />} />
+            <Route path="clients-analysis" element={<ClientsAnalysis />} />
           </Route>
         </Route>
 

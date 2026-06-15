@@ -17,7 +17,16 @@ import {
     Fuel,
     Banknote,
     TrendingUp,
-    FileBarChart2
+    FileBarChart2,
+    BarChart3,
+    CreditCard,
+    Calculator,
+    BookOpen,
+    Bot,
+    Brain,
+    ShieldAlert,
+    PieChart,
+    Users2
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -37,6 +46,7 @@ export default function AdminLayout() {
 
     const navigation = [
         { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+        { name: 'Painel Executivo', href: '/admin/executive', icon: PieChart },
         { name: 'Viagens', href: '/admin/trips', icon: Truck },
         { name: 'Acerto', href: '/admin/settlement', icon: CircleDollarSign },
         { name: 'Frota', href: '/admin/fleet', icon: Users },
@@ -47,6 +57,14 @@ export default function AdminLayout() {
         { name: 'Financeiro', href: '/admin/financial', icon: Banknote },
         { name: 'Fluxo de Caixa', href: '/admin/cash-flow', icon: TrendingUp },
         { name: 'DRE', href: '/admin/dre', icon: FileBarChart2 },
+        { name: 'Rentabilidade', href: '/admin/vehicle-profitability', icon: BarChart3 },
+        { name: 'Clientes', href: '/admin/clients-analysis', icon: Users2 },
+        { name: 'Financiamentos', href: '/admin/financings', icon: CreditCard },
+        { name: 'Simulador', href: '/admin/simulator', icon: Calculator },
+        { name: 'Contabilidade', href: '/admin/accounting', icon: BookOpen },
+        { name: 'Gestor IA', href: '/admin/ai-manager', icon: Bot },
+        { name: 'Memória IA', href: '/admin/ai-memory', icon: Brain },
+        { name: 'Riscos', href: '/admin/risks', icon: ShieldAlert },
         { name: 'Configurações', href: '/admin/settings', icon: SettingsIcon },
     ];
 
