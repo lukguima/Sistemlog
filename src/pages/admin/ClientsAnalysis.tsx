@@ -162,7 +162,7 @@ export default function ClientsAnalysis() {
                         <BarChart data={top5} layout="vertical" margin={{ left: 20, right: 40 }}>
                             <XAxis type="number" hide />
                             <YAxis dataKey="destination" type="category" width={120} tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={(v: number) => fmt(v)} />
+                            <Tooltip formatter={(v: number | undefined) => fmt(v ?? 0)} />
                             <Bar dataKey="totalRevenue" radius={[0, 6, 6, 0]}>
                                 {top5.map((_, i) => (
                                     <Cell key={i} fill={['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b'][i % 5]} />

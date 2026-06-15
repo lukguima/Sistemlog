@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 import {
     LayoutDashboard, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
     Truck, DollarSign, CreditCard, BarChart3, Bot, ChevronRight,
-    RefreshCw, ShieldAlert, Calendar, Banknote
+    RefreshCw, ShieldAlert, Calendar, Banknote, type LucideIcon
 } from 'lucide-react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ function HealthBadge({ score }: { score: number }) {
 }
 
 function KpiCard({ icon: Icon, label, value, sub, color = 'blue', trend }: {
-    icon: React.ElementType; label: string; value: string; sub?: string;
+    icon: LucideIcon; label: string; value: string; sub?: string;
     color?: string; trend?: 'up' | 'down' | 'neutral';
 }) {
     const colors: Record<string, string> = {

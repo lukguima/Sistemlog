@@ -5,8 +5,8 @@ import {
     financialCategoryService
 } from '../../lib/financial.services';
 import {
-    Plus, TrendingUp, TrendingDown, Wallet, Clock, CheckCircle2,
-    AlertTriangle, X, Pencil, Trash2, Check, ChevronDown
+    Plus, TrendingUp, TrendingDown, Wallet, Clock,
+    AlertTriangle, X, Pencil, Trash2, Check
 } from 'lucide-react';
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;

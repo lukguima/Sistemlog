@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { dreService } from '../../lib/financial.services';
-import { FileText, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { financingService } from '../../lib/financial.services';
 import { fleetService } from '../../lib/services';
-import { Plus, X, Pencil, Trash2, Check, ChevronDown, ChevronUp, AlertTriangle, CreditCard } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Check, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const fmtDate = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
