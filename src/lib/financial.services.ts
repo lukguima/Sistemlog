@@ -227,9 +227,9 @@ export const cashFlowService = {
                 .eq('company_id', companyId)
                 .gte('competence_date', start).lte('competence_date', end),
             supabase.from('fuel_records')
-                .select('total_cost, date')
+                .select('total_value, created_at')
                 .eq('company_id', companyId)
-                .gte('date', start).lte('date', end),
+                .gte('created_at', `${start}T00:00:00`).lte('created_at', `${end}T23:59:59`),
             supabase.from('maintenance')
                 .select('cost, date')
                 .eq('company_id', companyId)
@@ -239,7 +239,7 @@ export const cashFlowService = {
                 .eq('company_id', companyId)
                 .gte('created_at', `${start}T00:00:00`)
                 .lte('created_at', `${end}T23:59:59`)
-                .eq('status', 'completed')
+                .in('status', ['completed', 'paid'])
         ]);
 
         const months = Array.from({ length: 12 }, (_, i) => ({
@@ -265,8 +265,8 @@ export const cashFlowService = {
 
         // Combustível
         (fuelRes.data ?? []).forEach((f: any) => {
-            const m = new Date(f.date + 'T12:00:00').getMonth();
-            months[m].despesas += Number(f.total_cost) || 0;
+            const m = new Date(f.created_at).getMonth();
+            months[m].despesas += Number(f.total_value) || 0;
         });
 
         // Manutenção
@@ -289,10 +289,10 @@ export const dreService = {
                 .eq('company_id', companyId)
                 .gte('created_at', `${startDate}T00:00:00`)
                 .lte('created_at', `${endDate}T23:59:59`)
-                .eq('status', 'completed'),
-            supabase.from('fuel_records').select('total_cost')
+                .in('status', ['completed', 'paid']),
+            supabase.from('fuel_records').select('total_value')
                 .eq('company_id', companyId)
-                .gte('date', startDate).lte('date', endDate),
+                .gte('created_at', `${startDate}T00:00:00`).lte('created_at', `${endDate}T23:59:59`),
             supabase.from('maintenance').select('cost')
                 .eq('company_id', companyId)
                 .gte('date', startDate).lte('date', endDate),
@@ -307,7 +307,7 @@ export const dreService = {
         ]);
 
         const receitaFretes = (tripsRes.data ?? []).reduce((s: number, t: any) => s + (Number(t.gross_value) || 0), 0);
-        const combustivel = (fuelRes.data ?? []).reduce((s: number, f: any) => s + (Number(f.total_cost) || 0), 0);
+        const combustivel = (fuelRes.data ?? []).reduce((s: number, f: any) => s + (Number(f.total_value) || 0), 0);
         const manutencao = (maintRes.data ?? []).reduce((s: number, m: any) => s + (Number(m.cost) || 0), 0);
         const adiantamentos = (advRes.data ?? []).reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
 
@@ -427,10 +427,10 @@ export const vehicleProfitabilityService = {
                 .eq('company_id', companyId)
                 .gte('created_at', `${startDate}T00:00:00`)
                 .lte('created_at', `${endDate}T23:59:59`)
-                .eq('status', 'completed'),
-            supabase.from('fuel_records').select('vehicle_id, total_cost, liters, odometer')
+                .in('status', ['completed', 'paid']),
+            supabase.from('fuel_records').select('vehicle_id, total_value, liters, odometer')
                 .eq('company_id', companyId)
-                .gte('date', startDate).lte('date', endDate),
+                .gte('created_at', `${startDate}T00:00:00`).lte('created_at', `${endDate}T23:59:59`),
             supabase.from('maintenance').select('vehicle_id, cost')
                 .eq('company_id', companyId)
                 .gte('date', startDate).lte('date', endDate),
@@ -450,7 +450,7 @@ export const vehicleProfitabilityService = {
             const vFins = fins.filter((f: any) => f.vehicle_id === v.id);
 
             const receita = vTrips.reduce((s: number, t: any) => s + Number(t.gross_value || 0), 0);
-            const combustivel = vFuels.reduce((s: number, f: any) => s + Number(f.total_cost || 0), 0);
+            const combustivel = vFuels.reduce((s: number, f: any) => s + Number(f.total_value || 0), 0);
             const manutencao = vMaints.reduce((s: number, m: any) => s + Number(m.cost || 0), 0);
             const financiamento = vFins.reduce((s: number, f: any) => s + Number(f.installment_value || 0), 0);
             const totalCusto = combustivel + manutencao + financiamento;

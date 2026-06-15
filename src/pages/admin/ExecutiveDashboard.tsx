@@ -125,7 +125,7 @@ export default function ExecutiveDashboard() {
             setPayables(pData);
             setReceivables(rData);
             setMonthlyFinancing(mCommit);
-            const debt = (finsData as any[]).filter(f => f.status === 'ativo').reduce((s: number, f: any) => s + Number(f.remaining_balance ?? 0), 0);
+            const debt = (finsData as any[]).filter(f => f.status === 'active').reduce((s: number, f: any) => s + Number(f.total_amount ?? 0), 0);
             setTotalDebt(debt);
             setVehicles(vProfit);
             setInsights(insData);

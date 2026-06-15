@@ -34,11 +34,11 @@ serve(async (req) => {
             tripsRes, vehiclesRes, driversRes, fuelRes, maintenanceRes,
             txRes, payableRes, receivableRes, financingsRes, insightsRes
         ] = await Promise.all([
-            supabase.from('trips').select('id,origin,destination,value,status,created_at,vehicle_id,driver_id')
+            supabase.from('trips').select('id,origin,destination,gross_value,status,created_at,vehicle_id,driver_id')
                 .eq('company_id', companyId).gte('created_at', fmt(thirtyDaysAgo)).limit(100),
             supabase.from('vehicles').select('id,plate,model,brand,status').eq('company_id', companyId),
             supabase.from('drivers').select('id,name,status').eq('company_id', companyId),
-            supabase.from('fuel_records').select('id,amount,total_cost,created_at,vehicle_id')
+            supabase.from('fuel_records').select('id,liters,total_value,created_at,vehicle_id')
                 .eq('company_id', companyId).gte('created_at', fmt(thirtyDaysAgo)).limit(50),
             supabase.from('maintenance').select('id,description,cost,status,vehicle_id,created_at')
                 .eq('company_id', companyId).gte('created_at', fmt(thirtyDaysAgo)).limit(50),
@@ -48,8 +48,8 @@ serve(async (req) => {
                 .eq('company_id', companyId).eq('paid', false).limit(30),
             supabase.from('accounts_receivable').select('id,description,amount,due_date,received')
                 .eq('company_id', companyId).eq('received', false).limit(30),
-            supabase.from('financings').select('id,description,total_amount,remaining_balance,monthly_installment,status')
-                .eq('company_id', companyId).eq('status', 'ativo'),
+            supabase.from('financings').select('id,description,total_amount,installment_value,status')
+                .eq('company_id', companyId).eq('status', 'active'),
             supabase.from('ai_insights').select('title,content,severity,type,created_at')
                 .eq('company_id', companyId).order('created_at', { ascending: false }).limit(10),
         ]);
@@ -66,25 +66,25 @@ serve(async (req) => {
         const recentInsights = insightsRes.data ?? [];
 
         // Calcular métricas resumidas
-        const totalRevenue = trips.filter(t => t.status === 'finalizada').reduce((s, t) => s + (t.value || 0), 0);
-        const totalFuelCost = fuel.reduce((s, f) => s + (f.total_cost || 0), 0);
+        const totalRevenue = trips.filter(t => ['completed', 'paid'].includes(t.status)).reduce((s, t) => s + (t.gross_value || 0), 0);
+        const totalFuelCost = fuel.reduce((s, f) => s + (f.total_value || 0), 0);
         const totalMaintenanceCost = maintenance.reduce((s, m) => s + (m.cost || 0), 0);
         const totalPayables = payables.reduce((s, p) => s + (p.amount || 0), 0);
         const totalReceivables = receivables.reduce((s, r) => s + (r.amount || 0), 0);
-        const monthlyFinancingCommitment = financings.reduce((s, f) => s + (f.monthly_installment || 0), 0);
+        const monthlyFinancingCommitment = financings.reduce((s, f) => s + (f.installment_value || 0), 0);
         const txRevenue = transactions.filter(t => t.type === 'receita').reduce((s, t) => s + (t.amount || 0), 0);
         const txExpense = transactions.filter(t => t.type === 'despesa').reduce((s, t) => s + (t.amount || 0), 0);
 
         const overduePayables = payables.filter(p => new Date(p.due_date) < today).length;
-        const completedTrips = trips.filter(t => t.status === 'finalizada').length;
-        const pendingTrips = trips.filter(t => t.status === 'em_andamento').length;
+        const completedTrips = trips.filter(t => ['completed', 'paid'].includes(t.status)).length;
+        const pendingTrips = trips.filter(t => ['pending', 'in_transit'].includes(t.status)).length;
 
         const contextData = `
 DADOS DA EMPRESA (últimos 30 dias - ${fmt(thirtyDaysAgo)} até ${fmt(today)}):
 
 FROTA:
-- Total de veículos: ${vehicles.length} (ativos: ${vehicles.filter(v => v.status === 'ativo').length})
-- Total de motoristas: ${drivers.length} (ativos: ${drivers.filter(d => d.status === 'ativo').length})
+- Total de veículos: ${vehicles.length} (ativos: ${vehicles.filter(v => v.status === 'active').length})
+- Total de motoristas: ${drivers.length} (ativos: ${drivers.filter(d => d.status === 'active').length})
 
 VIAGENS:
 - Viagens concluídas: ${completedTrips}

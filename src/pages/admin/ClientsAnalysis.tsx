@@ -51,7 +51,7 @@ export default function ClientsAnalysis() {
                 .select('destination, gross_value, status, created_at')
                 .eq('company_id', companyId)
                 .gte('created_at', `${sinceStr}T00:00:00`)
-                .in('status', ['finalizada', 'completed', 'concluida']);
+                .in('status', ['completed', 'paid']);
 
             if (error) throw error;
 
