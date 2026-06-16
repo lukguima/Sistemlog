@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { aiInsightService, aiChatService, type AiInsight } from '../../lib/ai.services';
-import { ShieldAlert, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Eye, RefreshCw, X, Sparkles } from 'lucide-react';
+import { aiInsightService, aiChatService, type AiInsight, type AnalysisData } from '../../lib/ai.services';
+import { ShieldAlert, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Eye, RefreshCw, X, Sparkles, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 
 const SEVERITY_MAP = {
     critical: { label: 'Crítico', icon: XCircle, bg: 'bg-rose-50', border: 'border-rose-200', badge: 'bg-rose-100 text-rose-700', icon_color: 'text-rose-500' },
@@ -15,106 +15,182 @@ const TYPE_LABELS: Record<string, string> = {
     risco: 'Risco', oportunidade: 'Oportunidade',
 };
 
+const STATUS_COLORS = {
+    ok:      { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: TrendingUp },
+    atencao: { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   icon: Minus },
+    critico: { bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200',     icon: TrendingDown },
+    info:    { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',     icon: Info },
+};
+
 const RISK_PROMPTS = [
-    'Faça uma análise financeira completa e organizada da empresa. Use seções com títulos (## Título), bullet points e destaque os valores em negrito. Inclua: situação do caixa, contas a pagar/receber, margem estimada e principais riscos financeiros.',
-    'Analise a frota e os custos operacionais de forma organizada. Use seções separadas para: rentabilidade por veículo, custos de combustível, manutenção e pneus. Destaque os caminhões problemáticos e os mais lucrativos.',
-    'Avalie o risco de inadimplência e oportunidades de receita. Estruture sua análise em: recebíveis em atraso, clientes mais importantes, viagens pendentes e potencial de faturamento.',
-    'Analise os financiamentos ativos e o comprometimento de caixa. Inclua: parcelas dos próximos 90 dias, relação dívida/receita, e recomendações para gestão da dívida.',
+    'analise_financeira',
+    'analise_frota',
+    'analise_recebimentos',
+    'analise_financiamentos',
 ];
 
-function renderMarkdown(text: string) {
-    const lines = text.split('\n');
-    const elements: React.ReactNode[] = [];
-    let i = 0;
-    while (i < lines.length) {
-        const line = lines[i];
-        if (line.startsWith('## ')) {
-            elements.push(<h3 key={i} className="font-bold text-slate-800 text-sm mt-3 mb-1">{line.slice(3)}</h3>);
-        } else if (line.startsWith('### ')) {
-            elements.push(<h4 key={i} className="font-semibold text-slate-700 text-sm mt-2 mb-0.5">{line.slice(4)}</h4>);
-        } else if (line.startsWith('- ') || line.startsWith('• ')) {
-            const content = line.slice(2);
-            elements.push(
-                <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed">
-                    <span className="text-slate-400 flex-shrink-0 mt-0.5">•</span>
-                    <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                </div>
-            );
-        } else if (/^\d+\. /.test(line)) {
-            const content = line.replace(/^\d+\. /, '');
-            elements.push(
-                <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed">
-                    <span className="text-slate-400 flex-shrink-0 text-xs mt-0.5">{line.match(/^\d+/)![0]}.</span>
-                    <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-                </div>
-            );
-        } else if (line.trim() === '') {
-            elements.push(<div key={i} className="h-1.5" />);
-        } else {
-            elements.push(
-                <p key={i} className="text-sm text-slate-700 leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-            );
-        }
-        i++;
-    }
-    return elements;
-}
+// ── Componente de análise estruturada (JSON) ──────────────────────────────────
 
-function InsightCard({ insight, onRead, onDelete }: { insight: AiInsight; onRead: () => void; onDelete: () => void }) {
-    const [expanded, setExpanded] = useState(false);
+function StructuredAnalysisCard({ data, insight, onRead, onDelete }: {
+    data: AnalysisData;
+    insight: AiInsight;
+    onRead: () => void;
+    onDelete: () => void;
+}) {
     const s = SEVERITY_MAP[insight.severity] ?? SEVERITY_MAP.info;
     const Icon = s.icon;
-    const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const isLong = insight.content.length > 400;
+    const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
 
     return (
-        <div className={`rounded-2xl border shadow-sm transition-all ${s.bg} ${s.border} ${insight.is_read ? 'opacity-60' : ''}`}>
+        <div className={`rounded-2xl border shadow-sm ${s.bg} ${s.border} ${insight.is_read ? 'opacity-70' : ''}`}>
             {/* Header */}
-            <div className="flex items-start gap-3 p-4 pb-3">
-                <Icon size={20} className={`flex-shrink-0 mt-0.5 ${s.icon_color}`} />
+            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-black/5">
+                <Icon size={18} className={`flex-shrink-0 ${s.icon_color}`} />
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.badge}`}>{s.label}</span>
                         <span className="px-2 py-0.5 rounded-full text-xs bg-white/60 text-slate-600">{TYPE_LABELS[insight.type] ?? insight.type}</span>
-                        {!insight.is_read && <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" title="Não lido" />}
-                        <span className="text-xs text-slate-400 ml-auto">{fmtDate(insight.created_at)}</span>
+                        {!insight.is_read && <span className="w-2 h-2 rounded-full bg-rose-500" />}
                     </div>
-                    <h3 className="font-bold text-slate-900 text-sm leading-snug">{insight.title}</h3>
                 </div>
-                <div className="flex gap-1 flex-shrink-0 ml-2">
+                <span className="text-xs text-slate-400 flex-shrink-0">{fmtDate(insight.created_at)}</span>
+                <div className="flex gap-1">
                     {!insight.is_read && (
                         <button onClick={onRead} title="Marcar como lido"
-                            className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-500 hover:text-emerald-600 transition-colors">
+                            className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-400 hover:text-emerald-600">
                             <Eye size={14} />
                         </button>
                     )}
                     <button onClick={onDelete} title="Remover"
-                        className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-500 hover:text-rose-600 transition-colors">
+                        className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-400 hover:text-rose-600">
                         <Trash2 size={14} />
                     </button>
                 </div>
             </div>
-            {/* Body */}
-            <div className={`px-4 pb-4 ${!expanded && isLong ? 'max-h-64 overflow-hidden relative' : ''}`}>
-                <div className="space-y-0.5">
-                    {renderMarkdown(insight.content)}
-                </div>
-                {!expanded && isLong && (
-                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-current to-transparent opacity-20 rounded-b-2xl pointer-events-none" />
+
+            <div className="p-5 space-y-5">
+                {/* Resumo */}
+                <p className="text-sm font-medium text-slate-700 leading-relaxed">{data.resumo}</p>
+
+                {/* Métricas */}
+                {data.metricas?.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {data.metricas.map((m, i) => {
+                            const c = STATUS_COLORS[m.status] ?? STATUS_COLORS.info;
+                            const MIcon = c.icon;
+                            return (
+                                <div key={i} className={`${c.bg} border ${c.border} rounded-xl p-3`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-xs text-slate-500 font-medium leading-tight">{m.label}</p>
+                                        <MIcon size={12} className={c.text} />
+                                    </div>
+                                    <p className={`text-base font-bold ${c.text} leading-none`}>{m.valor}</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Seções como tabelas */}
+                {data.secoes?.map((sec, si) => (
+                    <div key={si} className="bg-white/70 rounded-xl border border-black/5 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-white/80 border-b border-black/5">
+                            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">{sec.titulo}</p>
+                        </div>
+                        <table className="w-full">
+                            <tbody>
+                                {sec.linhas?.map((l, li) => (
+                                    <tr key={li} className={`border-b border-black/5 last:border-0 ${l.destaque ? 'bg-amber-50/50' : ''}`}>
+                                        <td className="px-4 py-2 text-sm text-slate-600">{l.label}</td>
+                                        <td className={`px-4 py-2 text-sm font-semibold text-right ${l.destaque ? 'text-amber-700' : 'text-slate-800'}`}>
+                                            {l.valor}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ))}
+
+                {/* Recomendações */}
+                {data.recomendacoes?.length > 0 && (
+                    <div className="bg-white/70 rounded-xl border border-black/5 p-4">
+                        <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3">Recomendações</p>
+                        <ol className="space-y-2">
+                            {data.recomendacoes.map((r, i) => (
+                                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center mt-0.5">
+                                        {i + 1}
+                                    </span>
+                                    {r}
+                                </li>
+                            ))}
+                        </ol>
+                    </div>
                 )}
             </div>
-            {isLong && (
-                <div className="px-4 pb-3">
-                    <button onClick={() => setExpanded(!expanded)}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-700 underline">
-                        {expanded ? 'Ver menos ▲' : 'Ver análise completa ▼'}
-                    </button>
-                </div>
-            )}
         </div>
     );
 }
+
+// ── Componente de insight simples (texto) ─────────────────────────────────────
+
+function InsightCard({ insight, onRead, onDelete }: {
+    insight: AiInsight; onRead: () => void; onDelete: () => void;
+}) {
+    // Se tiver dados estruturados, delega para o componente visual
+    const analysisData = insight.source_data as AnalysisData | undefined;
+    if (analysisData?.tipo === 'analise') {
+        return <StructuredAnalysisCard data={analysisData} insight={insight} onRead={onRead} onDelete={onDelete} />;
+    }
+
+    const [expanded, setExpanded] = useState(false);
+    const s = SEVERITY_MAP[insight.severity] ?? SEVERITY_MAP.info;
+    const Icon = s.icon;
+    const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const isLong = insight.content.length > 300;
+
+    return (
+        <div className={`rounded-2xl border shadow-sm ${s.bg} ${s.border} ${insight.is_read ? 'opacity-60' : ''}`}>
+            <div className="flex items-start gap-3 p-4">
+                <Icon size={18} className={`flex-shrink-0 mt-0.5 ${s.icon_color}`} />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.badge}`}>{s.label}</span>
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-white/60 text-slate-600">{TYPE_LABELS[insight.type] ?? insight.type}</span>
+                        {!insight.is_read && <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" />}
+                        <span className="text-xs text-slate-400 ml-auto">{fmtDate(insight.created_at)}</span>
+                    </div>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-2">{insight.title}</h3>
+                    <p className={`text-sm text-slate-700 leading-relaxed whitespace-pre-line ${!expanded && isLong ? 'line-clamp-4' : ''}`}>
+                        {insight.content}
+                    </p>
+                    {isLong && (
+                        <button onClick={() => setExpanded(!expanded)} className="text-xs text-slate-500 underline mt-1.5">
+                            {expanded ? 'Ver menos' : 'Ver mais'}
+                        </button>
+                    )}
+                </div>
+                <div className="flex gap-1 flex-shrink-0 ml-2">
+                    {!insight.is_read && (
+                        <button onClick={onRead} className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-400 hover:text-emerald-600">
+                            <Eye size={14} />
+                        </button>
+                    )}
+                    <button onClick={onDelete} className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-400 hover:text-rose-600">
+                        <Trash2 size={14} />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
 
 export default function Risks() {
     const { user } = useAuth();
@@ -145,7 +221,7 @@ export default function Risks() {
         try {
             const prompt = RISK_PROMPTS[genPromptIndex % RISK_PROMPTS.length];
             setGenPromptIndex(i => i + 1);
-            await aiChatService.ask(companyId, prompt, userId);
+            await aiChatService.ask(companyId, prompt, userId, undefined, 'analysis');
             await load();
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Erro ao gerar análise');
@@ -155,13 +231,11 @@ export default function Risks() {
     };
 
     const handleRead = async (id: string) => {
-        try { await aiInsightService.markRead(id); await load(); }
-        catch { /* silencioso */ }
+        try { await aiInsightService.markRead(id); await load(); } catch { /* silencioso */ }
     };
 
     const handleDelete = async (id: string) => {
-        try { await aiInsightService.remove(id); await load(); }
-        catch { /* silencioso */ }
+        try { await aiInsightService.remove(id); await load(); } catch { /* silencioso */ }
     };
 
     const markAllRead = async () => {
@@ -190,7 +264,7 @@ export default function Risks() {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-slate-900">Riscos & Insights</h1>
-                        <p className="text-xs text-slate-500">Análises automáticas geradas pelo Gestor IA</p>
+                        <p className="text-xs text-slate-500">Análises visuais geradas pelo Gestor IA</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -200,7 +274,7 @@ export default function Risks() {
                         </button>
                     )}
                     <button onClick={generateInsights} disabled={generating}
-                        className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm rounded-xl hover:bg-rose-700 disabled:opacity-50">
+                        className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-medium rounded-xl hover:bg-rose-700 disabled:opacity-50">
                         {generating ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
                         {generating ? 'Analisando...' : 'Gerar Análise'}
                     </button>
@@ -215,7 +289,7 @@ export default function Risks() {
             )}
 
             {/* KPIs */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-3">
                 {[
                     { label: 'Não lidos', value: unreadCount, color: 'text-rose-600', bg: 'bg-rose-50' },
                     { label: 'Críticos', value: criticalCount, color: 'text-rose-600', bg: 'bg-rose-50' },
@@ -261,13 +335,12 @@ export default function Risks() {
                     </p>
                     {insights.length === 0 && (
                         <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
-                            Clique em "Gerar Análise" para que o Gestor IA analise os riscos da sua empresa.
+                            Clique em "Gerar Análise" para que o Gestor IA analise os dados da empresa em formato visual.
                         </p>
                     )}
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {/* Críticos primeiro */}
+                <div className="space-y-4">
                     {['critical', 'warning', 'info', 'success'].map(sev =>
                         filtered
                             .filter(i => i.severity === sev)

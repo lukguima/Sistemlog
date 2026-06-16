@@ -16,7 +16,7 @@ serve(async (req) => {
     }
 
     try {
-        const { companyId, question, userId, sessionId } = await req.json();
+        const { companyId, question, userId, sessionId, mode } = await req.json();
         if (!companyId || !question) {
             return new Response(JSON.stringify({ error: 'companyId e question são obrigatórios' }), {
                 status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -338,7 +338,87 @@ Regras de resposta:
 
 ${contextData}`;
 
-        // Buscar histórico da sessão (últimas 6 trocas)
+        // ── MODO ANÁLISE ESTRUTURADA (JSON) ───────────────────────────────────
+        if (mode === 'analysis') {
+            const analysisTopics: Record<string, string> = {
+                analise_financeira:    'situação financeira geral (DRE, fluxo de caixa, contas a pagar/receber)',
+                analise_frota:         'frota e rentabilidade por veículo (custos, margens, combustível, manutenção)',
+                analise_recebimentos:  'recebimentos e clientes (receita pendente, principais destinos, inadimplência)',
+                analise_financiamentos: 'financiamentos e endividamento (parcelas, comprometimento de caixa)',
+            };
+            const topic = analysisTopics[question] ?? 'situação geral da empresa';
+
+            const analysisSystemPrompt = `${systemPrompt}
+
+INSTRUÇÃO ESPECIAL — MODO ANÁLISE VISUAL:
+Analise os dados acima sobre: ${topic}
+
+Retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutura EXATA:
+{
+  "tipo": "analise",
+  "status": "ok" | "atencao" | "critico",
+  "resumo": "1-2 frases descrevendo a situação atual com valores reais",
+  "metricas": [
+    { "label": "Nome da métrica", "valor": "R$ X.XXX,XX ou número", "status": "ok" | "atencao" | "critico" | "info" }
+  ],
+  "secoes": [
+    {
+      "titulo": "NOME DA SEÇÃO",
+      "linhas": [
+        { "label": "Nome do item", "valor": "R$ X.XXX,XX ou descrição", "destaque": false }
+      ]
+    }
+  ],
+  "recomendacoes": ["Ação concreta 1", "Ação concreta 2", "Ação concreta 3"]
+}
+
+Regras:
+- Use dados reais dos números fornecidos
+- máx 6 métricas, máx 3 seções, máx 4 linhas por seção, máx 4 recomendações
+- status "critico" = situação ruim (prejuízo, dívida alta, veículo parado)
+- status "atencao" = atenção necessária
+- status "ok" = tudo bem
+- Valores sempre formatados em R$ X.XXX,XX`;
+
+            const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'gpt-4o',
+                    temperature: 0.3,
+                    max_tokens: 1500,
+                    response_format: { type: 'json_object' },
+                    messages: [{ role: 'system', content: analysisSystemPrompt }],
+                }),
+            });
+
+            if (!openaiRes.ok) throw new Error(`OpenAI error: ${await openaiRes.text()}`);
+            const openaiData = await openaiRes.json();
+            const rawJson = openaiData.choices?.[0]?.message?.content ?? '{}';
+
+            let analysisData: Record<string, unknown>;
+            try { analysisData = JSON.parse(rawJson); }
+            catch { throw new Error('IA retornou JSON inválido'); }
+
+            const resumo = (analysisData.resumo as string) ?? 'Análise gerada';
+            const analiseStatus = (analysisData.status as string) ?? 'atencao';
+            const severity = analiseStatus === 'critico' ? 'critical' : analiseStatus === 'ok' ? 'success' : 'warning';
+
+            await supabase.from('ai_insights').insert([{
+                company_id: companyId,
+                type: 'risco',
+                title: resumo.substring(0, 120),
+                content: resumo,
+                severity,
+                source_data: { ...analysisData, tipo: 'analise', generated_at: new Date().toISOString() },
+            }]);
+
+            return new Response(JSON.stringify({ answer: resumo, sessionId: sid }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+        }
+
+        // ── MODO CHAT (padrão) ─────────────────────────────────────────────────
         const { data: historyData } = await supabase
             .from('ai_conversations')
             .select('role, content')
@@ -349,13 +429,9 @@ ${contextData}`;
 
         const history = (historyData ?? []).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
-        // Chamar OpenAI GPT-4o
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: 'gpt-4o',
                 temperature: 0.7,
@@ -368,15 +444,10 @@ ${contextData}`;
             }),
         });
 
-        if (!openaiRes.ok) {
-            const err = await openaiRes.text();
-            throw new Error(`OpenAI error: ${err}`);
-        }
-
+        if (!openaiRes.ok) throw new Error(`OpenAI error: ${await openaiRes.text()}`);
         const openaiData = await openaiRes.json();
         const answer = openaiData.choices?.[0]?.message?.content ?? 'Não foi possível gerar uma resposta.';
 
-        // Salvar conversa
         if (userId) {
             await supabase.from('ai_conversations').insert([
                 { company_id: companyId, user_id: userId, session_id: sid, role: 'user', content: question },
@@ -385,22 +456,17 @@ ${contextData}`;
             ]);
         }
 
-        // Gerar insight automático se detectar risco
-        const riskKeywords = ['risco', 'prejuízo', 'vencid', 'alerta', 'atenção', 'problema', 'deficit', 'negativo', 'crítico', 'urgente'];
-        const positiveKeywords = ['lucro', 'crescimento', 'oportunidade', 'positivo', 'saudável', 'excelente'];
-        const lowerAnswer = answer.toLowerCase();
-        const hasRisk = riskKeywords.some(k => lowerAnswer.includes(k));
-        const hasPositive = positiveKeywords.some(k => lowerAnswer.includes(k));
-
-        if ((hasRisk || hasPositive) && userId) {
-            const firstLine = answer.split('\n').find(l => l.trim() && !l.startsWith('#')) ?? answer.split(/[.!?]/)[0] ?? 'Análise gerada';
-            const cleanTitle = firstLine.replace(/\*\*/g, '').trim();
+        // Insight automático em conversas que detectam risco
+        const riskKeywords = ['risco', 'prejuízo', 'vencid', 'alerta', 'atenção', 'problema', 'negativo', 'crítico'];
+        const hasRisk = riskKeywords.some(k => answer.toLowerCase().includes(k));
+        if (hasRisk && userId) {
+            const title = answer.split('\n').find(l => l.trim())?.replace(/\*\*/g, '').trim() ?? 'Alerta detectado';
             await supabase.from('ai_insights').insert([{
                 company_id: companyId,
-                type: hasRisk ? 'risco' : 'oportunidade',
-                title: cleanTitle.substring(0, 120),
+                type: 'risco',
+                title: title.substring(0, 120),
                 content: answer.substring(0, 3000),
-                severity: hasRisk ? 'warning' : 'success',
+                severity: 'warning',
                 source_data: { question, generated_at: new Date().toISOString() },
             }]);
         }

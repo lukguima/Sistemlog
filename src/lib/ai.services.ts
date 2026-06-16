@@ -1,9 +1,20 @@
 import { supabase } from './supabase';
 
 export interface AiMessage { role: 'user' | 'assistant'; content: string; created_at?: string; }
+export interface AnalysisMetric { label: string; valor: string; status: 'ok' | 'atencao' | 'critico' | 'info'; }
+export interface AnalysisSection { titulo: string; linhas: { label: string; valor: string; destaque?: boolean }[]; }
+export interface AnalysisData {
+    tipo: 'analise';
+    resumo: string;
+    status: 'ok' | 'atencao' | 'critico';
+    metricas: AnalysisMetric[];
+    secoes: AnalysisSection[];
+    recomendacoes: string[];
+}
 export interface AiInsight {
     id: string; type: string; title: string; content: string;
     severity: 'info' | 'warning' | 'critical' | 'success'; is_read: boolean; created_at: string;
+    source_data?: Record<string, unknown> | AnalysisData;
 }
 export interface AiMemory {
     id: string; category: string; title: string; description: string;
@@ -11,9 +22,9 @@ export interface AiMemory {
 }
 
 export const aiChatService = {
-    async ask(companyId: string, question: string, userId: string, sessionId?: string) {
+    async ask(companyId: string, question: string, userId: string, sessionId?: string, mode?: 'chat' | 'analysis') {
         const { data, error } = await supabase.functions.invoke('ai-manager', {
-            body: { companyId, question, userId, sessionId },
+            body: { companyId, question, userId, sessionId, mode },
         });
         if (error) throw error;
         return data as { answer: string; sessionId: string };
@@ -53,7 +64,7 @@ export const aiInsightService = {
     async getAll(companyId: string): Promise<AiInsight[]> {
         const { data, error } = await supabase
             .from('ai_insights')
-            .select('*')
+            .select('id,type,title,content,severity,is_read,created_at,source_data')
             .eq('company_id', companyId)
             .order('created_at', { ascending: false });
         if (error) throw error;
