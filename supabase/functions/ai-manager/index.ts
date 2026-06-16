@@ -34,10 +34,11 @@ serve(async (req) => {
         const firstOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
         const lastOfMonth = fmtDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
         const nextNinetyDays = fmtDate(new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000));
+        const yearStart = `${today.getFullYear()}-01-01`;
 
         // Buscar todos os dados em paralelo
         const [
-            tripsAllRes, tripsMonthRes,
+            tripsAllRes, tripsMonthRes, tripsYearRes,
             vehiclesRes, driversRes,
             fuelRes, maintenanceRes,
             txRes, payableRes, receivableRes,
@@ -55,6 +56,12 @@ serve(async (req) => {
                 .eq('company_id', companyId)
                 .gte('created_at', `${firstOfMonth}T00:00:00`)
                 .lte('created_at', `${lastOfMonth}T23:59:59`),
+            // Viagens do ano inteiro (para média mensal e projeção anual)
+            supabase.from('trips').select('gross_value,status,created_at')
+                .eq('company_id', companyId)
+                .gte('created_at', `${yearStart}T00:00:00`)
+                .order('created_at', { ascending: true })
+                .limit(1000),
             // Frota completa
             supabase.from('vehicles').select('id,plate,model,brand,year,status').eq('company_id', companyId),
             supabase.from('drivers').select('id,name,status,license_category').eq('company_id', companyId),
@@ -120,6 +127,7 @@ serve(async (req) => {
 
         const allTrips     = tripsAllRes.data ?? [];
         const monthTrips   = tripsMonthRes.data ?? [];
+        const yearTrips    = tripsYearRes.data ?? [];
         const vehicles     = vehiclesRes.data ?? [];
         const drivers      = driversRes.data ?? [];
         const fuel         = fuelRes.data ?? [];
@@ -224,6 +232,42 @@ serve(async (req) => {
             .filter(i => i.due_date <= fmtDate(new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)))
             .reduce((s, i) => s + Number(i.amount || 0), 0);
 
+        // ── PROJEÇÃO ANUAL ─────────────────────────────────────────────────────
+        // Agrupa viagens do ano por mês (usa created_at — independente de status)
+        const revenueByMonth: Record<string, number> = {};
+        const tripsByMonth: Record<string, number> = {};
+        for (const t of yearTrips) {
+            const ym = t.created_at.substring(0, 7);
+            revenueByMonth[ym] = (revenueByMonth[ym] ?? 0) + Number(t.gross_value || 0);
+            tripsByMonth[ym]   = (tripsByMonth[ym]   ?? 0) + 1;
+        }
+        const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const pastMonths = Object.keys(revenueByMonth).filter(m => m < currentYM).sort();
+        const avgMonthlyRevenue = pastMonths.length > 0
+            ? pastMonths.reduce((s, m) => s + revenueByMonth[m], 0) / pastMonths.length
+            : (monthAllRevenue > 0 ? monthAllRevenue : pendingRevenue / Math.max(1, today.getMonth() + 1));
+        const avgMonthlyTrips = pastMonths.length > 0
+            ? pastMonths.reduce((s, m) => s + (tripsByMonth[m] ?? 0), 0) / pastMonths.length
+            : yearTrips.length / Math.max(1, today.getMonth() + 1);
+        const yearRevenueSoFar = Object.values(revenueByMonth).reduce((s, v) => s + v, 0);
+        const monthsElapsed  = today.getMonth() + 1;
+        const monthsRemaining = 12 - monthsElapsed;
+        const projectedAnnualRevenue  = yearRevenueSoFar + (avgMonthlyRevenue * monthsRemaining);
+        const projectedAnnualFuel     = totalFuel30 * 12;
+        const projectedAnnualMaint    = totalMaint30 * 12;
+        const projectedAnnualFinancing = monthlyFinancing * 12;
+        const projectedAnnualCosts    = projectedAnnualFuel + projectedAnnualMaint + projectedAnnualFinancing;
+        const projectedAnnualNet      = projectedAnnualRevenue - projectedAnnualCosts;
+        const projectedMargin = projectedAnnualRevenue > 0
+            ? (projectedAnnualNet / projectedAnnualRevenue) * 100 : 0;
+        const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const monthlyBreakdown = pastMonths.length > 0
+            ? pastMonths.map(m => {
+                const mm = parseInt(m.split('-')[1]) - 1;
+                return `  ${MONTHS_PT[mm]}: R$${revenueByMonth[m].toFixed(0)} (${tripsByMonth[m]} viagens)`;
+              }).join('\n')
+            : '  Sem histórico de meses anteriores neste ano';
+
         // ── ACERTOS / ADIANTAMENTOS ────────────────────────────────────────────
         const totalAdvances = advances.reduce((s, a) => s + Number(a.amount || 0), 0);
         const advByDriver = new Map<string, number>();
@@ -273,6 +317,27 @@ ${topVehicles.length > 0 ? topVehicles.join('\n') : '  Sem dados'}
 
 Veículos com menor margem (atenção):
 ${bottomVehicles.length > 0 ? bottomVehicles.join('\n') : '  Todos com margem positiva'}
+
+═══ HISTÓRICO MENSAL DE FATURAMENTO (${today.getFullYear()}) ═══
+Faturamento por mês (viagens cadastradas — todos os status):
+${monthlyBreakdown}
+- Mês atual (${MONTHS_PT[today.getMonth()]}): R$ ${(revenueByMonth[currentYM] ?? 0).toFixed(2)} até hoje
+- Média mensal dos meses anteriores: R$ ${avgMonthlyRevenue.toFixed(2)} (${avgMonthlyTrips.toFixed(0)} viagens/mês)
+- Meses com dados: ${pastMonths.length} | Meses restantes no ano: ${monthsRemaining}
+
+═══ PROJEÇÃO ANUAL (${today.getFullYear()}) ═══
+- Faturamento acumulado no ano: R$ ${yearRevenueSoFar.toFixed(2)}
+- PROJEÇÃO RECEITA ANUAL: R$ ${projectedAnnualRevenue.toFixed(2)}
+  (baseado na média de R$${avgMonthlyRevenue.toFixed(0)}/mês × ${monthsRemaining} meses restantes)
+- PROJEÇÃO CUSTO COMBUSTÍVEL ANUAL: R$ ${projectedAnnualFuel.toFixed(2)}
+  (média 30d: R$${totalFuel30.toFixed(0)} × 12 meses)
+- PROJEÇÃO CUSTO MANUTENÇÃO ANUAL: R$ ${projectedAnnualMaint.toFixed(2)}
+  (média 30d: R$${totalMaint30.toFixed(0)} × 12 meses)
+- PROJEÇÃO FINANCIAMENTOS ANUAL: R$ ${projectedAnnualFinancing.toFixed(2)}
+  (parcela mensal: R$${monthlyFinancing.toFixed(0)} × 12 meses)
+- PROJEÇÃO CUSTOS TOTAIS: R$ ${projectedAnnualCosts.toFixed(2)}
+- PROJEÇÃO LUCRO LÍQUIDO ANUAL: R$ ${projectedAnnualNet.toFixed(2)}
+- MARGEM PROJETADA: ${projectedMargin.toFixed(1)}%
 
 ═══ DRE ESTIMADO (últimos 30 dias) ═══
 - Receita de fretes realizados: R$ ${monthRevenue.toFixed(2)}
@@ -382,16 +447,28 @@ Retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutur
       ]
     }
   ],
+  "projecao_anual": {
+    "receita": "R$ X.XXX.XXX,XX",
+    "custos_combustivel": "R$ XXX.XXX,XX",
+    "custos_manutencao": "R$ XXX.XXX,XX",
+    "custos_financiamentos": "R$ XXX.XXX,XX",
+    "custos_totais": "R$ XXX.XXX,XX",
+    "lucro_liquido": "R$ XXX.XXX,XX",
+    "margem": "XX,X%",
+    "base_calculo": "Média de R$X/mês baseada em N meses de histórico",
+    "status": "ok" | "atencao" | "critico"
+  },
   "recomendacoes": ["Ação concreta 1", "Ação concreta 2", "Ação concreta 3"]
 }
 
 Regras:
-- Use dados reais dos números fornecidos
-- máx 6 métricas, máx 3 seções, máx 4 linhas por seção, máx 4 recomendações
-- status "critico" = situação ruim (prejuízo, dívida alta, veículo parado)
-- status "atencao" = atenção necessária
-- status "ok" = tudo bem
-- Valores sempre formatados em R$ X.XXX,XX`;
+- Use EXATAMENTE os números da seção PROJEÇÃO ANUAL fornecida no contexto
+- máx 6 métricas, máx 4 seções, máx 5 linhas por seção, máx 4 recomendações
+- A projecao_anual deve SEMPRE ser preenchida com os dados de projeção do contexto
+- status "critico" = prejuízo ou margem negativa
+- status "atencao" = margem baixa (< 15%) ou custos elevados
+- status "ok" = margem saudável (> 15%)
+- Valores sempre formatados em R$ X.XXX,XX (com pontos de milhar e vírgula decimal)`;
 
             const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -399,7 +476,7 @@ Regras:
                 body: JSON.stringify({
                     model: 'gpt-4o',
                     temperature: 0.3,
-                    max_tokens: 1500,
+                    max_tokens: 2000,
                     response_format: { type: 'json_object' },
                     messages: [{ role: 'system', content: analysisSystemPrompt }],
                 }),

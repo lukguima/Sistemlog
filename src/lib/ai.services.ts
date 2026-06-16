@@ -3,12 +3,24 @@ import { supabase } from './supabase';
 export interface AiMessage { role: 'user' | 'assistant'; content: string; created_at?: string; }
 export interface AnalysisMetric { label: string; valor: string; status: 'ok' | 'atencao' | 'critico' | 'info'; }
 export interface AnalysisSection { titulo: string; linhas: { label: string; valor: string; destaque?: boolean }[]; }
+export interface ProjecaoAnual {
+    receita: string;
+    custos_combustivel: string;
+    custos_manutencao: string;
+    custos_financiamentos: string;
+    custos_totais: string;
+    lucro_liquido: string;
+    margem: string;
+    base_calculo: string;
+    status: 'ok' | 'atencao' | 'critico';
+}
 export interface AnalysisData {
     tipo: 'analise';
     resumo: string;
     status: 'ok' | 'atencao' | 'critico';
     metricas: AnalysisMetric[];
     secoes: AnalysisSection[];
+    projecao_anual?: ProjecaoAnual;
     recomendacoes: string[];
 }
 export interface AiInsight {

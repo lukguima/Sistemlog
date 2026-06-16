@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { aiInsightService, aiChatService, type AiInsight, type AnalysisData } from '../../lib/ai.services';
-import { ShieldAlert, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Eye, RefreshCw, X, Sparkles, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { aiInsightService, aiChatService, type AiInsight, type AnalysisData, type ProjecaoAnual } from '../../lib/ai.services';
+import { ShieldAlert, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Eye, RefreshCw, X, Sparkles, TrendingDown, TrendingUp, Minus, BarChart2 } from 'lucide-react';
 
 const SEVERITY_MAP = {
     critical: { label: 'Crítico', icon: XCircle, bg: 'bg-rose-50', border: 'border-rose-200', badge: 'bg-rose-100 text-rose-700', icon_color: 'text-rose-500' },
@@ -28,6 +28,50 @@ const RISK_PROMPTS = [
     'analise_recebimentos',
     'analise_financiamentos',
 ];
+
+// ── Projeção Anual ────────────────────────────────────────────────────────────
+
+function ProjecaoAnualCard({ proj }: { proj: ProjecaoAnual }) {
+    const sc = STATUS_COLORS[proj.status] ?? STATUS_COLORS.info;
+    const rows = [
+        { label: 'Receita Projetada',       valor: proj.receita,              highlight: false },
+        { label: 'Combustível (projetado)',  valor: proj.custos_combustivel,   highlight: false },
+        { label: 'Manutenção (projetada)',   valor: proj.custos_manutencao,    highlight: false },
+        { label: 'Financiamentos',           valor: proj.custos_financiamentos, highlight: false },
+        { label: 'Custos Totais',            valor: proj.custos_totais,        highlight: true  },
+        { label: 'Lucro Líquido Projetado',  valor: proj.lucro_liquido,        highlight: true  },
+    ];
+    return (
+        <div className={`rounded-xl border ${sc.border} ${sc.bg} overflow-hidden`}>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-black/5 bg-white/60">
+                <BarChart2 size={14} className={sc.text} />
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide flex-1">
+                    Projeção Anual
+                </p>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${sc.bg} ${sc.text} border ${sc.border}`}>
+                    Margem {proj.margem}
+                </span>
+            </div>
+            <div className="p-3 pb-2">
+                <p className="text-xs text-slate-400 mb-2 italic">{proj.base_calculo}</p>
+                <table className="w-full">
+                    <tbody>
+                        {rows.map((r, i) => (
+                            <tr key={i} className={`border-b border-black/5 last:border-0 ${r.highlight ? 'bg-white/50' : ''}`}>
+                                <td className={`py-1.5 px-2 text-xs ${r.highlight ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>
+                                    {r.label}
+                                </td>
+                                <td className={`py-1.5 px-2 text-xs font-bold text-right ${r.highlight ? sc.text : 'text-slate-700'}`}>
+                                    {r.valor}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
 
 // ── Componente de análise estruturada (JSON) ──────────────────────────────────
 
@@ -113,6 +157,9 @@ function StructuredAnalysisCard({ data, insight, onRead, onDelete }: {
                         </table>
                     </div>
                 ))}
+
+                {/* Projeção Anual */}
+                {data.projecao_anual && <ProjecaoAnualCard proj={data.projecao_anual} />}
 
                 {/* Recomendações */}
                 {data.recomendacoes?.length > 0 && (
