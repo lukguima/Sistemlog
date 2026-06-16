@@ -100,9 +100,9 @@ serve(async (req) => {
                 .limit(50),
             // Acertos/adiantamentos de motoristas (últimos 90 dias)
             supabase.from('driver_advances')
-                .select('driver_id,amount,type,description,created_at')
+                .select('driver_id,amount,type,description,date,status')
                 .eq('company_id', companyId)
-                .gte('created_at', fmtDate(ninetyDaysAgo))
+                .gte('date', fmtDate(ninetyDaysAgo))
                 .limit(100),
             // Memória IA da empresa
             supabase.from('ai_business_memory')
@@ -143,11 +143,13 @@ serve(async (req) => {
         );
         const completedTrips90 = allTrips.filter(t => ['completed', 'paid'].includes(t.status));
         const pendingTrips = allTrips.filter(t => ['pending', 'in_transit'].includes(t.status));
-        // Usa últimos 30 dias para evitar mês calendário sem dados
+        // Receita realizada (viagens fechadas)
         const monthRevenue = completedTrips30.reduce((s, t) => s + Number(t.gross_value || 0), 0);
         const revenue90 = completedTrips90.reduce((s, t) => s + Number(t.gross_value || 0), 0);
-        // monthTrips usado apenas para referência de viagens criadas este mês
-        const _monthTripsCount = monthTrips.filter(t => ['completed', 'paid'].includes(t.status)).length;
+        // Receita pendente (viagens em andamento — não finalizadas no sistema)
+        const pendingRevenue = pendingTrips.reduce((s, t) => s + Number(t.gross_value || 0), 0);
+        // Receita do mês criadas (inclui pendentes)
+        const monthAllRevenue = monthTrips.reduce((s, t) => s + Number(t.gross_value || 0), 0);
 
         // Top 5 destinos/clientes por receita (90 dias)
         const destMap = new Map<string, { trips: number; revenue: number }>();
@@ -243,12 +245,15 @@ DADOS COMPLETOS DA EMPRESA (${fmtDate(ninetyDaysAgo)} a ${fmtDate(today)}):
 - Motoristas cadastrados: ${drivers.length} (ativos: ${activeDrivers.length})
 
 ═══ VIAGENS ═══
-- Viagens concluídas (últimos 30 dias): ${completedTrips30.length}
-- Viagens concluídas (últimos 90 dias): ${completedTrips90.length}
-- Viagens em andamento agora: ${pendingTrips.length}
-- Receita de fretes (últimos 30 dias): R$ ${monthRevenue.toFixed(2)}
-- Receita de fretes (últimos 90 dias): R$ ${revenue90.toFixed(2)}
-- Ticket médio (30 dias): R$ ${completedTrips30.length > 0 ? (monthRevenue / completedTrips30.length).toFixed(2) : '0.00'}
+- Viagens concluídas/pagas (últimos 30 dias): ${completedTrips30.length}
+- Viagens concluídas/pagas (últimos 90 dias): ${completedTrips90.length}
+- Viagens em andamento (pendentes/em_trânsito): ${pendingTrips.length}
+- RECEITA REALIZADA - últimos 30 dias (status: completed/paid): R$ ${monthRevenue.toFixed(2)}
+- RECEITA REALIZADA - últimos 90 dias: R$ ${revenue90.toFixed(2)}
+- RECEITA PENDENTE (viagens não finalizadas no sistema): R$ ${pendingRevenue.toFixed(2)}
+- Faturamento total do período (realizados + pendentes): R$ ${(revenue90 + pendingRevenue).toFixed(2)}
+- Ticket médio (viagens concluídas 30d): R$ ${completedTrips30.length > 0 ? (monthRevenue / completedTrips30.length).toFixed(2) : 'N/D - nenhuma viagem concluída no período'}
+${pendingRevenue > 0 ? `ATENÇÃO: Há R$ ${pendingRevenue.toFixed(2)} em viagens não finalizadas. Ao concluí-las no sistema, essa receita será realizada.` : ''}
 
 TOP 5 CLIENTES/DESTINOS (90 dias, por receita):
 ${topClients.length > 0 ? topClients.join('\n') : '  Nenhuma viagem concluída neste período'}
@@ -270,13 +275,16 @@ Veículos com menor margem (atenção):
 ${bottomVehicles.length > 0 ? bottomVehicles.join('\n') : '  Todos com margem positiva'}
 
 ═══ DRE ESTIMADO (últimos 30 dias) ═══
-- Receita de fretes: R$ ${monthRevenue.toFixed(2)}
+- Receita de fretes realizados: R$ ${monthRevenue.toFixed(2)}
+- Receita pendente (viagens a concluir): R$ ${pendingRevenue.toFixed(2)}
 - Outras receitas (lançamentos): R$ ${txReceitas.toFixed(2)}
-- RECEITA BRUTA: R$ ${receitaBruta.toFixed(2)}
+- RECEITA BRUTA (realizados): R$ ${receitaBruta.toFixed(2)}
+- RECEITA POTENCIAL (com pendentes): R$ ${(receitaBruta + pendingRevenue).toFixed(2)}
 - (-) Combustível: R$ ${totalFuel30.toFixed(2)}
 - (-) Manutenção: R$ ${totalMaint30.toFixed(2)}
-- (-) Despesas avulsas (lançamentos): R$ ${txDespesas.toFixed(2)}
-- RESULTADO ESTIMADO: R$ ${resultadoEst.toFixed(2)}
+- (-) Despesas avulsas: R$ ${txDespesas.toFixed(2)}
+- RESULTADO ESTIMADO (realizados): R$ ${resultadoEst.toFixed(2)}
+- RESULTADO POTENCIAL (com pendentes): R$ ${(resultadoEst + pendingRevenue).toFixed(2)}
 - MARGEM ESTIMADA: ${margemEst.toFixed(1)}%
 
 ═══ CONTAS A PAGAR ═══
