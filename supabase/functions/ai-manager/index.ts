@@ -141,10 +141,13 @@ serve(async (req) => {
             ['completed', 'paid'].includes(t.status) &&
             new Date(t.created_at) >= thirtyDaysAgo
         );
+        const completedTrips90 = allTrips.filter(t => ['completed', 'paid'].includes(t.status));
         const pendingTrips = allTrips.filter(t => ['pending', 'in_transit'].includes(t.status));
-        const monthRevenue = monthTrips
-            .filter(t => ['completed', 'paid'].includes(t.status))
-            .reduce((s, t) => s + Number(t.gross_value || 0), 0);
+        // Usa últimos 30 dias para evitar mês calendário sem dados
+        const monthRevenue = completedTrips30.reduce((s, t) => s + Number(t.gross_value || 0), 0);
+        const revenue90 = completedTrips90.reduce((s, t) => s + Number(t.gross_value || 0), 0);
+        // monthTrips usado apenas para referência de viagens criadas este mês
+        const _monthTripsCount = monthTrips.filter(t => ['completed', 'paid'].includes(t.status)).length;
 
         // Top 5 destinos/clientes por receita (90 dias)
         const destMap = new Map<string, { trips: number; revenue: number }>();
@@ -197,17 +200,11 @@ serve(async (req) => {
         const bottomVehicles = [...vProfit].sort((a, b) => a.margem - b.margem).slice(0, 3).map(v =>
             `  ${v.plate}: margem ${v.margem.toFixed(1)}%, custo R$${v.custo.toFixed(0)}`);
 
-        // ── DRE MÊS ATUAL ─────────────────────────────────────────────────────
+        // ── DRE ÚLTIMOS 30 DIAS ────────────────────────────────────────────────
         const txReceitas = transactions.filter(t => t.type === 'receita').reduce((s, t) => s + Number(t.amount || 0), 0);
         const txDespesas = transactions.filter(t => t.type === 'despesa').reduce((s, t) => s + Number(t.amount || 0), 0);
-        const fuelMonth = fuel
-            .filter(f => f.created_at >= `${firstOfMonth}T00:00:00`)
-            .reduce((s, f) => s + Number(f.total_value || 0), 0);
-        const maintMonth = maintenance
-            .filter(m => m.created_at >= `${firstOfMonth}T00:00:00`)
-            .reduce((s, m) => s + Number(m.cost || 0), 0);
         const receitaBruta = monthRevenue + txReceitas;
-        const custosOp = fuelMonth + maintMonth;
+        const custosOp = totalFuel30 + totalMaint30;
         const resultadoEst = receitaBruta - custosOp - txDespesas;
         const margemEst = receitaBruta > 0 ? (resultadoEst / receitaBruta) * 100 : 0;
 
@@ -247,9 +244,11 @@ DADOS COMPLETOS DA EMPRESA (${fmtDate(ninetyDaysAgo)} a ${fmtDate(today)}):
 
 ═══ VIAGENS ═══
 - Viagens concluídas (últimos 30 dias): ${completedTrips30.length}
+- Viagens concluídas (últimos 90 dias): ${completedTrips90.length}
 - Viagens em andamento agora: ${pendingTrips.length}
-- Receita de fretes (mês atual): R$ ${monthRevenue.toFixed(2)}
-- Ticket médio: R$ ${completedTrips30.length > 0 ? (completedTrips30.reduce((s, t) => s + Number(t.gross_value || 0), 0) / completedTrips30.length).toFixed(2) : '0.00'}
+- Receita de fretes (últimos 30 dias): R$ ${monthRevenue.toFixed(2)}
+- Receita de fretes (últimos 90 dias): R$ ${revenue90.toFixed(2)}
+- Ticket médio (30 dias): R$ ${completedTrips30.length > 0 ? (monthRevenue / completedTrips30.length).toFixed(2) : '0.00'}
 
 TOP 5 CLIENTES/DESTINOS (90 dias, por receita):
 ${topClients.length > 0 ? topClients.join('\n') : '  Nenhuma viagem concluída neste período'}
@@ -270,13 +269,13 @@ ${topVehicles.length > 0 ? topVehicles.join('\n') : '  Sem dados'}
 Veículos com menor margem (atenção):
 ${bottomVehicles.length > 0 ? bottomVehicles.join('\n') : '  Todos com margem positiva'}
 
-═══ DRE ESTIMADO (mês atual: ${new Date(today.getFullYear(), today.getMonth(), 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}) ═══
+═══ DRE ESTIMADO (últimos 30 dias) ═══
 - Receita de fretes: R$ ${monthRevenue.toFixed(2)}
 - Outras receitas (lançamentos): R$ ${txReceitas.toFixed(2)}
 - RECEITA BRUTA: R$ ${receitaBruta.toFixed(2)}
-- (-) Combustível: R$ ${fuelMonth.toFixed(2)}
-- (-) Manutenção: R$ ${maintMonth.toFixed(2)}
-- (-) Despesas avulsas: R$ ${txDespesas.toFixed(2)}
+- (-) Combustível: R$ ${totalFuel30.toFixed(2)}
+- (-) Manutenção: R$ ${totalMaint30.toFixed(2)}
+- (-) Despesas avulsas (lançamentos): R$ ${txDespesas.toFixed(2)}
 - RESULTADO ESTIMADO: R$ ${resultadoEst.toFixed(2)}
 - MARGEM ESTIMADA: ${margemEst.toFixed(1)}%
 
@@ -319,11 +318,13 @@ Suas responsabilidades:
 - Interpretar o DRE, fluxo de caixa e rentabilidade
 - Comentar sobre pneus, manutenção preventiva e custos de frota
 
-Regras:
+Regras de resposta:
 - Responda sempre em português brasileiro
 - Use os dados fornecidos como base — não invente números
-- Seja objetivo, estruturado e prático
+- SEMPRE use formatação estruturada: ## para seções, **negrito** para valores e destaques, bullet points para listas
 - Formate valores em R$ corretamente
+- Divida a análise em seções claras (ex: ## Situação Financeira, ## Riscos, ## Recomendações)
+- Seja objetivo e direto — máximo 3-4 bullet points por seção
 - Quando identificar problemas, sempre sugira ações corretivas específicas
 - Se perguntado sobre algo sem dados suficientes, diga o que precisaria verificar
 
@@ -350,7 +351,7 @@ ${contextData}`;
             body: JSON.stringify({
                 model: 'gpt-4o',
                 temperature: 0.7,
-                max_tokens: 2000,
+                max_tokens: 2500,
                 messages: [
                     { role: 'system', content: systemPrompt },
                     ...history,
@@ -384,12 +385,13 @@ ${contextData}`;
         const hasPositive = positiveKeywords.some(k => lowerAnswer.includes(k));
 
         if ((hasRisk || hasPositive) && userId) {
-            const firstSentence = answer.split(/[.!?]/)[0]?.trim() ?? 'Análise gerada';
+            const firstLine = answer.split('\n').find(l => l.trim() && !l.startsWith('#')) ?? answer.split(/[.!?]/)[0] ?? 'Análise gerada';
+            const cleanTitle = firstLine.replace(/\*\*/g, '').trim();
             await supabase.from('ai_insights').insert([{
                 company_id: companyId,
                 type: hasRisk ? 'risco' : 'oportunidade',
-                title: firstSentence.substring(0, 100),
-                content: answer.substring(0, 600),
+                title: cleanTitle.substring(0, 120),
+                content: answer.substring(0, 3000),
                 severity: hasRisk ? 'warning' : 'success',
                 source_data: { question, generated_at: new Date().toISOString() },
             }]);

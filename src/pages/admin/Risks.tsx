@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { aiInsightService, aiChatService, type AiInsight } from '../../lib/ai.services';
 import { ShieldAlert, CheckCircle2, AlertTriangle, XCircle, Info, Trash2, Eye, RefreshCw, X, Sparkles } from 'lucide-react';
@@ -16,40 +16,73 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const RISK_PROMPTS = [
-    'Analise os riscos financeiros atuais da empresa: contas vencidas, fluxo de caixa negativo e margens baixas.',
-    'Identifique riscos operacionais na frota: veículos com alto custo de manutenção ou parados.',
-    'Analise os riscos de inadimplência e recebíveis em atraso.',
-    'Avalie se os financiamentos ativos comprometem a saúde financeira da empresa.',
+    'Faça uma análise financeira completa e organizada da empresa. Use seções com títulos (## Título), bullet points e destaque os valores em negrito. Inclua: situação do caixa, contas a pagar/receber, margem estimada e principais riscos financeiros.',
+    'Analise a frota e os custos operacionais de forma organizada. Use seções separadas para: rentabilidade por veículo, custos de combustível, manutenção e pneus. Destaque os caminhões problemáticos e os mais lucrativos.',
+    'Avalie o risco de inadimplência e oportunidades de receita. Estruture sua análise em: recebíveis em atraso, clientes mais importantes, viagens pendentes e potencial de faturamento.',
+    'Analise os financiamentos ativos e o comprometimento de caixa. Inclua: parcelas dos próximos 90 dias, relação dívida/receita, e recomendações para gestão da dívida.',
 ];
+
+function renderMarkdown(text: string) {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i];
+        if (line.startsWith('## ')) {
+            elements.push(<h3 key={i} className="font-bold text-slate-800 text-sm mt-3 mb-1">{line.slice(3)}</h3>);
+        } else if (line.startsWith('### ')) {
+            elements.push(<h4 key={i} className="font-semibold text-slate-700 text-sm mt-2 mb-0.5">{line.slice(4)}</h4>);
+        } else if (line.startsWith('- ') || line.startsWith('• ')) {
+            const content = line.slice(2);
+            elements.push(
+                <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed">
+                    <span className="text-slate-400 flex-shrink-0 mt-0.5">•</span>
+                    <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                </div>
+            );
+        } else if (/^\d+\. /.test(line)) {
+            const content = line.replace(/^\d+\. /, '');
+            elements.push(
+                <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed">
+                    <span className="text-slate-400 flex-shrink-0 text-xs mt-0.5">{line.match(/^\d+/)![0]}.</span>
+                    <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+                </div>
+            );
+        } else if (line.trim() === '') {
+            elements.push(<div key={i} className="h-1.5" />);
+        } else {
+            elements.push(
+                <p key={i} className="text-sm text-slate-700 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+            );
+        }
+        i++;
+    }
+    return elements;
+}
 
 function InsightCard({ insight, onRead, onDelete }: { insight: AiInsight; onRead: () => void; onDelete: () => void }) {
     const [expanded, setExpanded] = useState(false);
     const s = SEVERITY_MAP[insight.severity] ?? SEVERITY_MAP.info;
     const Icon = s.icon;
     const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const isLong = insight.content.length > 400;
 
     return (
-        <div className={`rounded-2xl border p-4 shadow-sm transition-all ${s.bg} ${s.border} ${insight.is_read ? 'opacity-60' : ''}`}>
-            <div className="flex items-start gap-3">
+        <div className={`rounded-2xl border shadow-sm transition-all ${s.bg} ${s.border} ${insight.is_read ? 'opacity-60' : ''}`}>
+            {/* Header */}
+            <div className="flex items-start gap-3 p-4 pb-3">
                 <Icon size={20} className={`flex-shrink-0 mt-0.5 ${s.icon_color}`} />
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.badge}`}>{s.label}</span>
                         <span className="px-2 py-0.5 rounded-full text-xs bg-white/60 text-slate-600">{TYPE_LABELS[insight.type] ?? insight.type}</span>
                         {!insight.is_read && <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0" title="Não lido" />}
                         <span className="text-xs text-slate-400 ml-auto">{fmtDate(insight.created_at)}</span>
                     </div>
-                    <h3 className="font-semibold text-slate-900 text-sm mb-1">{insight.title}</h3>
-                    <p className={`text-sm text-slate-700 leading-relaxed ${!expanded && insight.content.length > 180 ? 'line-clamp-3' : ''}`}>
-                        {insight.content}
-                    </p>
-                    {insight.content.length > 180 && (
-                        <button onClick={() => setExpanded(!expanded)} className="text-xs text-slate-500 underline mt-1">
-                            {expanded ? 'Ver menos' : 'Ver mais'}
-                        </button>
-                    )}
+                    <h3 className="font-bold text-slate-900 text-sm leading-snug">{insight.title}</h3>
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
+                <div className="flex gap-1 flex-shrink-0 ml-2">
                     {!insight.is_read && (
                         <button onClick={onRead} title="Marcar como lido"
                             className="p-1.5 rounded-lg bg-white/60 hover:bg-white text-slate-500 hover:text-emerald-600 transition-colors">
@@ -62,6 +95,23 @@ function InsightCard({ insight, onRead, onDelete }: { insight: AiInsight; onRead
                     </button>
                 </div>
             </div>
+            {/* Body */}
+            <div className={`px-4 pb-4 ${!expanded && isLong ? 'max-h-64 overflow-hidden relative' : ''}`}>
+                <div className="space-y-0.5">
+                    {renderMarkdown(insight.content)}
+                </div>
+                {!expanded && isLong && (
+                    <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-current to-transparent opacity-20 rounded-b-2xl pointer-events-none" />
+                )}
+            </div>
+            {isLong && (
+                <div className="px-4 pb-3">
+                    <button onClick={() => setExpanded(!expanded)}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-700 underline">
+                        {expanded ? 'Ver menos ▲' : 'Ver análise completa ▼'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
