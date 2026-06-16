@@ -339,14 +339,27 @@ Regras de resposta:
 ${contextData}`;
 
         // ── MODO ANÁLISE ESTRUTURADA (JSON) ───────────────────────────────────
-        if (mode === 'analysis') {
+        const isAnalysis = mode === 'analysis' ||
+            question.startsWith('analise_') ||
+            question.toLowerCase().includes('análise financeira') ||
+            question.toLowerCase().includes('analise a frota') ||
+            question.toLowerCase().includes('avalie') ||
+            question.toLowerCase().includes('gerar análise') ||
+            question.toLowerCase().includes('gere uma análise');
+
+        if (isAnalysis) {
             const analysisTopics: Record<string, string> = {
                 analise_financeira:    'situação financeira geral (DRE, fluxo de caixa, contas a pagar/receber)',
                 analise_frota:         'frota e rentabilidade por veículo (custos, margens, combustível, manutenção)',
                 analise_recebimentos:  'recebimentos e clientes (receita pendente, principais destinos, inadimplência)',
                 analise_financiamentos: 'financiamentos e endividamento (parcelas, comprometimento de caixa)',
             };
-            const topic = analysisTopics[question] ?? 'situação geral da empresa';
+            const qLower = question.toLowerCase();
+            const topic = analysisTopics[question] ??
+                (qLower.includes('financ') ? 'situação financeira, DRE e fluxo de caixa' :
+                 qLower.includes('frot') || qLower.includes('veíc') ? 'frota, combustível, manutenção e rentabilidade por caminhão' :
+                 qLower.includes('receb') || qLower.includes('client') ? 'recebimentos, clientes e inadimplência' :
+                 'situação geral da empresa com todos os módulos');
 
             const analysisSystemPrompt = `${systemPrompt}
 
