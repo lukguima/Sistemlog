@@ -68,7 +68,7 @@ function KpiCard({ icon: Icon, label, value, sub, color = 'blue', trend }: {
 function RiskHorizon({ days, payables }: { days: number; payables: any[] }) {
     const cutoff = daysFromNow(days);
     const todayStr = isoDate(today());
-    const items = payables.filter(p => !p.paid && p.due_date <= cutoff);
+    const items = payables.filter(p => p.status !== 'paid' && p.due_date <= cutoff);
     const overdue = items.filter(p => p.due_date < todayStr);
     const total = items.reduce((s: number, p: any) => s + Number(p.amount), 0);
     const color = overdue.length > 0 ? 'border-rose-200 bg-rose-50' : total > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50';
@@ -141,9 +141,9 @@ export default function ExecutiveDashboard() {
     useEffect(() => { load(); }, [load]);
 
     // ── Cálculos derivados ────────────────────────────────────────────────────
-    const totalPayables = payables.filter(p => !p.paid).reduce((s: number, p: any) => s + Number(p.amount), 0);
-    const totalReceivables = receivables.filter(r => !r.received).reduce((s: number, r: any) => s + Number(r.amount), 0);
-    const overduePayables = payables.filter(p => !p.paid && p.due_date < isoDate(today()));
+    const totalPayables = payables.filter(p => p.status !== 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
+    const totalReceivables = receivables.filter(r => r.status !== 'received').reduce((s: number, r: any) => s + Number(r.amount), 0);
+    const overduePayables = payables.filter(p => p.status !== 'paid' && p.due_date < isoDate(today()));
     const overduePayablesAmt = overduePayables.reduce((s: number, p: any) => s + Number(p.amount), 0);
 
     const cashPosition = totalReceivables - totalPayables;
@@ -254,7 +254,7 @@ export default function ExecutiveDashboard() {
                     sub={overduePayables.length > 0 ? `${overduePayables.length} vencido(s): ${fmt(overduePayablesAmt)}` : 'Sem vencidos'}
                     color={overduePayables.length > 0 ? 'red' : 'amber'} />
                 <KpiCard icon={CheckCircle2} label="A Receber (aberto)" value={fmt(totalReceivables)}
-                    sub={`${receivables.filter(r => !r.received).length} título(s) em aberto`}
+                    sub={`${receivables.filter(r => r.status !== 'received').length} título(s) em aberto`}
                     color="green" />
                 <KpiCard icon={BarChart3} label="Margem Líquida" value={`${(dre?.margem ?? 0).toFixed(1)}%`}
                     sub={dre?.margem >= 20 ? 'Saudável (>20%)' : dre?.margem >= 10 ? 'Atenção (10-20%)' : 'Crítico (<10%)'}
