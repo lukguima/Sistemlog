@@ -400,12 +400,12 @@ export default function LandingPage() {
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                            {/* Básico */}
+                            {/* Start */}
                             <div className="bg-[#161B26] border border-white/5 rounded-3xl p-8 flex flex-col">
                                 <div className="mb-8">
                                     <div className="flex items-center gap-2 mb-4">
                                         <Truck size={18} className="text-slate-400" />
-                                        <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Básico</span>
+                                        <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Start</span>
                                     </div>
                                     <div className="flex items-end gap-1 mb-2">
                                         <span className="text-slate-400 text-lg font-bold">R$</span>
@@ -428,7 +428,7 @@ export default function LandingPage() {
                                     rel="noopener noreferrer"
                                     className="w-full py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-black text-center transition-all flex items-center justify-center gap-2 group"
                                 >
-                                    Assinar Básico
+                                    Assinar Start
                                     <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
                                 </a>
                             </div>
@@ -451,7 +451,7 @@ export default function LandingPage() {
                                     <p className="text-sm text-primary-200 font-bold">Até 10 veículos</p>
                                 </div>
                                 <ul className="space-y-3 mb-10 flex-1">
-                                    {['Tudo do Básico', 'Relatórios avançados', 'Controle de pneus', 'Abastecimento detalhado', 'Suporte prioritário por WhatsApp', 'Múltiplos usuários'].map((item) => (
+                                    {['Tudo do Start', 'Relatórios avançados', 'Controle de pneus', 'Abastecimento detalhado', 'Suporte prioritário por WhatsApp', 'Múltiplos usuários'].map((item) => (
                                         <li key={item} className="flex items-center gap-3 text-sm text-primary-100 font-medium">
                                             <CheckCircle size={14} className="text-white flex-shrink-0" />
                                             {item}
