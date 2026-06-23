@@ -31,8 +31,9 @@ export default function Trips() {
             setLoading(true);
             const data = await tripService.getTrips(companyId, startDate, endDate);
             setTrips(data || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching trips:', error);
+            setTrips([]);
         } finally {
             setLoading(false);
         }
@@ -202,6 +203,8 @@ export default function Trips() {
             t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.vehicle?.plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.agregado?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.agregado?.vehicle_plate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.origin?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.cte_number?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -359,8 +362,19 @@ export default function Trips() {
                                         <td className="px-4 py-4 text-xs font-medium text-slate-500">
                                             {trip.created_at ? (() => { const [y,m,d] = trip.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })() : '-'}
                                         </td>
-                                        <td className="px-4 py-4 font-mono text-xs">{trip.vehicle?.plate || '-'}</td>
-                                        <td className="px-4 py-4 font-bold text-sm">{trip.driver?.name || '-'}</td>
+                                        <td className="px-4 py-4 font-mono text-xs">
+                                            {trip.driver_type === 'agregado'
+                                                ? <span className="text-violet-500 font-bold">{trip.agregado?.vehicle_plate || '—'}</span>
+                                                : trip.vehicle?.plate || '-'}
+                                        </td>
+                                        <td className="px-4 py-4 font-bold text-sm">
+                                            {trip.driver_type === 'agregado'
+                                                ? <span className="flex items-center gap-1">
+                                                    <span className="px-1.5 py-0.5 text-[9px] font-black bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-400 rounded uppercase tracking-wide">Agr</span>
+                                                    {trip.agregado?.name || '—'}
+                                                  </span>
+                                                : trip.driver?.name || '-'}
+                                        </td>
                                         <td className="px-4 py-4 text-xs">
                                             <div className="flex flex-col gap-1">
                                                 <span className="flex items-center gap-1"><MapPin size={12} className="text-primary" /> {trip.origin}</span>

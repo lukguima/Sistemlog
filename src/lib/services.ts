@@ -88,18 +88,24 @@ export const fleetService = {
 
 export const tripService = {
     async getTrips(companyId: string, startDate?: string, endDate?: string) {
-        let query = supabase
-            .from('trips')
-            .select('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
-            .eq('company_id', companyId)
-            .order('created_at', { ascending: false });
+        const buildQuery = (select: string) => {
+            let q = supabase
+                .from('trips')
+                .select(select)
+                .eq('company_id', companyId)
+                .order('created_at', { ascending: false });
+            if (startDate) q = q.gte('created_at', startDate);
+            if (endDate)   q = q.lte('created_at', `${endDate}T23:59:59.999Z`);
+            return q;
+        };
 
-        if (startDate) query = query.gte('created_at', startDate);
-        if (endDate) query = query.lte('created_at', `${endDate}T23:59:59.999Z`);
+        // Tenta com join de agregados; se falhar (tabela ainda não existe), busca sem
+        const { data, error } = await buildQuery('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)');
+        if (!error) return data;
 
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
+        const { data: fallback, error: err2 } = await buildQuery('*, vehicle:vehicles(plate), driver:drivers(name)');
+        if (err2) throw err2;
+        return fallback;
     },
     async updateTripStatus(tripId: string, status: string) {
         const { data, error } = await supabase
