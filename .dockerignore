@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+.env.local
+.env*.local
+*.log
+.git
+.gitignore
+README.md
+ss_*.png
+*.sql
+get-shit-done
+build*.log
+build*.txt
+tsc*.txt
+verify*.txt
+debug*.txt
