@@ -87,25 +87,25 @@ export const fleetService = {
 };
 
 export const tripService = {
-    async getTrips(companyId: string, startDate?: string, endDate?: string) {
-        const buildQuery = (select: string) => {
-            let q = supabase
-                .from('trips')
-                .select(select)
-                .eq('company_id', companyId)
-                .order('created_at', { ascending: false });
+    async getTrips(companyId: string, startDate?: string, endDate?: string): Promise<any[]> {
+        const applyFilters = (q: any) => {
+            q = q.eq('company_id', companyId).order('created_at', { ascending: false });
             if (startDate) q = q.gte('created_at', startDate);
             if (endDate)   q = q.lte('created_at', `${endDate}T23:59:59.999Z`);
             return q;
         };
 
         // Tenta com join de agregados; se falhar (tabela ainda não existe), busca sem
-        const { data, error } = await buildQuery('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)');
-        if (!error) return data;
+        const { data, error } = await applyFilters(
+            supabase.from('trips').select('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
+        );
+        if (!error) return (data as any[]) ?? [];
 
-        const { data: fallback, error: err2 } = await buildQuery('*, vehicle:vehicles(plate), driver:drivers(name)');
+        const { data: fallback, error: err2 } = await applyFilters(
+            supabase.from('trips').select('*, vehicle:vehicles(plate), driver:drivers(name)')
+        );
         if (err2) throw err2;
-        return fallback;
+        return (fallback as any[]) ?? [];
     },
     async updateTripStatus(tripId: string, status: string) {
         const { data, error } = await supabase
