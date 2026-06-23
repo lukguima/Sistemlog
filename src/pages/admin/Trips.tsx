@@ -112,6 +112,7 @@ export default function Trips() {
             const { vehicle, driver, value, cte, date, ...rest } = data;
 
             const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
+            const isAgregado = rest.driver_type === 'agregado';
 
             const weight = toNum(rest.weight);
             const tarifa = toNum(value);
@@ -129,39 +130,39 @@ export default function Trips() {
                 start_km: toNum(rest.start_km),
                 end_km: rest.end_km !== '' && rest.end_km != null ? Number(rest.end_km) : null,
                 company_id: companyId,
-                // Usa meio-dia UTC para evitar deslocamento de fuso (UTC-3 recuaria para o dia anterior)
-                created_at: date ? `${date}T12:00:00.000Z` : new Date().toISOString()
+                created_at: date ? `${date}T12:00:00.000Z` : new Date().toISOString(),
+                // Campos de agregado
+                driver_type: rest.driver_type || 'own',
+                agregado_id: isAgregado && rest.agregado_id ? rest.agregado_id : null,
+                agregado_value: isAgregado ? toNum(rest.agregado_value) : 0,
+                // Para viagens de agregado, não vincula frota própria
+                vehicle_id: isAgregado ? null : (rest.vehicle_id || null),
+                driver_id:  isAgregado ? null : (rest.driver_id  || null),
             };
 
             const idParaExcluir = data.id || editingId;
 
             if (editingId || data.id) {
-                // Verifica conflitos ao editar (exclui a própria viagem da verificação)
-                const conflicts = await tripService.checkConflicts(dataToSave.driver_id || null, dataToSave.vehicle_id || null, idParaExcluir);
-                const msgs: string[] = [];
-                
-                // Trava de segurança: só alerta se o ID encontrado for DIFERENTE do ID atual
-                if (conflicts.driverBusy && conflicts.driverTrip?.id !== idParaExcluir) {
-                    msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
+                if (!isAgregado) {
+                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id, idParaExcluir);
+                    const msgs: string[] = [];
+                    if (conflicts.driverBusy && conflicts.driverTrip?.id !== idParaExcluir)
+                        msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
+                    if (conflicts.vehicleBusy && conflicts.vehicleTrip?.id !== idParaExcluir)
+                        msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                    if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja salvar mesmo assim?`)) return;
                 }
-                if (conflicts.vehicleBusy && conflicts.vehicleTrip?.id !== idParaExcluir) {
-                    msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
-                }
-                
-                if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja salvar mesmo assim?`)) return;
                 await tripService.updateTrip(idParaExcluir, dataToSave);
-                await settlementService.recalculateSettlementForTrip(idParaExcluir);
+                if (!isAgregado) await settlementService.recalculateSettlementForTrip(idParaExcluir);
             } else {
-                // Verifica conflitos ao criar nova viagem
-                const conflicts = await tripService.checkConflicts(dataToSave.driver_id || null, dataToSave.vehicle_id || null);
-                const msgs: string[] = [];
-                if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
-                if (conflicts.vehicleBusy) msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
-                if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja registrar mesmo assim?`)) return;
-                await tripService.addTrip({
-                    ...dataToSave,
-                    status: 'pending'
-                });
+                if (!isAgregado) {
+                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id);
+                    const msgs: string[] = [];
+                    if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
+                    if (conflicts.vehicleBusy) msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                    if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja registrar mesmo assim?`)) return;
+                }
+                await tripService.addTrip({ ...dataToSave, status: 'pending' });
             }
             fetchTrips();
             setIsModalOpen(false);

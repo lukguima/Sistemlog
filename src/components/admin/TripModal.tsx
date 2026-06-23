@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { fixedRouteService, settingsService } from '../../lib/services';
+import { fixedRouteService, settingsService, agregadoService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
 
@@ -9,7 +9,11 @@ const makeEmpty = () => ({
     vehicle_id: '', driver_id: '', cargo_description: '', origin: '', destination: '',
     date: new Date().toISOString().split('T')[0], start_km: '', end_km: '', cte: '',
     weight: '', value: '', tax_rate: '', commission_rate: '', estimated_cost: '',
-    advance_value: '', tolls_value: '', insurance_value: '', status: 'pending'
+    advance_value: '', tolls_value: '', insurance_value: '', status: 'pending',
+    // Campos de agregado
+    driver_type: 'own' as 'own' | 'agregado',
+    agregado_id: '',
+    agregado_value: '',
 });
 
 interface TripModalProps {
@@ -25,6 +29,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const { user } = useAuth();
     const companyId = (user as any)?.company_id;
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
+    const [agregados, setAgregados] = useState<any[]>([]);
     const isEditing = !!initialData;
     const buildEditData = (data: any) => {
         const fmt = (v: any) => (v != null && v !== '') ? Number(v).toFixed(2) : '';
@@ -51,8 +56,10 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
             insurance_value: fmt(data?.insurance_value || data?.other_expenses),
             start_km: data?.start_km ?? '',
             end_km: data?.end_km ?? '',
-            // Extrai a data de created_at sem converter fuso (slice dos 10 primeiros chars)
             date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
+            driver_type: data?.driver_type ?? 'own',
+            agregado_id: data?.agregado_id ?? '',
+            agregado_value: data?.agregado_value != null ? String(data.agregado_value) : '',
         };
     };
 
@@ -83,8 +90,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     useEffect(() => {
         if (isOpen && companyId) {
             fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes);
-            // Carrega padrões de comissão e imposto das configurações (só nova viagem)
-            // Sempre sobrescreve — Settings é a fonte da verdade para defaults
+            agregadoService.getAll(companyId).then(setAgregados).catch(() => {});
             if (!isEditing) {
                 settingsService.getSettings(companyId).then(s => {
                     const commissionDefault = s?.default_commission_rate != null ? String(s.default_commission_rate) : '12';
@@ -145,6 +151,17 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {/* Toggle Frota Própria / Agregado */}
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+                        {(['own', 'agregado'] as const).map(t => (
+                            <button key={t} type="button"
+                                onClick={() => setFormData({ driver_type: t, vehicle_id: '', driver_id: '', agregado_id: '', agregado_value: '' })}
+                                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${formData.driver_type === t ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                                {t === 'own' ? '🚛 Frota Própria' : '🤝 Agregado'}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Seleção de Trecho Fixo (Opcional) */}
                     {!initialData && fixedRoutes.length > 0 && (
                         <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 mb-2">
@@ -176,37 +193,104 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             </p>
                         </div>
                     )}
-                    {/* Veículo e Motorista */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className={labelStyle}>Veículo</label>
-                            <select
-                                required
-                                className={inputStyle}
-                                value={formData.vehicle_id}
-                                onChange={e => {
-                                    const vId = e.target.value;
-                                    const vehicle = vehicles.find(v => v.id === vId);
-                                    setFormData({ ...formData, vehicle_id: vId, start_km: vehicle?.current_km || '' });
-                                }}
-                            >
-                                <option value="">Selecione...</option>
-                                {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
-                            </select>
+                    {/* Veículo e Motorista (frota própria) */}
+                    {formData.driver_type === 'own' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Veículo</label>
+                                <select
+                                    required
+                                    className={inputStyle}
+                                    value={formData.vehicle_id}
+                                    onChange={e => {
+                                        const vId = e.target.value;
+                                        const vehicle = vehicles.find(v => v.id === vId);
+                                        setFormData({ ...formData, vehicle_id: vId, start_km: vehicle?.current_km || '' });
+                                    }}
+                                >
+                                    <option value="">Selecione...</option>
+                                    {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Motorista</label>
+                                <select
+                                    required
+                                    className={inputStyle}
+                                    value={formData.driver_id}
+                                    onChange={e => setFormData({ ...formData, driver_id: e.target.value })}
+                                >
+                                    <option value="">Selecione...</option>
+                                    {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            <label className={labelStyle}>Motorista</label>
-                            <select
-                                required
-                                className={inputStyle}
-                                value={formData.driver_id}
-                                onChange={e => setFormData({ ...formData, driver_id: e.target.value })}
-                            >
-                                <option value="">Selecione...</option>
-                                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                            </select>
+                    )}
+
+                    {/* Agregado (terceiro) */}
+                    {formData.driver_type === 'agregado' && (
+                        <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 space-y-3">
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Agregado *</label>
+                                <select
+                                    required
+                                    className={`${inputStyle} border-violet-200 focus:ring-violet-500/30`}
+                                    value={formData.agregado_id}
+                                    onChange={e => setFormData({ ...formData, agregado_id: e.target.value })}
+                                >
+                                    <option value="">Selecione o agregado...</option>
+                                    {agregados.filter(a => a.status === 'active').map(a => (
+                                        <option key={a.id} value={a.id}>
+                                            {a.name}{a.vehicle_plate ? ` — ${a.vehicle_plate}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {agregados.filter(a => a.status === 'active').length === 0 && (
+                                    <p className="text-xs text-violet-500 mt-1">Nenhum agregado ativo. Cadastre em Agregados primeiro.</p>
+                                )}
+                            </div>
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Valor Repassado ao Agregado (R$)</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    className={`${inputStyle} border-violet-200 focus:ring-violet-500/30`}
+                                    placeholder="0,00"
+                                    value={formData.agregado_value}
+                                    onChange={e => setFormData({ ...formData, agregado_value: e.target.value })}
+                                />
+                            </div>
+                            {/* Preview do lucro */}
+                            {(() => {
+                                const peso   = parseFloat(formData.weight);
+                                const tarifa = parseFloat(formData.value);
+                                const gross  = (!isNaN(peso) && !isNaN(tarifa) && peso > 0 && tarifa > 0)
+                                    ? peso * tarifa : parseFloat(formData.value) || 0;
+                                const tax    = parseFloat(formData.tax_rate) || 0;
+                                const agrVal = parseFloat(formData.agregado_value) || 0;
+                                if (gross <= 0) return null;
+                                const netProfit = gross * (1 - tax / 100) - agrVal;
+                                const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                                return (
+                                    <div className="bg-white rounded-xl border border-violet-100 px-4 py-3 text-xs space-y-1">
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>Valor do frete</span><span className="font-semibold">{fmt(gross)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>(-) Impostos ({tax}%)</span><span>{fmt(gross * tax / 100)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-slate-500">
+                                            <span>(-) Repasse ao agregado</span><span>{fmt(agrVal)}</span>
+                                        </div>
+                                        <div className={`flex justify-between font-bold border-t border-slate-100 pt-1 ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                            <span>Lucro líquido da empresa</span><span>{fmt(netProfit)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
-                    </div>
+                    )}
 
                     {/* Descrição da Carga */}
                     <div className="space-y-1">

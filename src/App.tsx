@@ -29,6 +29,7 @@ import Fleet from './pages/admin/Fleet';
 import Trips from './pages/admin/Trips';
 import Fuel from './pages/admin/Fuel';
 import Suppliers from './pages/admin/Suppliers';
+import Agregados from './pages/admin/Agregados';
 import AdminLayout from './components/layout/AdminLayout';
 
 // Master SaaS
@@ -71,6 +72,7 @@ function App() {
             <Route path="maintenance" element={<Maintenance />} />
             <Route path="fuel" element={<Fuel />} />
             <Route path="suppliers" element={<Suppliers />} />
+            <Route path="agregados" element={<Agregados />} />
             <Route path="financial" element={<Financial />} />
             <Route path="cash-flow" element={<CashFlow />} />
             <Route path="dre" element={<DRE />} />

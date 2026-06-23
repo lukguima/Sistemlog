@@ -26,7 +26,8 @@ import {
     Brain,
     ShieldAlert,
     PieChart,
-    Users2
+    Users2,
+    Handshake
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -49,6 +50,7 @@ export default function AdminLayout() {
         { name: 'Painel Executivo', href: '/admin/executive', icon: PieChart },
         { name: 'Viagens', href: '/admin/trips', icon: Truck },
         { name: 'Acerto', href: '/admin/settlement', icon: CircleDollarSign },
+        { name: 'Agregados', href: '/admin/agregados', icon: Handshake },
         { name: 'Frota', href: '/admin/fleet', icon: Users },
         { name: 'Manutenção', href: '/admin/maintenance', icon: Wrench },
         { name: 'Abastecimento', href: '/admin/fuel', icon: Fuel },

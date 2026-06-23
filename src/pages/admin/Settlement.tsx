@@ -1,16 +1,106 @@
 import { useState, useMemo, useEffect } from 'react';
-import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2 } from 'lucide-react';
+import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { tripService, fleetService, settlementService } from '../../lib/services';
+import { tripService, fleetService, settlementService, agregadoService } from '../../lib/services';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
 import AddAdvanceModal from '../../components/admin/AddAdvanceModal';
 import DriverReport from './DriverReport';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId: string; onRefresh: () => void }) {
+    const [settling, setSettling] = useState<string | null>(null);
+
+    const handleSettle = async (trip: any) => {
+        if (!confirm(`Acertar viagem de agregado?\n${trip.origin} → ${trip.destination}\nFrete: ${fmt(trip.gross_value)}\nRepasse: ${fmt(trip.agregado_value)}`)) return;
+        setSettling(trip.id);
+        try {
+            await agregadoService.settleAgregadoTrip(trip, companyId);
+            onRefresh();
+        } catch (e: any) {
+            alert(`Erro ao acertar: ${e.message}`);
+        } finally {
+            setSettling(null);
+        }
+    };
+
+    if (trips.length === 0) {
+        return (
+            <div className="text-center py-16 text-slate-400">
+                <Handshake size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Nenhuma viagem de agregado pendente</p>
+                <p className="text-sm mt-1">Quando houver viagens de agregado a liquidar, elas aparecerão aqui.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4">
+            <p className="text-sm text-slate-500">{trips.length} viagem(ns) de agregado pendente(s) de liquidação.</p>
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                            <th className="text-left px-5 py-3">Agregado</th>
+                            <th className="text-left px-4 py-3">Rota</th>
+                            <th className="text-right px-4 py-3">Frete Cliente</th>
+                            <th className="text-right px-4 py-3">Repasse Agregado</th>
+                            <th className="text-right px-4 py-3">Lucro Empresa</th>
+                            <th className="text-center px-4 py-3">Status</th>
+                            <th className="px-4 py-3" />
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {trips.map(t => {
+                            const gross    = Number(t.gross_value) || 0;
+                            const taxRate  = Number(t.tax_rate) || 0;
+                            const agrVal   = Number(t.agregado_value) || 0;
+                            const netProfit = Math.round((gross * (1 - taxRate / 100) - agrVal) * 100) / 100;
+                            return (
+                                <tr key={t.id} className="hover:bg-slate-50">
+                                    <td className="px-5 py-3 font-semibold text-slate-900">
+                                        {t.agregado?.name ?? '—'}
+                                        {t.agregado?.vehicle_plate && <span className="block text-xs text-slate-400 font-mono">{t.agregado.vehicle_plate}</span>}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600 text-xs">
+                                        <span className="font-medium">{t.origin}</span>
+                                        <span className="text-slate-400 mx-1">→</span>
+                                        <span className="font-medium">{t.destination}</span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-semibold text-slate-900">{fmt(gross)}</td>
+                                    <td className="px-4 py-3 text-right text-amber-700 font-semibold">{fmt(agrVal)}</td>
+                                    <td className={`px-4 py-3 text-right font-bold ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{fmt(netProfit)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                                            {t.status === 'pending' ? 'Pendente' : t.status === 'in_transit' ? 'Em viagem' : t.status === 'completed' ? 'Concluída' : t.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                        <button
+                                            disabled={settling === t.id}
+                                            onClick={() => handleSettle(t)}
+                                            className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 transition-colors">
+                                            {settling === t.id ? '...' : 'Acertar'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <p className="text-xs text-slate-400">
+                Ao acertar: gera conta a pagar ao agregado e lança lucro líquido no financeiro.
+            </p>
+        </div>
+    );
+}
+
 export default function Settlement() {
     const { user } = useAuth();
-    const [activeTab, setActiveTab] = useState<'settlement' | 'advances' | 'production'>('settlement');
+    const [activeTab, setActiveTab] = useState<'settlement' | 'advances' | 'production' | 'agregados'>('settlement');
 
     // Settlement Tab State
     const [viagens, setViagens] = useState<any[]>([]);
@@ -20,6 +110,9 @@ export default function Settlement() {
     const [pendingAdvances, setPendingAdvances] = useState<any[]>([]);
     const [settlePage, setSettlePage] = useState(1);
     const SETTLE_PAGE_SIZE = 20;
+
+    // Agregados Tab State
+    const [agregadoTrips, setAgregadoTrips] = useState<any[]>([]);
 
     // Advances Tab State
     const [allAdvances, setAllAdvances] = useState<any[]>([]);
@@ -37,9 +130,11 @@ export default function Settlement() {
         setLoading(true);
         try {
             const data = await tripService.getTrips(companyId);
-            setViagens(data || []);
+            const all = data || [];
+            // Separa viagens de frota própria das de agregado
+            setViagens(all.filter((t: any) => t.driver_type !== 'agregado'));
+            setAgregadoTrips(all.filter((t: any) => t.driver_type === 'agregado' && t.status !== 'paid'));
 
-            // Também buscar adiantamentos pendentes para cálculo
             const advancesData = await settlementService.getAdvances(companyId, 'pending');
             setPendingAdvances(advancesData || []);
         } catch (error) {
@@ -310,12 +405,24 @@ export default function Settlement() {
                     >
                         Produção de Motoristas
                     </button>
+                    <button
+                        onClick={() => setActiveTab('agregados')}
+                        className={`px-6 py-3 text-sm font-bold transition-colors border-b-2 flex items-center gap-2 ${activeTab === 'agregados' ? 'border-violet-500 text-violet-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        <Handshake size={15} />
+                        Agregados
+                        {agregadoTrips.length > 0 && (
+                            <span className="bg-violet-100 text-violet-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{agregadoTrips.length}</span>
+                        )}
+                    </button>
                 </div>
             </div>
 
             <main className="p-4 md:p-8">
                 {activeTab === 'production' ? (
                     <DriverReport />
+                ) : activeTab === 'agregados' ? (
+                    <AgregadosTab trips={agregadoTrips} companyId={companyId} onRefresh={fetchViagens} />
                 ) : activeTab === 'settlement' ? (
                     <div className="flex gap-8 flex-col xl:flex-row h-full">
                         {/* Painel Central: Listagem de Fretes pra Liquidar */}

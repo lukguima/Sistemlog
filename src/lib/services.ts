@@ -90,7 +90,7 @@ export const tripService = {
     async getTrips(companyId: string, startDate?: string, endDate?: string) {
         let query = supabase
             .from('trips')
-            .select('*, vehicle:vehicles(plate), driver:drivers(name)')
+            .select('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
             .eq('company_id', companyId)
             .order('created_at', { ascending: false });
 
@@ -1944,6 +1944,90 @@ export const masterService = {
             })
             .eq('company_id', companyId);
 
+        if (error) throw error;
+    },
+};
+
+export const agregadoService = {
+    async getAll(companyId: string) {
+        if (!companyId) return [];
+        const { data, error } = await supabase
+            .from('agregados')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name', { ascending: true });
+        if (error) throw error;
+        return data ?? [];
+    },
+    async add(payload: any) {
+        const { id: _id, ...data } = payload;
+        const { data: created, error } = await supabase
+            .from('agregados')
+            .insert([data])
+            .select()
+            .single();
+        if (error) throw error;
+        return created;
+    },
+    async update(id: string, updates: any) {
+        const { data, error } = await supabase
+            .from('agregados')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    },
+    async remove(id: string) {
+        const { error } = await supabase
+            .from('agregados')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    },
+
+    // Liquida uma viagem de agregado:
+    // - Cria contas a pagar pelo valor do frete repassado
+    // - Lança lucro líquido como receita no financeiro
+    // - Marca viagem como 'paid'
+    async settleAgregadoTrip(trip: any, companyId: string) {
+        const gross    = Number(trip.gross_value) || 0;
+        const taxRate  = Number(trip.tax_rate) || 0;
+        const agrValue = Number(trip.agregado_value) || 0;
+        const netProfit = Math.round((gross * (1 - taxRate / 100) - agrValue) * 100) / 100;
+        const today = new Date().toISOString().split('T')[0];
+
+        // 1. Conta a pagar para o agregado
+        await supabase.from('accounts_payable').insert([{
+            company_id: companyId,
+            description: `Frete agregado: ${trip.origin ?? ''} → ${trip.destination ?? ''}`,
+            amount: agrValue,
+            due_date: today,
+            status: 'pending',
+            supplier_name: trip.agregado?.name ?? 'Agregado',
+            notes: `Viagem ID: ${trip.id}`,
+        }]);
+
+        // 2. Lançamento de receita (lucro líquido da operação)
+        if (netProfit > 0) {
+            await supabase.from('financial_transactions').insert([{
+                company_id: companyId,
+                type: 'receita',
+                description: `Lucro agregado: ${trip.origin ?? ''} → ${trip.destination ?? ''}`,
+                amount: netProfit,
+                competence_date: today,
+                payment_date: today,
+                status: 'paid',
+                trip_id: trip.id,
+            }]);
+        }
+
+        // 3. Marcar viagem como paga
+        const { error } = await supabase
+            .from('trips')
+            .update({ status: 'paid' })
+            .eq('id', trip.id);
         if (error) throw error;
     },
 };
