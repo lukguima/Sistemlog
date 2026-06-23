@@ -28,7 +28,7 @@ CREATE POLICY "agregados_company_policy" ON public.agregados
     FOR ALL
     USING (
         company_id IN (
-            SELECT company_id FROM public.users WHERE id = auth.uid()
+            SELECT company_id FROM public.profiles WHERE id = auth.uid()
         )
     );
 
