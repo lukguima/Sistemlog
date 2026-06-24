@@ -317,7 +317,7 @@ export const financeService = {
     async getKpis(companyId: string, startDate?: string, endDate?: string) {
         let tripQuery = supabase
             .from('trips')
-            .select('gross_value, status, tolls_value, insurance_value, commission_rate, tax_rate')
+            .select('gross_value, status, tolls_value, insurance_value, commission_rate, tax_rate, driver_type, agregado_value')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -390,7 +390,13 @@ export const financeService = {
             return acc + (gross * rate / 100);
         }, 0) || 0;
 
-        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance + totalCommission + totalTax;
+        // Custo de agregados (valor repassado ao terceiro por viagem de agregado)
+        const totalAgregado = trips?.reduce((acc, t) => {
+            if ((t as any).driver_type !== 'agregado') return acc;
+            return acc + (Number((t as any).agregado_value) || 0);
+        }, 0) || 0;
+
+        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance + totalCommission + totalTax + totalAgregado;
 
         return {
             grossRevenue,
@@ -403,6 +409,7 @@ export const financeService = {
             fixedInsurance,
             totalCommission,
             totalTax,
+            totalAgregado,
             totalExpenses,
             netRevenue: (grossRevenue + expectedGrossRevenue) - totalExpenses,
             expectedNetRevenue: expectedGrossRevenue
