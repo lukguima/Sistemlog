@@ -110,7 +110,7 @@ export default function Trips() {
         if (!companyId) return;
 
         try {
-            const { vehicle, driver, value, cte, date, ...rest } = data;
+            const { vehicle, driver, agregado, value, cte, date, ...rest } = data;
 
             const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
             const isAgregado = rest.driver_type === 'agregado';
