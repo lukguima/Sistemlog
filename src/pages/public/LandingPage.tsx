@@ -86,89 +86,6 @@ export default function LandingPage() {
                     <p className="text-xs text-slate-600 font-bold">Sem cartão de crédito. Cancele quando quiser.</p>
                 </section>
 
-                {/* ── Stats Bar ── */}
-                <section className="py-20 border-y border-white/5 bg-white/[0.02]">
-                    <div className="max-w-7xl mx-auto px-6 lg:px-12 grid grid-cols-2 md:grid-cols-4 gap-10 text-center">
-                        {[
-                            { value: '+200', label: 'Frotas Gerenciadas', icon: <Truck size={18} /> },
-                            { value: '-32%', label: 'Redução de Custos', icon: <TrendingUp size={18} /> },
-                            { value: '100%', label: 'Acerto Automatizado', icon: <CheckCircle size={18} /> },
-                            { value: '7/7', label: 'Suporte Dedicado', icon: <Clock size={18} /> },
-                        ].map((stat, i) => (
-                            <div key={i} className="flex flex-col items-center gap-2">
-                                <div className="text-primary-400 mb-1">{stat.icon}</div>
-                                <div className="text-4xl md:text-5xl font-black text-white tracking-tight">{stat.value}</div>
-                                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">{stat.label}</div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                {/* ── Features ── */}
-                <section id="features" className="py-32 px-6 lg:px-12">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="text-center max-w-3xl mx-auto mb-20">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-widest mb-6">
-                                <Zap size={12} />
-                                Tudo que você precisa
-                            </div>
-                            <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">Controle total em um só lugar</h2>
-                            <p className="text-xl text-slate-400 font-medium leading-relaxed">
-                                Cada módulo foi projetado para eliminar retrabalho e dar visibilidade real sobre cada R$ da sua operação.
-                            </p>
-                        </div>
-
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {[
-                                {
-                                    icon: <BarChart3 size={28} className="text-primary-400" />,
-                                    accent: 'bg-primary-500/10 border-primary-500/20',
-                                    title: 'Dashboard em Tempo Real',
-                                    desc: 'KPIs recalculados automaticamente: faturamento, despesas, margem e rentabilidade por veículo e por motorista.'
-                                },
-                                {
-                                    icon: <Globe size={28} className="text-emerald-400" />,
-                                    accent: 'bg-emerald-500/10 border-emerald-500/20',
-                                    title: 'Gestão de Viagens',
-                                    desc: 'Registre fretes com origem, destino, carga, pedágio e combustível. Calcule automaticamente o lucro de cada viagem.'
-                                },
-                                {
-                                    icon: <DollarSign size={28} className="text-yellow-400" />,
-                                    accent: 'bg-yellow-500/10 border-yellow-500/20',
-                                    title: 'Acerto Financeiro',
-                                    desc: 'Gere acertos de motoristas com um clique. Comissões, adiantamentos e descontos calculados sem planilha.'
-                                },
-                                {
-                                    icon: <Fuel size={28} className="text-orange-400" />,
-                                    accent: 'bg-orange-500/10 border-orange-500/20',
-                                    title: 'Controle de Abastecimento',
-                                    desc: 'Registre abastecimentos, monitore consumo médio (KM/L) e identifique desvios por veículo e motorista.'
-                                },
-                                {
-                                    icon: <Wrench size={28} className="text-rose-400" />,
-                                    accent: 'bg-rose-500/10 border-rose-500/20',
-                                    title: 'Manutenção Preventiva',
-                                    desc: 'Histórico completo de manutenções preventivas e corretivas, com alertas e custo total por veículo.'
-                                },
-                                {
-                                    icon: <Cpu size={28} className="text-purple-400" />,
-                                    accent: 'bg-purple-500/10 border-purple-500/20',
-                                    title: 'Monitoramento de Pneus',
-                                    desc: 'Visualize o estado de cada pneu da frota com alertas de desgaste e controle de sulco em tempo real.'
-                                },
-                            ].map((f, i) => (
-                                <div key={i} className={`group p-8 rounded-3xl bg-[#161B26] border border-white/5 hover:border-white/10 transition-all hover:bg-[#1C2330]`}>
-                                    <div className={`mb-6 w-14 h-14 rounded-2xl ${f.accent} border flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                                        {f.icon}
-                                    </div>
-                                    <h3 className="text-xl font-black mb-3">{f.title}</h3>
-                                    <p className="text-slate-400 leading-relaxed text-sm font-medium">{f.desc}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
                 {/* ── Product Screenshots ── */}
                 <section className="py-32 px-6 lg:px-12 bg-white/[0.02] border-y border-white/5">
                     <div className="max-w-7xl mx-auto">
@@ -273,6 +190,89 @@ export default function LandingPage() {
                                     ))}
                                 </ul>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ── Stats Bar ── */}
+                <section className="py-20 border-y border-white/5 bg-white/[0.02]">
+                    <div className="max-w-7xl mx-auto px-6 lg:px-12 grid grid-cols-2 md:grid-cols-4 gap-10 text-center">
+                        {[
+                            { value: '+200', label: 'Frotas Gerenciadas', icon: <Truck size={18} /> },
+                            { value: '-32%', label: 'Redução de Custos', icon: <TrendingUp size={18} /> },
+                            { value: '100%', label: 'Acerto Automatizado', icon: <CheckCircle size={18} /> },
+                            { value: '7/7', label: 'Suporte Dedicado', icon: <Clock size={18} /> },
+                        ].map((stat, i) => (
+                            <div key={i} className="flex flex-col items-center gap-2">
+                                <div className="text-primary-400 mb-1">{stat.icon}</div>
+                                <div className="text-4xl md:text-5xl font-black text-white tracking-tight">{stat.value}</div>
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* ── Features ── */}
+                <section id="features" className="py-32 px-6 lg:px-12">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center max-w-3xl mx-auto mb-20">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-900/20 border border-emerald-500/20 text-emerald-400 text-xs font-black uppercase tracking-widest mb-6">
+                                <Zap size={12} />
+                                Tudo que você precisa
+                            </div>
+                            <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">Controle total em um só lugar</h2>
+                            <p className="text-xl text-slate-400 font-medium leading-relaxed">
+                                Cada módulo foi projetado para eliminar retrabalho e dar visibilidade real sobre cada R$ da sua operação.
+                            </p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {[
+                                {
+                                    icon: <BarChart3 size={28} className="text-primary-400" />,
+                                    accent: 'bg-primary-500/10 border-primary-500/20',
+                                    title: 'Dashboard em Tempo Real',
+                                    desc: 'KPIs recalculados automaticamente: faturamento, despesas, margem e rentabilidade por veículo e por motorista.'
+                                },
+                                {
+                                    icon: <Globe size={28} className="text-emerald-400" />,
+                                    accent: 'bg-emerald-500/10 border-emerald-500/20',
+                                    title: 'Gestão de Viagens',
+                                    desc: 'Registre fretes com origem, destino, carga, pedágio e combustível. Calcule automaticamente o lucro de cada viagem.'
+                                },
+                                {
+                                    icon: <DollarSign size={28} className="text-yellow-400" />,
+                                    accent: 'bg-yellow-500/10 border-yellow-500/20',
+                                    title: 'Acerto Financeiro',
+                                    desc: 'Gere acertos de motoristas com um clique. Comissões, adiantamentos e descontos calculados sem planilha.'
+                                },
+                                {
+                                    icon: <Fuel size={28} className="text-orange-400" />,
+                                    accent: 'bg-orange-500/10 border-orange-500/20',
+                                    title: 'Controle de Abastecimento',
+                                    desc: 'Registre abastecimentos, monitore consumo médio (KM/L) e identifique desvios por veículo e motorista.'
+                                },
+                                {
+                                    icon: <Wrench size={28} className="text-rose-400" />,
+                                    accent: 'bg-rose-500/10 border-rose-500/20',
+                                    title: 'Manutenção Preventiva',
+                                    desc: 'Histórico completo de manutenções preventivas e corretivas, com alertas e custo total por veículo.'
+                                },
+                                {
+                                    icon: <Cpu size={28} className="text-purple-400" />,
+                                    accent: 'bg-purple-500/10 border-purple-500/20',
+                                    title: 'Monitoramento de Pneus',
+                                    desc: 'Visualize o estado de cada pneu da frota com alertas de desgaste e controle de sulco em tempo real.'
+                                },
+                            ].map((f, i) => (
+                                <div key={i} className={`group p-8 rounded-3xl bg-[#161B26] border border-white/5 hover:border-white/10 transition-all hover:bg-[#1C2330]`}>
+                                    <div className={`mb-6 w-14 h-14 rounded-2xl ${f.accent} border flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                                        {f.icon}
+                                    </div>
+                                    <h3 className="text-xl font-black mb-3">{f.title}</h3>
+                                    <p className="text-slate-400 leading-relaxed text-sm font-medium">{f.desc}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </section>
