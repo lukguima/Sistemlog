@@ -317,7 +317,7 @@ export const financeService = {
     async getKpis(companyId: string, startDate?: string, endDate?: string) {
         let tripQuery = supabase
             .from('trips')
-            .select('gross_value, status, tolls_value, insurance_value')
+            .select('gross_value, status, tolls_value, insurance_value, commission_rate, tax_rate')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -376,7 +376,21 @@ export const financeService = {
         // Custos Fixos de Veículo (Seguro fixo - escalonado pelo período se necessário, mas aqui somaremos o total cadastrado)
         const fixedInsurance = vehicles?.reduce((acc, vehicle) => acc + (Number((vehicle as any).insurance_value) || 0), 0) || 0;
 
-        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance;
+        // Comissão dos motoristas (commission_rate % sobre gross_value por viagem)
+        const totalCommission = trips?.reduce((acc, t) => {
+            const gross = Number(t.gross_value) || 0;
+            const rate = Number((t as any).commission_rate) || 0;
+            return acc + (gross * rate / 100);
+        }, 0) || 0;
+
+        // Impostos (tax_rate % sobre gross_value por viagem)
+        const totalTax = trips?.reduce((acc, t) => {
+            const gross = Number(t.gross_value) || 0;
+            const rate = Number((t as any).tax_rate) || 0;
+            return acc + (gross * rate / 100);
+        }, 0) || 0;
+
+        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance + totalCommission + totalTax;
 
         return {
             grossRevenue,
@@ -387,8 +401,10 @@ export const financeService = {
             tripTolls,
             tripInsurance,
             fixedInsurance,
+            totalCommission,
+            totalTax,
             totalExpenses,
-            netRevenue: (grossRevenue + expectedGrossRevenue) - fuelExpenses - arlaExpenses - maintenanceExpenses,
+            netRevenue: (grossRevenue + expectedGrossRevenue) - totalExpenses,
             expectedNetRevenue: expectedGrossRevenue
         };
     },
