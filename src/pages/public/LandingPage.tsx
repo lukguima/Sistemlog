@@ -84,24 +84,6 @@ export default function LandingPage() {
                         </a>
                     </div>
                     <p className="text-xs text-slate-600 font-bold">Sem cartão de crédito. Cancele quando quiser.</p>
-
-                    {/* Dashboard Preview */}
-                    <div className="relative mx-auto max-w-6xl mt-20">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary-500/30 to-blue-600/20 rounded-[2.5rem] blur-2xl pointer-events-none" />
-                        <div className="bg-[#161B26]/80 p-2 rounded-[2rem] border border-white/10 shadow-2xl backdrop-blur-3xl overflow-hidden">
-                            <div className="h-8 bg-[#0B0F17]/50 rounded-t-[1.5rem] border-b border-white/5 flex items-center px-6 gap-2">
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F57]" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#FEBC2E]" />
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#28C840]" />
-                                <div className="ml-4 text-[10px] font-bold text-slate-600">sistemlog.com.br/admin/dashboard</div>
-                            </div>
-                            <img
-                                src="/images/hero-dashboard.png"
-                                alt="SistemLog Dashboard"
-                                className="w-full h-auto rounded-b-[1.5rem] opacity-90"
-                            />
-                        </div>
-                    </div>
                 </section>
 
                 {/* ── Stats Bar ── */}
