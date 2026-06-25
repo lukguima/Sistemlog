@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { trackSignUp } from '../../lib/firebase';
 
 export default function Register() {
     const navigate = useNavigate();
@@ -49,9 +48,6 @@ export default function Register() {
                 setError('Este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
                 return;
             }
-
-            // Analytics em background — nunca pode derrubar o fluxo de cadastro
-            try { trackSignUp(); } catch {}
 
             setSuccess(true);
             setTimeout(() => navigate('/login'), 6000);
