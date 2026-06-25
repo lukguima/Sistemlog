@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAnalytics, logEvent } from 'firebase/analytics';
+import { getAnalytics, logEvent, Analytics } from 'firebase/analytics';
 
 const firebaseConfig = {
     apiKey: 'AIzaSyA3lCW3mFXMJptb6FnrlZOrZc2eDaj6Zgo',
@@ -11,20 +11,30 @@ const firebaseConfig = {
     measurementId: 'G-0LV3K8KTKK',
 };
 
-const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
+let analytics: Analytics | null = null;
+try {
+    const app = initializeApp(firebaseConfig);
+    analytics = getAnalytics(app);
+} catch {
+    // Analytics indisponível (ad blocker, SSR, rede) — não quebra o app
+}
 
-// Evento: usuário completou o cadastro (Firebase + Meta Pixel)
-export const trackSignUp = () => {
-    logEvent(analytics, 'sign_up');
-    if (typeof (window as any).fbq === 'function') {
-        (window as any).fbq('track', 'CompleteRegistration');
-    }
+const safeLog = (event: string, params?: Record<string, any>) => {
+    try {
+        if (analytics) logEvent(analytics, event, params);
+    } catch {}
 };
 
-// Evento: usuário fez login
-export const trackLogin = () => logEvent(analytics, 'login');
+export const trackSignUp = () => {
+    safeLog('sign_up');
+    try {
+        if (typeof (window as any).fbq === 'function') {
+            (window as any).fbq('track', 'CompleteRegistration');
+        }
+    } catch {}
+};
 
-// Evento genérico para anúncios
+export const trackLogin = () => safeLog('login');
+
 export const trackEvent = (name: string, params?: Record<string, any>) =>
-    logEvent(analytics, name, params);
+    safeLog(name, params);

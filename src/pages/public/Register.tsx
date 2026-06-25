@@ -46,11 +46,13 @@ export default function Register() {
 
             // Supabase retorna identities vazio quando o e-mail já está cadastrado
             if (data?.user?.identities?.length === 0) {
-                setError('Não foi possível criar a conta. Verifique os dados e tente novamente.');
+                setError('Este e-mail já está cadastrado. Tente fazer login ou use outro e-mail.');
                 return;
             }
 
-            trackSignUp();
+            // Analytics em background — nunca pode derrubar o fluxo de cadastro
+            try { trackSignUp(); } catch {}
+
             setSuccess(true);
             setTimeout(() => navigate('/login'), 6000);
 
