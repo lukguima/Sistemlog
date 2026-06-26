@@ -152,8 +152,7 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
         try {
             const base = { company_id: companyId, amount: parseFloat(form.amount) || 0, category_id: form.category_id || null };
             if (isEdit) {
-                const { parcelas: _p, ...formFields } = form;
-                const payload = { ...formFields, ...base };
+                const payload = { ...base, description: form.description, due_date: form.due_date, supplier_name: form.supplier_name, notes: form.notes };
                 await accountsPayableService.update(initial.id, payload);
             } else {
                 const n = parseInt(form.parcelas) || 1;
