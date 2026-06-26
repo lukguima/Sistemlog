@@ -348,11 +348,39 @@ export default function Financial() {
         load();
     };
     const handleMarkPaid = async (id: string) => {
+        const item = payables.find(p => p.id === id);
         await accountsPayableService.markPaid(id, today());
+        if (item) {
+            await transactionService.add({
+                company_id: companyId,
+                type: 'despesa',
+                description: item.description,
+                amount: item.amount,
+                category_id: item.category_id ?? null,
+                competence_date: today(),
+                payment_date: today(),
+                status: 'paid',
+                notes: `Baixado automaticamente de Conta a Pagar`,
+            });
+        }
         load();
     };
     const handleMarkReceived = async (id: string) => {
+        const item = receivables.find(r => r.id === id);
         await accountsReceivableService.markReceived(id, today());
+        if (item) {
+            await transactionService.add({
+                company_id: companyId,
+                type: 'receita',
+                description: item.description,
+                amount: item.amount,
+                category_id: null,
+                competence_date: today(),
+                payment_date: today(),
+                status: 'paid',
+                notes: `Baixado automaticamente de Conta a Receber`,
+            });
+        }
         load();
     };
     const handleAddCat = async (e: React.FormEvent) => {
