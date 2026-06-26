@@ -134,17 +134,35 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
         supplier_name: initial?.supplier_name ?? '',
         category_id: initial?.category_id ?? '',
         notes: initial?.notes ?? '',
+        parcelas: '1',
     });
     const [saving, setSaving] = useState(false);
     const despCats = categories.filter((c: any) => c.type === 'despesa');
+    const isEdit = !!initial?.id;
+
+    const addMonths = (dateStr: string, months: number): string => {
+        const d = new Date(dateStr + 'T12:00:00');
+        d.setMonth(d.getMonth() + months);
+        return d.toISOString().split('T')[0];
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const payload = { ...form, company_id: companyId, amount: parseFloat(form.amount) || 0, category_id: form.category_id || null };
-            if (initial?.id) await accountsPayableService.update(initial.id, payload);
-            else await accountsPayableService.add(payload);
+            const base = { company_id: companyId, amount: parseFloat(form.amount) || 0, category_id: form.category_id || null };
+            if (isEdit) {
+                const payload = { ...form, ...base };
+                delete payload.parcelas;
+                await accountsPayableService.update(initial.id, payload);
+            } else {
+                const n = parseInt(form.parcelas) || 1;
+                for (let i = 0; i < n; i++) {
+                    const description = n > 1 ? `${form.description} (${i + 1}/${n})` : form.description;
+                    const due_date = addMonths(form.due_date, i);
+                    await accountsPayableService.add({ ...base, description, due_date, supplier_name: form.supplier_name, notes: form.notes });
+                }
+            }
             onSave();
         } finally { setSaving(false); }
     };
@@ -163,7 +181,7 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
                         className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
                 </label>
                 <label>
-                    <span className="text-xs font-medium text-slate-600">Vencimento *</span>
+                    <span className="text-xs font-medium text-slate-600">1º Vencimento *</span>
                     <input required type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
                         className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
                 </label>
@@ -180,6 +198,22 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
                         {despCats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </label>
+                {!isEdit && (
+                    <label className="col-span-2">
+                        <span className="text-xs font-medium text-slate-600">Parcelas</span>
+                        <select value={form.parcelas} onChange={e => setForm(f => ({ ...f, parcelas: e.target.value }))}
+                            className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+                            {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
+                                <option key={n} value={n}>{n}x {n > 1 ? `— vence todo mês a partir do 1º vencimento` : '— à vista'}</option>
+                            ))}
+                        </select>
+                        {parseInt(form.parcelas) > 1 && (
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                Serão criados {form.parcelas} lançamentos com vencimentos mensais.
+                            </p>
+                        )}
+                    </label>
+                )}
                 <label className="col-span-2">
                     <span className="text-xs font-medium text-slate-600">Observações</span>
                     <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -189,7 +223,7 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
             <div className="flex gap-2 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                    {saving ? 'Salvando...' : 'Salvar'}
+                    {saving ? 'Salvando...' : parseInt(form.parcelas) > 1 ? `Salvar ${form.parcelas} parcelas` : 'Salvar'}
                 </button>
             </div>
         </form>
