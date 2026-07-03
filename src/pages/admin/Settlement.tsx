@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake } from 'lucide-react';
+import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake, FileDown } from 'lucide-react';
+import { exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { tripService, fleetService, settlementService, agregadoService } from '../../lib/services';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
@@ -12,6 +13,31 @@ const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', curren
 
 function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId: string; onRefresh: () => void }) {
     const [settling, setSettling] = useState<string | null>(null);
+    const [filterAgregado, setFilterAgregado] = useState('');
+    const [filterStart, setFilterStart] = useState('');
+    const [filterEnd, setFilterEnd] = useState('');
+
+    const agregadoNames = Array.from(new Set(trips.map(t => t.agregado?.name).filter(Boolean))).sort();
+
+    const filtered = trips.filter(t => {
+        if (filterAgregado && t.agregado?.name !== filterAgregado) return false;
+        if (filterStart && t.created_at && t.created_at.slice(0, 10) < filterStart) return false;
+        if (filterEnd && t.created_at && t.created_at.slice(0, 10) > filterEnd) return false;
+        return true;
+    });
+
+    const calcRow = (t: any) => {
+        const gross     = Number(t.gross_value) || 0;
+        const taxRate   = Number(t.tax_rate) || 0;
+        const agrVal    = Number(t.agregado_value) || 0;
+        const netProfit = Math.round((gross * (1 - taxRate / 100) - agrVal) * 100) / 100;
+        return { gross, agrVal, netProfit };
+    };
+
+    const totals = filtered.reduce((acc, t) => {
+        const { gross, agrVal, netProfit } = calcRow(t);
+        return { gross: acc.gross + gross, agrVal: acc.agrVal + agrVal, netProfit: acc.netProfit + netProfit };
+    }, { gross: 0, agrVal: 0, netProfit: 0 });
 
     const handleSettle = async (trip: any) => {
         if (!confirm(`Acertar viagem de agregado?\n${trip.origin} → ${trip.destination}\nFrete: ${fmt(trip.gross_value)}\nRepasse: ${fmt(trip.agregado_value)}`)) return;
@@ -26,6 +52,34 @@ function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId
         }
     };
 
+    const handleExportPDF = () => {
+        const periodo = filterStart && filterEnd
+            ? `${filterStart} a ${filterEnd}`
+            : filterStart ? `a partir de ${filterStart}`
+            : filterEnd ? `até ${filterEnd}`
+            : 'Todos os períodos';
+        const title = `Agregados${filterAgregado ? ` — ${filterAgregado}` : ''} | ${periodo}`;
+        const headers = [['Agregado', 'Placa', 'Rota', 'Frete Cliente', 'Repasse Agregado', 'Lucro Empresa']];
+        const rows = filtered.map(t => {
+            const { gross, agrVal, netProfit } = calcRow(t);
+            return [
+                t.agregado?.name ?? '—',
+                t.agregado?.vehicle_plate ?? '—',
+                `${t.origin} → ${t.destination}`,
+                fmt(gross),
+                fmt(agrVal),
+                fmt(netProfit),
+            ];
+        });
+        rows.push([
+            'TOTAL', '', '',
+            fmt(totals.gross),
+            fmt(totals.agrVal),
+            fmt(totals.netProfit),
+        ]);
+        exportToPDF(title, headers, rows, `agregados_${new Date().toISOString().slice(0, 10)}`);
+    };
+
     if (trips.length === 0) {
         return (
             <div className="text-center py-16 text-slate-400">
@@ -38,7 +92,42 @@ function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId
 
     return (
         <div className="space-y-4">
-            <p className="text-sm text-slate-500">{trips.length} viagem(ns) de agregado pendente(s) de liquidação.</p>
+            {/* Filtros */}
+            <div className="flex flex-wrap gap-3 items-end">
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Agregado</label>
+                    <select value={filterAgregado} onChange={e => setFilterAgregado(e.target.value)}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white min-w-[180px]">
+                        <option value="">Todos</option>
+                        {agregadoNames.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">De</label>
+                    <input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white" />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Até</label>
+                    <input type="date" value={filterEnd} onChange={e => setFilterEnd(e.target.value)}
+                        className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white" />
+                </div>
+                {(filterAgregado || filterStart || filterEnd) && (
+                    <button onClick={() => { setFilterAgregado(''); setFilterStart(''); setFilterEnd(''); }}
+                        className="px-3 py-2 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50">
+                        Limpar
+                    </button>
+                )}
+                <button onClick={handleExportPDF}
+                    className="ml-auto flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+                    <FileDown size={16} className="text-rose-500" /> Exportar PDF
+                </button>
+            </div>
+
+            <p className="text-sm text-slate-500">
+                {filtered.length} viagem(ns) {filtered.length !== trips.length ? `(filtrado de ${trips.length})` : 'pendente(s) de liquidação'}.
+            </p>
+
             <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
                     <thead>
@@ -53,11 +142,8 @@ function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                        {trips.map(t => {
-                            const gross    = Number(t.gross_value) || 0;
-                            const taxRate  = Number(t.tax_rate) || 0;
-                            const agrVal   = Number(t.agregado_value) || 0;
-                            const netProfit = Math.round((gross * (1 - taxRate / 100) - agrVal) * 100) / 100;
+                        {filtered.map(t => {
+                            const { gross, agrVal, netProfit } = calcRow(t);
                             return (
                                 <tr key={t.id} className="hover:bg-slate-50">
                                     <td className="px-5 py-3 font-semibold text-slate-900">
@@ -89,6 +175,17 @@ function AgregadosTab({ trips, companyId, onRefresh }: { trips: any[]; companyId
                             );
                         })}
                     </tbody>
+                    <tfoot>
+                        <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-sm">
+                            <td className="px-5 py-3 text-slate-700 uppercase text-xs tracking-wide" colSpan={2}>
+                                Total ({filtered.length} viagens)
+                            </td>
+                            <td className="px-4 py-3 text-right text-slate-900">{fmt(totals.gross)}</td>
+                            <td className="px-4 py-3 text-right text-amber-700">{fmt(totals.agrVal)}</td>
+                            <td className={`px-4 py-3 text-right ${totals.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{fmt(totals.netProfit)}</td>
+                            <td colSpan={2} />
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             <p className="text-xs text-slate-400">
