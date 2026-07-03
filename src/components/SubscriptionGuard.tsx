@@ -9,12 +9,6 @@ const STATUS_LABELS: Record<string, string> = {
     trial_expired: 'Período de Teste Encerrado',
 };
 
-const STATUS_DESCRIPTIONS: Record<string, string> = {
-    overdue:       'Identificamos um atraso no pagamento da sua assinatura. Para continuar usando o sistema, regularize o pagamento clicando no botão abaixo.',
-    canceled:      'Sua assinatura foi cancelada. Para reativar o acesso completo, assine novamente.',
-    blocked:       'O acesso à sua conta foi suspenso pelo administrador. Entre em contato com o suporte.',
-    trial_expired: 'Seu período gratuito de 7 dias foi encerrado. Assine um plano para continuar com acesso completo ao sistema.',
-};
 
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     const { subscription, isSubscriptionBlocked, isSubscriptionWarning, user } = useAuth();
