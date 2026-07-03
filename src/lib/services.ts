@@ -376,11 +376,13 @@ export const financeService = {
         // Custos Fixos de Veículo (Seguro fixo - escalonado pelo período se necessário, mas aqui somaremos o total cadastrado)
         const fixedInsurance = vehicles?.reduce((acc, vehicle) => acc + (Number((vehicle as any).insurance_value) || 0), 0) || 0;
 
-        // Comissão dos motoristas (commission_rate % sobre gross_value por viagem)
+        // Comissão dos motoristas (commission_rate % sobre valor líquido = gross - imposto)
         const totalCommission = trips?.reduce((acc, t) => {
             const gross = Number(t.gross_value) || 0;
+            const tax = Number((t as any).tax_rate) || 0;
             const rate = Number((t as any).commission_rate) || 0;
-            return acc + (gross * rate / 100);
+            const netBase = gross * (1 - tax / 100);
+            return acc + (netBase * rate / 100);
         }, 0) || 0;
 
         // Impostos (tax_rate % sobre gross_value por viagem)
@@ -1048,8 +1050,9 @@ export const dashboardService = {
                 profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
             const gross = Number(t.gross_value) || 0;
-            const commission = gross * (Number((t as any).commission_rate) || 0) / 100;
             const tax = gross * (Number((t as any).tax_rate) || 0) / 100;
+            const netBase = gross - tax;
+            const commission = netBase * (Number((t as any).commission_rate) || 0) / 100;
             const tolls = Number((t as any).tolls_value) || 0;
             const insurance = Number((t as any).insurance_value) || 0;
             profitByTruck[vId].gross += gross;
@@ -1129,10 +1132,13 @@ export const dashboardService = {
         // Pedágio (custo por viagem)
         const totalTolls = trips?.reduce((acc, t) => acc + (Number((t as any).tolls_value) || 0), 0) || 0;
 
-        // Comissão motorista: gross_value * commission_rate / 100 por viagem
+        // Comissão motorista: (gross - imposto) * commission_rate / 100 por viagem
         const totalCommission = trips?.reduce((acc, t) => {
+            const gross = Number(t.gross_value) || 0;
+            const tax = Number((t as any).tax_rate) || 0;
             const rate = Number((t as any).commission_rate) || 0;
-            return acc + (Number(t.gross_value) || 0) * rate / 100;
+            const netBase = gross * (1 - tax / 100);
+            return acc + (netBase * rate / 100);
         }, 0) || 0;
 
         // Imposto: gross_value * tax_rate / 100 por viagem
