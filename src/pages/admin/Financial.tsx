@@ -292,7 +292,7 @@ function ReceivableForm({ companyId, initial, onSave, onClose }: any) {
 
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function Financial() {
-    const { user } = useAuth();
+    const { user, isSubscriptionBlocked } = useAuth();
     const companyId = (user as any)?.company_id;
     const [tab, setTab] = useState<'lancamentos' | 'pagar' | 'receber' | 'categorias'>('lancamentos');
 
@@ -468,7 +468,9 @@ export default function Financial() {
                                             ))}
                                         </div>
                                         <button onClick={() => setModal({ type: 'tx' })}
-                                            className="ml-auto flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
+                                            disabled={isSubscriptionBlocked}
+                                            title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                                            className="ml-auto flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                                             <Plus size={16} /> Novo Lançamento
                                         </button>
                                     </div>
@@ -523,7 +525,9 @@ export default function Financial() {
                                 <div className="space-y-3">
                                     <div className="flex justify-end">
                                         <button onClick={() => setModal({ type: 'pay' })}
-                                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
+                                            disabled={isSubscriptionBlocked}
+                                            title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                                             <Plus size={16} /> Nova Conta a Pagar
                                         </button>
                                     </div>
@@ -574,7 +578,9 @@ export default function Financial() {
                                 <div className="space-y-3">
                                     <div className="flex justify-end">
                                         <button onClick={() => setModal({ type: 'rec' })}
-                                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
+                                            disabled={isSubscriptionBlocked}
+                                            title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
                                             <Plus size={16} /> Nova Conta a Receber
                                         </button>
                                     </div>

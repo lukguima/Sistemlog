@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import MaintenanceModal from '../../components/admin/MaintenanceModal';
 
 export default function Maintenance() {
-    const { user } = useAuth();
+    const { user, isSubscriptionBlocked } = useAuth();
     const [loading, setLoading] = useState(true);
     const [history, setHistory] = useState<any[]>([]);
     const [stats, setStats] = useState({ critical: 0, upcoming: 0, completed: 0 });
@@ -214,7 +214,9 @@ export default function Maintenance() {
                                 setEditingMaintenance(null);
                                 setIsModalOpen(true);
                             }}
-                            className="bg-primary-500 text-black px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-primary-600 transition-colors whitespace-nowrap"
+                            disabled={isSubscriptionBlocked}
+                            title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                            className="bg-primary-500 text-black px-6 py-2 rounded-xl font-black text-[10px] uppercase hover:bg-primary-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Nova Manutenção
                         </button>

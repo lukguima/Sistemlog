@@ -31,66 +31,39 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
         || KIWIFY_CHECKOUT_URLS['pro']
         || 'https://pay.kiwify.com.br/9f3rjhC';
 
-    // ── Overlay de bloqueio total ──
+    // ── Banner de restrição (sem bloqueio total — acesso somente leitura) ──
     if (isSubscriptionBlocked) {
         const isTrialExpired = subscription.status === 'trial' &&
             !!subscription.trial_ends_at &&
             new Date(subscription.trial_ends_at) < new Date();
 
-        const status   = isTrialExpired ? 'trial_expired' : subscription.status as string;
-        const title    = STATUS_LABELS[status]    ?? 'Acesso Restrito';
-        const desc     = STATUS_DESCRIPTIONS[status] ?? STATUS_DESCRIPTIONS['blocked'];
-        const isBlocked = status === 'blocked';
+        const status    = isTrialExpired ? 'trial_expired' : subscription.status as string;
+        const title     = STATUS_LABELS[status]    ?? 'Acesso Restrito';
+        const isAdminBlocked = status === 'blocked';
 
         return (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/95 backdrop-blur-sm">
-                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 p-10 max-w-lg w-full mx-4 text-center space-y-6">
-                    {/* Ícone */}
-                    <div className={`mx-auto w-20 h-20 rounded-full flex items-center justify-center ${isBlocked ? 'bg-slate-100 dark:bg-slate-800' : 'bg-rose-100 dark:bg-rose-900/20'}`}>
-                        {isBlocked
-                            ? <Ban size={36} className="text-slate-500" />
-                            : <AlertTriangle size={36} className="text-rose-500 animate-pulse" />
-                        }
+            <>
+                <div className="fixed top-0 left-0 right-0 z-[9998] bg-rose-600 text-white px-4 py-2.5 flex items-center justify-between gap-4 text-xs font-bold shadow-lg">
+                    <div className="flex items-center gap-2 min-w-0">
+                        {isAdminBlocked ? <Ban size={14} /> : <AlertTriangle size={14} />}
+                        <span className="truncate">
+                            {title}
+                            {subscription.block_reason ? ` — ${subscription.block_reason}` : ' — Visualização disponível. Novos lançamentos estão bloqueados.'}
+                        </span>
                     </div>
-
-                    {/* Texto */}
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{title}</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{desc}</p>
-
-                        {subscription.block_reason && (
-                            <p className="mt-3 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-600 dark:text-slate-400 italic">
-                                Motivo: {subscription.block_reason}
-                            </p>
-                        )}
-
-                        {subscription.overdue_since && (
-                            <p className="mt-3 text-xs text-rose-500 font-bold">
-                                Em atraso desde {new Date(subscription.overdue_since).toLocaleDateString('pt-BR')}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Botão de pagamento */}
-                    {!isBlocked && (
+                    {!isAdminBlocked && (
                         <a
                             href={checkoutUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 px-8 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 text-sm"
+                            className="bg-white text-rose-600 px-3 py-1 rounded-lg hover:bg-rose-50 transition-colors whitespace-nowrap flex items-center gap-1 shrink-0"
                         >
-                            <CreditCard size={18} />
-                            Regularizar Pagamento via Kiwify
-                            <ExternalLink size={14} />
+                            <CreditCard size={12} /> Regularizar <ExternalLink size={11} />
                         </a>
                     )}
-
-                    <p className="text-xs text-slate-400">
-                        Após o pagamento, o acesso é liberado automaticamente em até 5 minutos.
-                        <br />Dúvidas? Entre em contato com o suporte.
-                    </p>
                 </div>
-            </div>
+                {children}
+            </>
         );
     }
 

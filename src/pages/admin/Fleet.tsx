@@ -32,7 +32,7 @@ import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
 import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 
 export default function Fleet() {
-    const { user, subscription } = useAuth();
+    const { user, subscription, isSubscriptionBlocked } = useAuth();
     const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers'>('vehicles');
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -246,7 +246,9 @@ export default function Fleet() {
                             setIsModalOpen(true);
                         }
                     }}
-                    className="btn-primary flex items-center gap-2 py-2 px-4 shadow-lg shadow-primary/20"
+                    disabled={isSubscriptionBlocked}
+                    title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                    className="btn-primary flex items-center gap-2 py-2 px-4 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Plus size={20} />
                     Cadastrar {activeTab === 'vehicles' ? 'Veículo' : 'Motorista'}

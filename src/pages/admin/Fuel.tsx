@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import FuelModal from '../../components/admin/FuelModal.tsx';
 
 export default function Fuel() {
-    const { user } = useAuth();
+    const { user, isSubscriptionBlocked } = useAuth();
     const [loading, setLoading] = useState(true);
     const [records, setRecords] = useState<any[]>([]);
     const [stats, setStats] = useState({ totalLiters: 0, totalValue: 0, count: 0, totalArlaLiters: 0, totalArlaValue: 0 });
@@ -133,7 +133,9 @@ export default function Fuel() {
                 </div>
                 <button
                     onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
-                    className="bg-primary-500 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-primary-600 transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20"
+                    disabled={isSubscriptionBlocked}
+                    title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                    className="bg-primary-500 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-primary-600 transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Plus size={18} /> Novo Registro
                 </button>
