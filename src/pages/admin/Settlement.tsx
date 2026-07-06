@@ -719,7 +719,7 @@ export default function Settlement() {
                                         filteredAdvances.map(adv => (
                                             <tr key={adv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                 <td className="px-6 py-4 text-sm text-slate-500">
-                                                    {new Date(adv.date).toLocaleDateString('pt-BR')}
+                                                    {new Date(adv.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                                                 </td>
                                                 <td className="px-6 py-4 font-bold text-sm">
                                                     {adv.driver?.name}
