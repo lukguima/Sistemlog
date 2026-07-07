@@ -45,3 +45,6 @@ get-shit-done/
 
 .vercel
 .firebase/
+
+# Supabase CLI local state
+supabase/.temp/
