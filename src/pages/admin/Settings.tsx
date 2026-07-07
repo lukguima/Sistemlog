@@ -23,6 +23,7 @@ import { settingsService, profileService, subscriptionService } from '../../lib/
 import { SUBSCRIPTION_PLANS } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import UserModal from '../../components/admin/UserModal';
+import { SECTORS } from '../../lib/permissions';
 
 type Tab = 'company' | 'users' | 'security' | 'subscription' | 'branding';
 
@@ -481,14 +482,28 @@ export default function Settings() {
                                         <h4 className="text-slate-900 font-black text-lg">{usr.full_name}</h4>
                                         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider truncate">{usr.email}</p>
                                     </div>
-                                    <div className="mt-6 flex items-center justify-between relative z-10">
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${usr.role === 'admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                                            {usr.role}
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-2 h-2 rounded-full ${usr.active ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-300'}`}></div>
-                                            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{usr.active ? 'Ativo' : 'Inativo'}</span>
+                                    <div className="mt-6 space-y-3 relative z-10">
+                                        <div className="flex items-center justify-between">
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${usr.role === 'admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                                                {usr.role === 'admin' ? 'Acesso Total' : 'Funcionário'}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${usr.active ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-300'}`}></div>
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{usr.active ? 'Ativo' : 'Inativo'}</span>
+                                            </div>
                                         </div>
+                                        {usr.role !== 'admin' && Array.isArray(usr.permissions) && usr.permissions.length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {usr.permissions.map((p: string) => {
+                                                    const sector = SECTORS.find(s => s.key === p);
+                                                    return (
+                                                        <span key={p} className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                                            {sector?.label ?? p}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

@@ -1,6 +1,6 @@
 import { X, User, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { SECTORS, PERMISSION_PRESETS, type SectorKey } from '../../lib/permissions';
+import { ASSIGNABLE_SECTORS, PERMISSION_PRESETS, type SectorKey } from '../../lib/permissions';
 
 interface UserModalProps {
     isOpen: boolean;
@@ -161,7 +161,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                                 </div>
 
                                 <div className="space-y-2">
-                                    {SECTORS.map(sector => {
+                                    {ASSIGNABLE_SECTORS.map(sector => {
                                         const checked = formData.permissions.includes(sector.key);
                                         return (
                                             <label

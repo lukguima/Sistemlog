@@ -10,7 +10,9 @@ import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
-    const { user } = useAuth();
+    const { user, hasAccess } = useAuth();
+    const canFinance = hasAccess('financeiro');
+    const canFleet = hasAccess('frota');
     const [trips, setTrips] = useState<any[]>([]);
     const [kpis, setKpis] = useState({
         grossRevenue: 0,
@@ -289,47 +291,57 @@ export default function AdminDashboard() {
 
                 {/* KPI Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-emerald-200 dark:border-emerald-800 p-5 shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Receita</span>
-                            <DollarSign className="text-emerald-500 w-5 h-5" />
-                        </div>
-                        <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                            R$ {(kpis.grossRevenue + kpis.expectedGrossRevenue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                        <div className="flex gap-3 mt-1.5">
-                            <span className="text-[11px] text-slate-400">
-                                Realizada: <span className="text-emerald-600 font-semibold">R$ {kpis.grossRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </span>
-                            {kpis.expectedGrossRevenue > 0 && (
+                    {canFinance && (
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-emerald-200 dark:border-emerald-800 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Receita</span>
+                                <DollarSign className="text-emerald-500 w-5 h-5" />
+                            </div>
+                            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                R$ {(kpis.grossRevenue + kpis.expectedGrossRevenue).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <div className="flex gap-3 mt-1.5">
                                 <span className="text-[11px] text-slate-400">
-                                    A receber: <span className="text-amber-500 font-semibold">R$ {kpis.expectedGrossRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    Realizada: <span className="text-emerald-600 font-semibold">R$ {kpis.grossRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                 </span>
-                            )}
-                        </div>
-                    </div>
-                    <MetricCard title="Lucro Líquido" value={kpis.netRevenue} icon={<TrendingUp className="text-blue-500" />} isCurrency />
-                    <MetricCard title="Custo Diesel + ARLA" value={(kpis.fuelExpenses || 0) + ((kpis as any).arlaExpenses || 0)} icon={<Fuel className="text-orange-500" />} isCurrency />
-                    <MetricCard title="Custo Manutenção" value={kpis.maintenanceExpenses} icon={<Wrench className="text-rose-500" />} isCurrency />
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-xl">
-                                <Users className="text-violet-500" size={20} />
+                                {kpis.expectedGrossRevenue > 0 && (
+                                    <span className="text-[11px] text-slate-400">
+                                        A receber: <span className="text-amber-500 font-semibold">R$ {kpis.expectedGrossRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    </span>
+                                )}
                             </div>
                         </div>
-                        <div className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Pessoal & Agregados</div>
-                        <div className="text-2xl font-bold tracking-tight">
-                            R$ {((kpis.totalCommission || 0) + (kpis.totalAgregado || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    )}
+                    {canFinance && (
+                        <MetricCard title="Lucro Líquido" value={kpis.netRevenue} icon={<TrendingUp className="text-blue-500" />} isCurrency />
+                    )}
+                    {(canFinance || canFleet) && (
+                        <MetricCard title="Custo Diesel + ARLA" value={(kpis.fuelExpenses || 0) + ((kpis as any).arlaExpenses || 0)} icon={<Fuel className="text-orange-500" />} isCurrency />
+                    )}
+                    {(canFinance || canFleet) && (
+                        <MetricCard title="Custo Manutenção" value={kpis.maintenanceExpenses} icon={<Wrench className="text-rose-500" />} isCurrency />
+                    )}
+                    {canFinance && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-xl">
+                                    <Users className="text-violet-500" size={20} />
+                                </div>
+                            </div>
+                            <div className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Pessoal & Agregados</div>
+                            <div className="text-2xl font-bold tracking-tight">
+                                R$ {((kpis.totalCommission || 0) + (kpis.totalAgregado || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="flex flex-col gap-0.5 mt-2">
+                                <span className="text-[11px] text-slate-400">
+                                    Comissões: <span className="text-violet-600 dark:text-violet-400 font-semibold">R$ {(kpis.totalCommission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </span>
+                                <span className="text-[11px] text-slate-400">
+                                    Agregados: <span className="text-violet-600 dark:text-violet-400 font-semibold">R$ {(kpis.totalAgregado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </span>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-0.5 mt-2">
-                            <span className="text-[11px] text-slate-400">
-                                Comissões: <span className="text-violet-600 dark:text-violet-400 font-semibold">R$ {(kpis.totalCommission || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                                Agregados: <span className="text-violet-600 dark:text-violet-400 font-semibold">R$ {(kpis.totalAgregado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </span>
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Main Dashboard Grid: 3 Columns */}

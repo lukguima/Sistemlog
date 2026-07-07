@@ -9,15 +9,20 @@ export interface Sector {
     key: SectorKey;
     label: string;
     description: string;
+    /** false = setor exclusivo do dono (admin), não pode ser atribuído a funcionário */
+    assignable?: boolean;
 }
 
 export const SECTORS: Sector[] = [
-    { key: 'operacional', label: 'Operacional', description: 'Viagens, Acerto de Fretes e Agregados' },
-    { key: 'frota', label: 'Frota', description: 'Veículos, Manutenção, Abastecimento, Pneus e Fornecedores' },
-    { key: 'financeiro', label: 'Financeiro', description: 'Financeiro, Fluxo de Caixa, DRE, Financiamentos, Contabilidade, Rentabilidade e Simulador' },
-    { key: 'analises', label: 'Análises & IA', description: 'Painel Executivo, Clientes, Gestor IA, Memória IA e Riscos' },
-    { key: 'admin_config', label: 'Administração', description: 'Configurações da empresa e gestão da equipe' },
+    { key: 'operacional', label: 'Operacional', description: 'Viagens, Acerto de Fretes e Agregados', assignable: true },
+    { key: 'frota', label: 'Frota', description: 'Veículos, Manutenção, Abastecimento, Pneus e Fornecedores', assignable: true },
+    { key: 'financeiro', label: 'Financeiro', description: 'Financeiro, Fluxo de Caixa, DRE, Financiamentos, Contabilidade, Rentabilidade e Simulador', assignable: true },
+    { key: 'analises', label: 'Análises & IA', description: 'Painel Executivo, Clientes, Gestor IA, Memória IA e Riscos', assignable: true },
+    { key: 'admin_config', label: 'Administração', description: 'Configurações da empresa e gestão da equipe', assignable: false },
 ];
+
+// Setores que podem ser atribuídos a funcionários no modal de convite.
+export const ASSIGNABLE_SECTORS = SECTORS.filter(s => s.assignable);
 
 // Mapeia cada rota admin ao setor que a controla.
 // Rotas ausentes deste mapa (ex.: dashboard) são visíveis para todos.
