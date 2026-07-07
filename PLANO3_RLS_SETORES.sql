@@ -25,7 +25,10 @@ AS $$
     SELECT
         COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '') IN ('admin', 'master')
         OR (auth.jwt() -> 'app_metadata' -> 'permissions') IS NULL
-        OR (auth.jwt() -> 'app_metadata' -> 'permissions') ? sector;
+        OR (auth.jwt() -> 'app_metadata' -> 'permissions') ? sector
+        -- Frentista lança abastecimento (setor frota), mas segue bloqueado
+        -- do financeiro/operacional/análises.
+        OR (COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'frentista' AND sector = 'frota');
 $$;
 
 -- 2. Macro auxiliar: aplica a política restritiva de setor a uma tabela.
