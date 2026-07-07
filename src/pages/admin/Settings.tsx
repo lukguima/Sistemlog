@@ -308,6 +308,7 @@ export default function Settings() {
                 
                 <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar max-w-full gap-1">
                     {renderTabButton('company', 'Empresa', Building2)}
+                    {renderTabButton('users', 'Equipe', Users)}
                     {renderTabButton('security', 'Segurança', ShieldCheck)}
                     {renderTabButton('subscription', 'Assinatura', CreditCard)}
                 </div>
