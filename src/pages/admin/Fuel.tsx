@@ -48,7 +48,8 @@ export default function Fuel() {
             }
             setKmPerLiterMap(kmPerLiterMap);
             setRecords(fuelData || []);
-            setVehicles(vehiclesData || []);
+            // Implementos não abastecem — só cavalos/caminhões
+            setVehicles((vehiclesData || []).filter((v: any) => v.category !== 'implemento'));
             setDrivers(driversData || []);
             setSuppliers((suppliersData || []).filter((s: any) => s.category === 'Combustível'));
 

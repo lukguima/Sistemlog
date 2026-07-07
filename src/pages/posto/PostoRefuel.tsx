@@ -33,7 +33,8 @@ export default function PostoRefuel() {
                     fleetService.getVehicles(companyId),
                     fleetService.getDrivers(companyId),
                 ]);
-                setVehicles(vs || []);
+                // Implementos (carretas) não abastecem — só cavalos/caminhões
+                setVehicles((vs || []).filter((v: any) => v.category !== 'implemento'));
                 setDrivers(ds || []);
             } catch (e) {
                 console.error('Erro ao carregar dados do posto:', e);

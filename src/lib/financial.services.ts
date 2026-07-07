@@ -422,7 +422,7 @@ export const financingService = {
 export const vehicleProfitabilityService = {
     async get(companyId: string, startDate: string, endDate: string) {
         const [vehiclesRes, tripsRes, fuelRes, maintRes, financingsRes] = await Promise.all([
-            supabase.from('vehicles').select('id, plate, model, brand').eq('company_id', companyId).eq('status', 'active'),
+            supabase.from('vehicles').select('id, plate, model, brand, category').eq('company_id', companyId).eq('status', 'active'),
             supabase.from('trips').select('vehicle_id, gross_value, status')
                 .eq('company_id', companyId)
                 .gte('created_at', `${startDate}T00:00:00`)
@@ -437,7 +437,8 @@ export const vehicleProfitabilityService = {
             supabase.from('financings').select('vehicle_id, installment_value').eq('company_id', companyId).eq('status', 'active')
         ]);
 
-        const vehicles = vehiclesRes.data ?? [];
+        // Rentabilidade é por cavalo/caminhão — implementos não geram receita própria
+        const vehicles = (vehiclesRes.data ?? []).filter((v: any) => v.category !== 'implemento');
         const trips = tripsRes.data ?? [];
         const fuels = fuelRes.data ?? [];
         const maints = maintRes.data ?? [];
