@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2, ArrowRightLeft } from 'lucide-react';
+import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2, ArrowRightLeft, Container } from 'lucide-react';
 
 const KIWIFY_BASICO = 'https://pay.kiwify.com.br/Xo5neXV';
 const KIWIFY_PRO = 'https://pay.kiwify.com.br/9f3rjhC';
@@ -27,18 +27,20 @@ import { useAuth } from '../../context/AuthContext';
 import { fleetService, tripService, maintenanceService, driverService } from '../../lib/services';
 import { supabase } from '../../lib/supabase';
 import AddTruckModal from '../../components/admin/AddTruckModal';
+import AddImplementModal from '../../components/admin/AddImplementModal';
 import DriverModal from '../../components/admin/DriverModal';
 import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
 import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 
 export default function Fleet() {
     const { user, subscription, isSubscriptionBlocked } = useAuth();
-    const [activeTab, setActiveTab] = useState<'vehicles' | 'drivers'>('vehicles');
+    const [activeTab, setActiveTab] = useState<'vehicles' | 'implementos' | 'drivers'>('vehicles');
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTruckModalOpen, setIsTruckModalOpen] = useState(false);
+    const [isImplementModalOpen, setIsImplementModalOpen] = useState(false);
     const [modalData, setModalData] = useState<any>({});
     const [editingId, setEditingId] = useState<string | null>(null);
     const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -52,8 +54,12 @@ export default function Fleet() {
     const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'BITREM', 'RODOTREM'];
 
     const companyId = (user as any)?.company_id;
+    // Separa cavalos/caminhões dos implementos (legado sem category = truck)
+    const trucks = vehicles.filter(v => v.category !== 'implemento');
+    const implementos = vehicles.filter(v => v.category === 'implemento');
     const vehicleLimit = getVehicleLimit(subscription);
-    const atVehicleLimit = vehicleLimit !== null && vehicles.length >= vehicleLimit;
+    // O limite do plano conta apenas caminhões, não implementos
+    const atVehicleLimit = vehicleLimit !== null && trucks.length >= vehicleLimit;
 
     const fetchData = async () => {
         let targetCompanyId = companyId;
@@ -134,8 +140,24 @@ export default function Fleet() {
                 maintenanceService.getMaintenanceHistory(companyId, startDate, endDate)
             ]);
 
-            if (activeTab === 'vehicles') {
-                const exportData = vehicles.map(v => {
+            if (activeTab === 'implementos') {
+                const exportData = implementos.map(v => ({
+                    'Placa': v.plate,
+                    'Tipo': v.implement_type || '---',
+                    'Modelo': v.model || '---',
+                    'Eixos': v.axle_count || 0,
+                    'Pneus': v.tyre_count || 0,
+                    'Venc. Documento': v.document_expiry ? new Date(v.document_expiry + 'T12:00:00').toLocaleDateString('pt-BR') : '---',
+                }));
+                if (type === 'excel') {
+                    exportToExcel(exportData, `Relatorio_Implementos_${startDate}_${endDate}`);
+                } else {
+                    const headers = [['Placa', 'Tipo', 'Modelo', 'Eixos', 'Pneus', 'Venc. Doc']];
+                    const body = exportData.map(v => [v.Placa, v.Tipo, v.Modelo, String(v.Eixos), String(v.Pneus), v['Venc. Documento']]);
+                    exportToPDF('Relatório de Implementos', headers, body, `Relatorio_Implementos_${startDate}_${endDate}`);
+                }
+            } else if (activeTab === 'vehicles') {
+                const exportData = trucks.map(v => {
                     const vehicleTrips = trips.filter(t => t.vehicle_id === v.id);
                     const vehicleFuels = fuels.filter(f => f.vehicle_id === v.id);
                     const vehicleMaints = maintenances.filter(m => m.vehicle_id === v.id);
@@ -227,9 +249,9 @@ export default function Fleet() {
                     <p className="text-slate-500 dark:text-slate-400">Gerencie veículos, motoristas e acompanhe o status da sua operação.</p>
                 </div>
                 {activeTab === 'vehicles' && subscription?.vehicle_limit !== null && subscription?.vehicle_limit !== undefined && (
-                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 ${vehicles.length >= subscription.vehicle_limit ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {vehicles.length >= (subscription.vehicle_limit ?? Infinity) && <AlertTriangle size={12} />}
-                        {vehicles.length}/{subscription.vehicle_limit} veículos
+                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 ${trucks.length >= subscription.vehicle_limit ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {trucks.length >= (subscription.vehicle_limit ?? Infinity) && <AlertTriangle size={12} />}
+                        {trucks.length}/{subscription.vehicle_limit} veículos
                     </span>
                 )}
                 <button
@@ -242,6 +264,8 @@ export default function Fleet() {
                         setModalData({});
                         if (activeTab === 'vehicles') {
                             setIsTruckModalOpen(true);
+                        } else if (activeTab === 'implementos') {
+                            setIsImplementModalOpen(true);
                         } else {
                             setIsModalOpen(true);
                         }
@@ -251,7 +275,7 @@ export default function Fleet() {
                     className="btn-primary flex items-center gap-2 py-2 px-4 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Plus size={20} />
-                    Cadastrar {activeTab === 'vehicles' ? 'Veículo' : 'Motorista'}
+                    Cadastrar {activeTab === 'vehicles' ? 'Veículo' : activeTab === 'implementos' ? 'Implemento' : 'Motorista'}
                 </button>
             </div>
 
@@ -262,6 +286,17 @@ export default function Fleet() {
                 >
                     <div className="flex items-center gap-2">
                         <Truck size={18} /> Veículos
+                    </div>
+                </button>
+                <button
+                    onClick={() => { setActiveTab('implementos'); setSearchTerm(''); }}
+                    className={`px-6 py-3 text-sm font-bold transition-colors border-b-2 ${activeTab === 'implementos' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                >
+                    <div className="flex items-center gap-2">
+                        <Container size={18} /> Implementos
+                        {implementos.length > 0 && (
+                            <span className="bg-violet-100 text-violet-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{implementos.length}</span>
+                        )}
                     </div>
                 </button>
                 <button
@@ -337,6 +372,14 @@ export default function Fleet() {
                                     <th className="px-6 py-4">Status</th>
                                     <th className="px-6 py-4 text-right">Ações</th>
                                 </tr>
+                            ) : activeTab === 'implementos' ? (
+                                <tr>
+                                    <th className="px-6 py-4">Placa</th>
+                                    <th className="px-6 py-4">Tipo</th>
+                                    <th className="px-6 py-4">Eixos / Pneus</th>
+                                    <th className="px-6 py-4">Venc. Documento</th>
+                                    <th className="px-6 py-4 text-right">Ações</th>
+                                </tr>
                             ) : (
                                 <tr>
                                     <th className="px-6 py-4">Nome / Email</th>
@@ -355,11 +398,11 @@ export default function Fleet() {
                                     </td>
                                 </tr>
                             ) : activeTab === 'vehicles' ? (
-                                vehicles.filter(v =>
+                                trucks.filter(v =>
                                     (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                     (v.model || '').toLowerCase().includes(searchTerm.toLowerCase())
                                 ).length > 0 ? (
-                                    vehicles.filter(v =>
+                                    trucks.filter(v =>
                                         (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                         (v.model || '').toLowerCase().includes(searchTerm.toLowerCase())
                                     ).map(v => (
@@ -403,6 +446,44 @@ export default function Fleet() {
                                 ) : (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum veículo encontrado.</td>
+                                    </tr>
+                                )
+                            ) : activeTab === 'implementos' ? (
+                                implementos.filter(v =>
+                                    (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    (v.implement_type || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                ).length > 0 ? (
+                                    implementos.filter(v =>
+                                        (v.plate || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                        (v.implement_type || '').toLowerCase().includes(searchTerm.toLowerCase())
+                                    ).map(v => (
+                                        <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <span className="font-mono font-bold text-violet-600 uppercase">{v.plate}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="font-medium text-slate-700 dark:text-slate-300">{v.implement_type || '—'}</span>
+                                                {v.model && v.model !== v.implement_type && (
+                                                    <span className="block text-xs text-slate-500">{v.model}</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium text-slate-600 dark:text-slate-400">
+                                                {(v.axle_count || 0)} eixos · {(v.tyre_count || 0)} pneus
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium">
+                                                {v.document_expiry ? new Date(v.document_expiry + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex justify-end gap-2 text-slate-400">
+                                                    <button onClick={() => { setModalData(v); setEditingId(v.id); setIsImplementModalOpen(true); }} className="p-1 hover:text-primary transition-colors"><Edit2 size={16} /></button>
+                                                    <button onClick={() => handleDelete(v.id)} className="p-1 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhum implemento cadastrado. Clique em "Cadastrar Implemento" para adicionar carretas e reboques.</td>
                                     </tr>
                                 )
                             ) : (
@@ -473,6 +554,39 @@ export default function Fleet() {
                     }
                     await fetchData();
                     setIsTruckModalOpen(false);
+                    setEditingId(null);
+                    setModalData({});
+                }}
+                initialData={editingId ? modalData : undefined}
+            />
+
+            {/* Modal de Cadastro de Implemento */}
+            <AddImplementModal
+                isOpen={isImplementModalOpen}
+                onClose={() => {
+                    setIsImplementModalOpen(false);
+                    setEditingId(null);
+                    setModalData({});
+                }}
+                onSave={async (data) => {
+                    let targetCompanyId = companyId;
+                    if (!targetCompanyId && user?.id) {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('company_id')
+                            .eq('id', user.id)
+                            .single();
+                        targetCompanyId = profile?.company_id;
+                    }
+                    if (!targetCompanyId) throw new Error("ID da empresa não encontrado. Faça logout e login novamente.");
+
+                    if (editingId) {
+                        await fleetService.updateVehicle(editingId, data);
+                    } else {
+                        await fleetService.addVehicle({ ...data, company_id: targetCompanyId, status: 'active' });
+                    }
+                    await fetchData();
+                    setIsImplementModalOpen(false);
                     setEditingId(null);
                     setModalData({});
                 }}

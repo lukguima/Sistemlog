@@ -67,6 +67,21 @@ export const TRUCK_TYPES = {
 
 export type TruckTypeId = keyof typeof TRUCK_TYPES;
 
+// Tipos de implemento (carretas/reboques) — Plano 1
+export const IMPLEMENT_TYPE_OPTIONS = [
+    'Carreta Baú',
+    'Carreta Graneleira',
+    'Carreta Sider',
+    'Carreta Frigorífica',
+    'Prancha',
+    'Tanque',
+    'Bitrem',
+    'Rodotrem',
+    'Reboque',
+    'Semirreboque',
+    'Outro',
+];
+
 // Comissão padrão de motorista (%) usada como fallback quando a viagem não tem commission_rate definido
 export const DEFAULT_COMMISSION_RATE = 12;
 
