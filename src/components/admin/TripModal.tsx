@@ -6,7 +6,7 @@ import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedF
 
 const DRAFT_KEY = 'trip';
 const makeEmpty = () => ({
-    vehicle_id: '', driver_id: '', cargo_description: '', origin: '', destination: '',
+    vehicle_id: '', implement_id: '', driver_id: '', cargo_description: '', origin: '', destination: '',
     date: new Date().toISOString().split('T')[0], start_km: '', end_km: '', cte: '',
     weight: '', value: '', tax_rate: '', commission_rate: '', estimated_cost: '',
     advance_value: '', tolls_value: '', insurance_value: '', status: 'pending',
@@ -31,6 +31,9 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
     const [agregados, setAgregados] = useState<any[]>([]);
     const isEditing = !!initialData;
+    // Separa cavalos/caminhões (para o campo Veículo) dos implementos
+    const trucks = (vehicles || []).filter(v => v.category !== 'implemento');
+    const implementos = (vehicles || []).filter(v => v.category === 'implemento');
     const buildEditData = (data: any) => {
         const fmt = (v: any) => (v != null && v !== '') ? Number(v).toFixed(2) : '';
         
@@ -155,7 +158,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                         {(['own', 'agregado'] as const).map(t => (
                             <button key={t} type="button"
-                                onClick={() => setFormData({ driver_type: t, vehicle_id: '', driver_id: '', agregado_id: '', agregado_value: '' })}
+                                onClick={() => setFormData({ driver_type: t, vehicle_id: '', implement_id: '', driver_id: '', agregado_id: '', agregado_value: '' })}
                                 className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${formData.driver_type === t ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
                                 {t === 'own' ? '🚛 Frota Própria' : '🤝 Agregado'}
                             </button>
@@ -195,21 +198,22 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     )}
                     {/* Veículo e Motorista (frota própria) */}
                     {formData.driver_type === 'own' && (
+                        <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <label className={labelStyle}>Veículo</label>
+                                <label className={labelStyle}>Veículo (Cavalo)</label>
                                 <select
                                     required
                                     className={inputStyle}
                                     value={formData.vehicle_id}
                                     onChange={e => {
                                         const vId = e.target.value;
-                                        const vehicle = vehicles.find(v => v.id === vId);
+                                        const vehicle = trucks.find(v => v.id === vId);
                                         setFormData({ ...formData, vehicle_id: vId, start_km: vehicle?.current_km || '' });
                                     }}
                                 >
                                     <option value="">Selecione...</option>
-                                    {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
+                                    {trucks.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-1">
@@ -225,6 +229,24 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 </select>
                             </div>
                         </div>
+                        {implementos.length > 0 && (
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Implemento (opcional)</label>
+                                <select
+                                    className={inputStyle}
+                                    value={formData.implement_id}
+                                    onChange={e => setFormData({ ...formData, implement_id: e.target.value })}
+                                >
+                                    <option value="">Sem implemento</option>
+                                    {implementos.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                            {v.plate}{v.implement_type ? ` - ${v.implement_type}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        </>
                     )}
 
                     {/* Agregado (terceiro) */}

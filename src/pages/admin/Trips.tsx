@@ -139,6 +139,7 @@ export default function Trips() {
                 // Para viagens de agregado, não vincula frota própria
                 vehicle_id: isAgregado ? null : (rest.vehicle_id || null),
                 driver_id:  isAgregado ? null : (rest.driver_id  || null),
+                implement_id: isAgregado ? null : (rest.implement_id || null),
             };
 
             const idParaExcluir = data.id || editingId;
@@ -198,6 +199,8 @@ export default function Trips() {
         setIsModalOpen(true);
     };
 
+    const implementPlate = (id: string) => vehicles.find(v => v.id === id)?.plate || '';
+
     const filteredTrips = trips.filter(t => {
         const matchesSearch = searchTerm === '' || (
             t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -224,10 +227,11 @@ export default function Trips() {
     };
 
     const handleExportPDF = () => {
-        const headers = [['Data', 'Caminhão', 'Motorista', 'Origem', 'Destino', 'Peso', 'CT-e', 'Valor Bruto', 'Status']];
+        const headers = [['Data', 'Caminhão', 'Implemento', 'Motorista', 'Origem', 'Destino', 'Peso', 'CT-e', 'Valor Bruto', 'Status']];
         const data = filteredTrips.map(t => [
             t.created_at ? (() => { const [y,m,d] = t.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })() : '-',
-            t.vehicle?.plate || '-',
+            t.driver_type === 'agregado' ? (t.agregado?.vehicle_plate || '-') : (t.vehicle?.plate || '-'),
+            t.implement_id ? (implementPlate(t.implement_id) || '-') : '-',
             t.driver?.name || '-',
             t.origin,
             t.destination,
@@ -367,7 +371,14 @@ export default function Trips() {
                                         <td className="px-4 py-4 font-mono text-xs">
                                             {trip.driver_type === 'agregado'
                                                 ? <span className="text-violet-500 font-bold">{trip.agregado?.vehicle_plate || '—'}</span>
-                                                : trip.vehicle?.plate || '-'}
+                                                : (
+                                                    <div>
+                                                        <span>{trip.vehicle?.plate || '-'}</span>
+                                                        {trip.implement_id && implementPlate(trip.implement_id) && (
+                                                            <span className="block text-[10px] text-violet-500">+ {implementPlate(trip.implement_id)}</span>
+                                                        )}
+                                                    </div>
+                                                )}
                                         </td>
                                         <td className="px-4 py-4 font-bold text-sm">
                                             {trip.driver_type === 'agregado'
