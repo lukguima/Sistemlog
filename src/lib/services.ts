@@ -1035,16 +1035,23 @@ export const dashboardService = {
         const [
             { data: trips, error: tError },
             { data: fuels, error: fError },
-            { data: maints, error: mError }
-        ] = await Promise.all([tripQuery, fuelQuery, maintQuery]);
+            { data: maints, error: mError },
+            { data: vehList }
+        ] = await Promise.all([
+            tripQuery, fuelQuery, maintQuery,
+            supabase.from('vehicles').select('id, category').eq('company_id', companyId)
+        ]);
 
         if (tError || fError || mError) throw tError || fError || mError;
+
+        // Ranking é de cavalos/caminhões — ignora implementos (custo deles já entra no DRE)
+        const implementIds = new Set((vehList ?? []).filter((v: any) => v.category === 'implemento').map((v: any) => v.id));
 
         const profitByTruck: Record<string, { vehicle_id: string; plate: string; gross: number; expenses: number; net: number }> = {};
 
         trips?.forEach(t => {
             const vId = t.vehicle_id;
-            if (!vId) return;
+            if (!vId || implementIds.has(vId)) return;
             if (!profitByTruck[vId]) {
                 const vehicleData: any = t.vehicle;
                 profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
@@ -1061,7 +1068,7 @@ export const dashboardService = {
 
         fuels?.forEach(f => {
             const vId = f.vehicle_id;
-            if (!vId) return;
+            if (!vId || implementIds.has(vId)) return;
             if (!profitByTruck[vId]) {
                 profitByTruck[vId] = { vehicle_id: vId, plate: '---', gross: 0, expenses: 0, net: 0 };
             }
@@ -1070,7 +1077,7 @@ export const dashboardService = {
 
         maints?.forEach((m: any) => {
             const vId = m.vehicle_id;
-            if (!vId) return;
+            if (!vId || implementIds.has(vId)) return;
             if (!profitByTruck[vId]) {
                 profitByTruck[vId] = { vehicle_id: vId, plate: '---', gross: 0, expenses: 0, net: 0 };
             }

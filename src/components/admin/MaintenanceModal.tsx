@@ -224,7 +224,18 @@ export default function MaintenanceModal({ isOpen, onClose, onSave, vehicles, su
                                 }}
                             >
                                 <option value="">Selecione o Veículo</option>
-                                {vehicles.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
+                                <optgroup label="Caminhões">
+                                    {vehicles.filter(v => v.category !== 'implemento').map(v => (
+                                        <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>
+                                    ))}
+                                </optgroup>
+                                {vehicles.some(v => v.category === 'implemento') && (
+                                    <optgroup label="Implementos">
+                                        {vehicles.filter(v => v.category === 'implemento').map(v => (
+                                            <option key={v.id} value={v.id}>{v.plate} - {v.implement_type || v.model}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
                             </select>
                         </div>
                         <div className="space-y-1">
