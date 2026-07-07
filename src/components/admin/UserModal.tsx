@@ -13,6 +13,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
     const [formData, setFormData] = useState({
         full_name: '',
         email: '',
+        password: '',
         role: 'operator',
         active: true,
         permissions: [] as SectorKey[],
@@ -24,6 +25,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
             setFormData({
                 full_name: initialData.full_name || '',
                 email: initialData.email || '',
+                password: '',
                 role: initialData.role || 'operator',
                 active: initialData.active ?? true,
                 permissions: Array.isArray(initialData.permissions) ? initialData.permissions : [],
@@ -32,6 +34,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
             setFormData({
                 full_name: '',
                 email: '',
+                password: '',
                 role: 'operator',
                 active: true,
                 permissions: [],
@@ -67,12 +70,17 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
             alert('Selecione ao menos um setor para o funcionário ou escolha outro nível de acesso.');
             return;
         }
+        if (!initialData && formData.password.length < 6) {
+            alert('Defina uma senha de acesso com pelo menos 6 caracteres.');
+            return;
+        }
         setLoading(true);
         try {
             // Admin/frentista ignoram permissions; funcionário salva a lista de setores
             const payload = {
                 full_name: formData.full_name,
                 email: formData.email,
+                password: formData.password,
                 role: formData.role,
                 active: formData.active,
                 permissions: showSectors ? formData.permissions : [],
@@ -127,6 +135,22 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                                 disabled={!!initialData}
                             />
                         </div>
+
+                        {!initialData && (
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Senha de Acesso</label>
+                                <input
+                                    required
+                                    type="text"
+                                    className={inputStyle}
+                                    placeholder="Mínimo 6 caracteres"
+                                    minLength={6}
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                />
+                                <p className="text-[10px] text-slate-400 ml-1">Informe esta senha ao funcionário. Ele poderá alterá-la depois.</p>
+                            </div>
+                        )}
 
                         <div className="space-y-1">
                             <label className={labelStyle}>Nível de Acesso</label>

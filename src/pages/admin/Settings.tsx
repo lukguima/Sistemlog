@@ -864,14 +864,34 @@ export default function Settings() {
                     if (!user?.company_id) return;
                     try {
                         if (selectedUser) {
-                            await profileService.updateUser(selectedUser.id, data);
+                            const { password: _pw, ...updateData } = data;
+                            await profileService.updateUser(selectedUser.id, updateData);
                             setStatusMessage({ type: 'success', text: 'Usuário atualizado com sucesso!' });
                         } else {
-                            await profileService.addUser({
-                                ...data,
-                                company_id: user.company_id
+                            // Cria login real via Edge Function (auth user + perfil + permissões)
+                            const { data: result, error: fnError } = await supabase.functions.invoke('create-team-user', {
+                                body: {
+                                    full_name: data.full_name,
+                                    email: data.email,
+                                    password: data.password,
+                                    role: data.role,
+                                    permissions: data.permissions ?? [],
+                                },
                             });
-                            setStatusMessage({ type: 'success', text: 'Usuário convidado com sucesso!' });
+                            if (fnError) {
+                                // Extrai a mensagem retornada pela função
+                                let msg = fnError.message || 'Erro ao criar usuário.';
+                                try {
+                                    const ctx = (fnError as any).context;
+                                    if (ctx && typeof ctx.json === 'function') {
+                                        const b = await ctx.json();
+                                        if (b?.error) msg = b.error;
+                                    }
+                                } catch { /* ignora */ }
+                                throw new Error(msg);
+                            }
+                            if ((result as any)?.error) throw new Error((result as any).error);
+                            setStatusMessage({ type: 'success', text: 'Usuário criado com sucesso! Informe o e-mail e a senha ao funcionário.' });
                         }
                         await loadAllData();
                     } catch (error) {
