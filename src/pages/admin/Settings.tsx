@@ -15,7 +15,8 @@ import {
     Plus,
     Trash2,
     Mail,
-    Lock
+    Lock,
+    Pencil
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -465,7 +466,7 @@ export default function Settings() {
                                             {usr.full_name?.[0] || 'U'}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => { setSelectedUser(usr); setIsUserModalOpen(true); }} className="p-2 hover:bg-blue-50 rounded-xl text-blue-600 transition-colors"><Eye size={14} /></button>
+                                            <button onClick={() => { setSelectedUser(usr); setIsUserModalOpen(true); }} title="Editar usuário" className="p-2 hover:bg-blue-50 rounded-xl text-blue-600 transition-colors"><Pencil size={14} /></button>
                                             <button 
                                                 onClick={(e) => handleDeleteUser(e, usr.id)} 
                                                 disabled={deletingUserId === usr.id}
