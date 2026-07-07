@@ -46,6 +46,19 @@ BEGIN
     END IF;
 END $$;
 
+-- 4. Colunas usadas pelo cadastro de implemento (e úteis também aos caminhões)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                   WHERE TABLE_NAME = 'vehicles' AND COLUMN_NAME = 'tyre_count') THEN
+        ALTER TABLE public.vehicles ADD COLUMN tyre_count integer DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                   WHERE TABLE_NAME = 'vehicles' AND COLUMN_NAME = 'axle_count') THEN
+        ALTER TABLE public.vehicles ADD COLUMN axle_count integer DEFAULT 0;
+    END IF;
+END $$;
+
 -- ============================================================
 -- Referência de tipos de implemento (documentação):
 --   Carreta Baú, Carreta Graneleira, Carreta Sider,
