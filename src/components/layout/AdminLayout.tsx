@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SubscriptionGuard } from '../SubscriptionGuard';
 import { useState, useEffect } from 'react';
 import { settingsService } from '../../lib/services';
+import { canAccessRoute } from '../../lib/permissions';
 import {
     LayoutDashboard,
     Truck,
@@ -70,6 +71,28 @@ export default function AdminLayout() {
         { name: 'Configurações', href: '/admin/settings', icon: SettingsIcon },
     ];
 
+    // Filtra o menu pelos setores permitidos do usuário (admin/master veem tudo)
+    const role = (user as any)?.role as string | undefined;
+    const permissions = (user as any)?.permissions as string[] | undefined;
+    const visibleNavigation = navigation.filter(item => canAccessRoute(role, permissions, item.href));
+
+    // Guard: se acessar uma rota de setor não permitido (via URL direta),
+    // redireciona para a primeira página visível.
+    const dashboardAllowed = canAccessRoute(role, permissions, '/admin/dashboard');
+    const fallbackRoute = dashboardAllowed
+        ? '/admin/dashboard'
+        : (visibleNavigation[0]?.href ?? '/admin/dashboard');
+
+    useEffect(() => {
+        if (!user) return;
+        const path = location.pathname;
+        // dashboard sempre liberado; demais rotas checam o setor
+        if (!canAccessRoute(role, permissions, path)) {
+            navigate(fallbackRoute, { replace: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.pathname, role, JSON.stringify(permissions)]);
+
     const handleLogout = async () => {
         await logout();
         navigate('/login');
@@ -98,7 +121,7 @@ export default function AdminLayout() {
                 </div>
 
                 <nav className="flex-1 overflow-y-auto w-full py-4 px-3 space-y-1 mt-16 lg:mt-0">
-                    {navigation.map((item) => {
+                    {visibleNavigation.map((item) => {
                         const isActive = location.pathname.startsWith(item.href);
                         const Icon = item.icon;
                         return (

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { masterService } from '../lib/services';
+import { hasSectorAccess, type SectorKey } from '../lib/permissions';
 import type { User } from '@supabase/supabase-js';
 
 export interface Subscription {
@@ -19,11 +20,13 @@ export interface Subscription {
 }
 
 interface AuthContextType {
-    user: (User & { company_id?: string; role?: string }) | null;
+    user: (User & { company_id?: string; role?: string; permissions?: string[] }) | null;
     loading: boolean;
     subscription: Subscription | null;
     isSubscriptionBlocked: boolean;
     isSubscriptionWarning: boolean; // próximos 7 dias do vencimento
+    permissions: string[];
+    hasAccess: (sector: SectorKey) => boolean;
     login: (email: string, password: string) => Promise<{ error: any }>;
     logout: () => Promise<void>;
     refreshSubscription: () => Promise<void>;
@@ -35,6 +38,8 @@ const AuthContext = createContext<AuthContextType>({
     subscription: null,
     isSubscriptionBlocked: false,
     isSubscriptionWarning: false,
+    permissions: [],
+    hasAccess: () => true,
     login: async () => ({ error: null }),
     logout: async () => {},
     refreshSubscription: async () => {},
@@ -86,26 +91,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const metadataCompanyId = appMeta.company_id;
             const metadataRole      = appMeta.role;
+            const metadataPerms     = Array.isArray(appMeta.permissions) ? appMeta.permissions : undefined;
 
             let finalUser: any = {
                 ...sessionUser,
                 company_id: metadataCompanyId,
                 role: metadataRole,
+                permissions: metadataPerms,
             };
 
             // Fallback: busca do banco se app_metadata ainda não foi populado pelo trigger
-            if (!metadataCompanyId || !metadataRole) {
+            if (!metadataCompanyId || !metadataRole || metadataPerms === undefined) {
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('company_id, role')
+                    .select('company_id, role, permissions')
                     .eq('id', sessionUser.id)
                     .single();
 
                 if (!error && profile) {
                     finalUser.company_id = finalUser.company_id || profile.company_id;
                     finalUser.role       = finalUser.role       || profile.role;
+                    if (finalUser.permissions === undefined) {
+                        finalUser.permissions = Array.isArray((profile as any).permissions)
+                            ? (profile as any).permissions
+                            : [];
+                    }
                 }
             }
+
+            if (!Array.isArray(finalUser.permissions)) finalUser.permissions = [];
 
             // company_id ausente = trigger sync_user_claims não executou ainda
 
@@ -188,6 +202,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return daysLeft <= 7;
     })();
 
+    const permissions: string[] = Array.isArray((user as any)?.permissions) ? (user as any).permissions : [];
+    const role = (user as any)?.role as string | undefined;
+    const hasAccess = (sector: SectorKey) => hasSectorAccess(role, permissions, sector);
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -195,6 +213,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             subscription,
             isSubscriptionBlocked,
             isSubscriptionWarning,
+            permissions,
+            hasAccess,
             login,
             logout,
             refreshSubscription,
