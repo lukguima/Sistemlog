@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 function roleHome(role?: string) {
     if (role === 'master') return '/saas-master';
     if (role === 'driver') return '/driver/home';
+    if (role === 'frentista') return '/posto';
     return '/admin/dashboard';
 }
 

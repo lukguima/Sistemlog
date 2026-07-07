@@ -45,6 +45,8 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
     const inputStyle = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-300 appearance-none";
 
     const isFullAccess = formData.role === 'admin';
+    const isFrentista = formData.role === 'frentista';
+    const showSectors = !isFullAccess && !isFrentista;
 
     const toggleSector = (key: SectorKey) => {
         setFormData(prev => ({
@@ -61,19 +63,19 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!isFullAccess && formData.permissions.length === 0) {
-            alert('Selecione ao menos um setor para o funcionário ou escolha "Administrador (acesso total)".');
+        if (showSectors && formData.permissions.length === 0) {
+            alert('Selecione ao menos um setor para o funcionário ou escolha outro nível de acesso.');
             return;
         }
         setLoading(true);
         try {
-            // Admin ignora permissions; funcionário salva a lista de setores
+            // Admin/frentista ignoram permissions; funcionário salva a lista de setores
             const payload = {
                 full_name: formData.full_name,
                 email: formData.email,
                 role: formData.role,
                 active: formData.active,
-                permissions: isFullAccess ? [] : formData.permissions,
+                permissions: showSectors ? formData.permissions : [],
             };
             await onSave(payload);
             onClose();
@@ -131,16 +133,25 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                             <select
                                 required
                                 className={inputStyle}
-                                value={isFullAccess ? 'admin' : 'operator'}
+                                value={formData.role === 'admin' ? 'admin' : formData.role === 'frentista' ? 'frentista' : 'operator'}
                                 onChange={e => setFormData({ ...formData, role: e.target.value })}
                             >
                                 <option value="admin">Administrador (acesso total)</option>
                                 <option value="operator">Funcionário (acesso por setor)</option>
+                                <option value="frentista">Frentista (posto de abastecimento)</option>
                             </select>
                         </div>
 
-                        {/* Setores — só para funcionário */}
-                        {!isFullAccess && (
+                        {isFrentista && (
+                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                                <p className="text-[10px] text-amber-700 leading-relaxed font-medium">
+                                    O frentista acessa apenas a tela do posto (sistemlog.com.br/posto) para lançar abastecimentos. Não vê nenhuma outra área do sistema.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Setores — só para funcionário por setor */}
+                        {showSectors && (
                             <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck size={15} className="text-blue-600" />

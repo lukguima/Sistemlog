@@ -44,6 +44,9 @@ import MasterLayout from './components/layout/MasterLayout';
 import DriverHome from './pages/driver/DriverApp';
 import NewRefuel from './pages/driver/NewRefuel';
 
+// Posto (frentista)
+import PostoRefuel from './pages/posto/PostoRefuel';
+
 // Support
 import Welcome from './pages/support/Welcome';
 import HelpCenter from './pages/support/HelpCenter';
@@ -103,6 +106,11 @@ function App() {
         <Route element={<ProtectedRoute requiredRole="driver" />}>
           <Route path="/driver/home" element={<DriverHome />} />
           <Route path="/driver/refuel" element={<NewRefuel />} />
+        </Route>
+
+        {/* ── Posto / Tanque (role: frentista) ── */}
+        <Route element={<ProtectedRoute requiredRole="frentista" />}>
+          <Route path="/posto" element={<PostoRefuel />} />
         </Route>
 
         {/* Fallback */}

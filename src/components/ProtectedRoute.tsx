@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
     /** Role exigida para acessar. Se omitido, só verifica autenticação. */
-    requiredRole?: 'admin' | 'master' | 'driver';
+    requiredRole?: 'admin' | 'master' | 'driver' | 'frentista';
 }
 
 /**
@@ -39,6 +39,10 @@ export default function ProtectedRoute({ requiredRole }: ProtectedRouteProps) {
         // Driver tentando acessar admin → redireciona para área do motorista
         if (role === 'driver') {
             return <Navigate to="/driver/home" replace />;
+        }
+        // Frentista só acessa o módulo do posto
+        if (role === 'frentista') {
+            return <Navigate to="/posto" replace />;
         }
         // Qualquer outro caso → página inicial
         return <Navigate to="/" replace />;
