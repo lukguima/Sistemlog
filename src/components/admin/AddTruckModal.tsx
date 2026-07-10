@@ -13,6 +13,7 @@ const makeEmpty = () => ({
     axle_count: 0, maint_oil_interval: 15000, maint_filter_interval: 30000,
     maint_tyre_interval: 60000, last_oil_change_km: 0, last_filter_change_km: 0,
     last_tyre_change_km: 0, insurance_value: 0, document_expiry: '', antt_expiry: '',
+    civ_expiry: '', tacografo_expiry: '',
     implement_plate_1: '', implement_plate_2: '',
 });
 
@@ -72,6 +73,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                 insurance_value: Number(formData.insurance_value) || 0,
                 document_expiry: formData.document_expiry || null,
                 antt_expiry: formData.antt_expiry || null,
+                civ_expiry: formData.civ_expiry || null,
+                tacografo_expiry: formData.tacografo_expiry || null,
             };
 
             if (!initialData) {
@@ -253,6 +256,24 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                                 className={inputStyle}
                                 value={formData.antt_expiry}
                                 onChange={e => setFormData({ ...formData, antt_expiry: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Vencimento CIV</label>
+                            <input
+                                type="date"
+                                className={inputStyle}
+                                value={formData.civ_expiry}
+                                onChange={e => setFormData({ ...formData, civ_expiry: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Vencimento Cronotacógrafo</label>
+                            <input
+                                type="date"
+                                className={inputStyle}
+                                value={formData.tacografo_expiry}
+                                onChange={e => setFormData({ ...formData, tacografo_expiry: e.target.value })}
                             />
                         </div>
                     </div>

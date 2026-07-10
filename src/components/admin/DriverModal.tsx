@@ -3,7 +3,10 @@ import { X } from 'lucide-react';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
 
 const DRAFT_KEY = 'driver';
-const EMPTY = { name: '', email: '', license_number: '', license_expiry: '', phone: '', status: 'available' };
+const EMPTY = {
+    name: '', email: '', license_number: '', license_expiry: '', phone: '', status: 'available',
+    aso_expiry: '', nr20_expiry: '', nr35_expiry: '', mopp_expiry: '',
+};
 
 interface DriverModalProps {
     isOpen: boolean;
@@ -49,7 +52,16 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
         e.preventDefault();
         setLoading(true);
         try {
-            await onSave(formData);
+            // Datas vazias viram null (colunas date não aceitam string vazia)
+            const payload: any = {
+                ...formData,
+                license_expiry: formData.license_expiry || null,
+                aso_expiry: formData.aso_expiry || null,
+                nr20_expiry: formData.nr20_expiry || null,
+                nr35_expiry: formData.nr35_expiry || null,
+                mopp_expiry: formData.mopp_expiry || null,
+            };
+            await onSave(payload);
             clearDraftStore(DRAFT_KEY);
             setFormDataState({ ...EMPTY });
             onClose();
@@ -107,6 +119,32 @@ export default function DriverModal({ isOpen, onClose, onSave, initialData, load
                             <label className={labelStyle}>Telefone</label>
                             <input required className={inputStyle} placeholder="(11) 99999-9999"
                                 value={formData.phone} onChange={e => setFormData({ phone: e.target.value })} />
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Documentos de Conformidade</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Venc. ASO</label>
+                                <input type="date" className={inputStyle}
+                                    value={formData.aso_expiry} onChange={e => setFormData({ aso_expiry: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Venc. MOPP</label>
+                                <input type="date" className={inputStyle}
+                                    value={formData.mopp_expiry} onChange={e => setFormData({ mopp_expiry: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Venc. NR20</label>
+                                <input type="date" className={inputStyle}
+                                    value={formData.nr20_expiry} onChange={e => setFormData({ nr20_expiry: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className={labelStyle}>Venc. NR35</label>
+                                <input type="date" className={inputStyle}
+                                    value={formData.nr35_expiry} onChange={e => setFormData({ nr35_expiry: e.target.value })} />
+                            </div>
                         </div>
                     </div>
 

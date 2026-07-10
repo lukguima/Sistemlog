@@ -1281,13 +1281,31 @@ export const dashboardService = {
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-        // 1. Veículos — inclui campos de manutenção para usar como fonte primária de alertas
+        // 1. Veículos — select('*') para incluir todos os vencimentos de documentos
+        //    (CRLV, ANTT, CIV, Cronotacógrafo, CIPP, Aferição) sem depender de migration
         const { data: vehicles, error: vError } = await supabase
             .from('vehicles')
-            .select('id, plate, current_km, document_expiry, antt_expiry, maint_oil_interval, last_oil_change_km, maint_filter_interval, last_filter_change_km, maint_tyre_interval, last_tyre_change_km')
+            .select('*')
             .eq('company_id', companyId);
 
         if (vError) throw vError;
+
+        // Helper genérico de alerta de documento (janela de 30 dias / crítico se vencido)
+        const pushDocAlert = (idPrefix: string, entityLabel: string, docLabel: string, dateVal: any) => {
+            if (!dateVal) return;
+            const expiry = new Date(String(dateVal).slice(0, 10) + 'T12:00:00');
+            if (isNaN(expiry.getTime()) || expiry > thirtyDaysFromNow) return;
+            alerts.push({
+                id: idPrefix,
+                type: 'Document',
+                title: `${docLabel} - ${entityLabel}`,
+                message: expiry <= today
+                    ? `CRITICAL: ${docLabel} vencido em ${expiry.toLocaleDateString('pt-BR')}.`
+                    : `${docLabel} vence em ${expiry.toLocaleDateString('pt-BR')}.`,
+                severity: expiry <= today ? 'critical' : 'warning',
+                date: new Date().toISOString()
+            });
+        };
 
         // Alertas de manutenção — freios/correias/revisao_geral/tacografo por km ou data
         // Óleo/filtros: buscados também na tabela para garantir sincronia com registros diretos
@@ -1299,10 +1317,10 @@ export const dashboardService = {
 
         if (mError) throw mError;
 
-        // 2. Motoristas (Documentos)
+        // 2. Motoristas — select('*') para incluir CNH, ASO, NR20, NR35, MOPP
         const { data: drivers, error: dError } = await supabase
             .from('drivers')
-            .select('id, name, license_expiry')
+            .select('*')
             .eq('company_id', companyId);
 
         if (dError) throw dError;
@@ -1422,58 +1440,23 @@ export const dashboardService = {
                 }
             });
 
-            // Alertas de Documentos do Veículo (CRLV/Licenciamento)
-            if (v.document_expiry) {
-                const expiry = new Date(v.document_expiry);
-                if (expiry <= thirtyDaysFromNow) {
-                    alerts.push({
-                        id: `doc-v-${v.id}`,
-                        type: 'Document',
-                        title: `Licenciamento - ${v.plate}`,
-                        message: expiry <= today 
-                            ? `CRITICAL: Licenciamento vencido em ${expiry.toLocaleDateString('pt-BR')}.`
-                            : `Licenciamento vence em ${expiry.toLocaleDateString('pt-BR')}.`,
-                        severity: expiry <= today ? 'critical' : 'warning',
-                        date: new Date().toISOString()
-                    });
-                }
-            }
-
-            // Alertas de ANTT
-            if (v.antt_expiry) {
-                const expiry = new Date(v.antt_expiry);
-                if (expiry <= thirtyDaysFromNow) {
-                    alerts.push({
-                        id: `antt-v-${v.id}`,
-                        type: 'Document',
-                        title: `ANTT - ${v.plate}`,
-                        message: expiry <= today 
-                            ? `CRITICAL: Registro ANTT vencido em ${expiry.toLocaleDateString('pt-BR')}.`
-                            : `Registro ANTT vence em ${expiry.toLocaleDateString('pt-BR')}.`,
-                        severity: expiry <= today ? 'critical' : 'warning',
-                        date: new Date().toISOString()
-                    });
-                }
-            }
+            // Alertas de Documentos do Veículo / Implemento
+            const vLabel = (v as any).category === 'implemento' ? `${v.plate} (Implemento)` : v.plate;
+            pushDocAlert(`doc-v-${v.id}`, vLabel, 'Licenciamento', v.document_expiry);
+            pushDocAlert(`antt-v-${v.id}`, vLabel, 'ANTT', v.antt_expiry);
+            pushDocAlert(`civ-v-${v.id}`, vLabel, 'CIV', (v as any).civ_expiry);
+            pushDocAlert(`taco-v-${v.id}`, vLabel, 'Cronotacógrafo', (v as any).tacografo_expiry);
+            pushDocAlert(`cipp-v-${v.id}`, vLabel, 'CIPP', (v as any).cipp_expiry);
+            pushDocAlert(`afer-v-${v.id}`, vLabel, 'Aferição do Tanque', (v as any).afericao_expiry);
         });
 
-        // Alertas de Documentos de Motoristas (CNH)
+        // Alertas de Documentos de Motoristas (CNH, ASO, NRs, MOPP)
         drivers?.forEach(d => {
-            if (d.license_expiry) {
-                const expiry = new Date(d.license_expiry);
-                if (expiry <= thirtyDaysFromNow) {
-                    alerts.push({
-                        id: `doc-d-${d.id}`,
-                        type: 'Document',
-                        title: `CNH - ${d.name}`,
-                        message: expiry <= today 
-                            ? `CRITICAL: CNH vencida em ${expiry.toLocaleDateString('pt-BR')}.`
-                            : `CNH vence em ${expiry.toLocaleDateString('pt-BR')}.`,
-                        severity: expiry <= today ? 'critical' : 'warning',
-                        date: new Date().toISOString()
-                    });
-                }
-            }
+            pushDocAlert(`doc-d-${d.id}`, d.name, 'CNH', d.license_expiry);
+            pushDocAlert(`aso-d-${d.id}`, d.name, 'ASO', (d as any).aso_expiry);
+            pushDocAlert(`nr20-d-${d.id}`, d.name, 'NR20', (d as any).nr20_expiry);
+            pushDocAlert(`nr35-d-${d.id}`, d.name, 'NR35', (d as any).nr35_expiry);
+            pushDocAlert(`mopp-d-${d.id}`, d.name, 'MOPP', (d as any).mopp_expiry);
         });
 
         // Alertas de Pneus

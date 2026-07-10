@@ -19,6 +19,9 @@ const makeEmpty = () => ({
     insurance_value: 0,
     document_expiry: '',
     antt_expiry: '',
+    civ_expiry: '',
+    cipp_expiry: '',
+    afericao_expiry: '',
 });
 
 export default function AddImplementModal({ isOpen, onClose, onSave, initialData }: AddImplementModalProps) {
@@ -58,6 +61,9 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
                 insurance_value: Number(formData.insurance_value) || 0,
                 document_expiry: formData.document_expiry || null,
                 antt_expiry: formData.antt_expiry || null,
+                civ_expiry: formData.civ_expiry || null,
+                cipp_expiry: formData.cipp_expiry || null,
+                afericao_expiry: formData.afericao_expiry || null,
             };
             await onSave(payload);
             setFormData(makeEmpty());
@@ -138,6 +144,21 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
                             <label className={labelStyle}>Venc. ANTT</label>
                             <input type="date" className={inputStyle}
                                 value={formData.antt_expiry || ''} onChange={e => set({ antt_expiry: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Venc. CIV</label>
+                            <input type="date" className={inputStyle}
+                                value={formData.civ_expiry || ''} onChange={e => set({ civ_expiry: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Venc. CIPP</label>
+                            <input type="date" className={inputStyle}
+                                value={formData.cipp_expiry || ''} onChange={e => set({ cipp_expiry: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Venc. Aferição (Tanque)</label>
+                            <input type="date" className={inputStyle}
+                                value={formData.afericao_expiry || ''} onChange={e => set({ afericao_expiry: e.target.value })} />
                         </div>
                     </div>
 
