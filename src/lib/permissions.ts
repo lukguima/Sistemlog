@@ -31,6 +31,7 @@ export const ROUTE_SECTOR: Record<string, SectorKey> = {
     '/admin/settlement': 'operacional',
     '/admin/agregados': 'operacional',
     '/admin/fleet': 'frota',
+    '/admin/documents': 'frota',
     '/admin/maintenance': 'frota',
     '/admin/fuel': 'frota',
     '/admin/tyre-check': 'frota',

@@ -53,6 +53,7 @@ export default function AdminLayout() {
         { name: 'Acerto', href: '/admin/settlement', icon: CircleDollarSign },
         { name: 'Agregados', href: '/admin/agregados', icon: Handshake },
         { name: 'Frota', href: '/admin/fleet', icon: Users },
+        { name: 'Documentos', href: '/admin/documents', icon: FileBarChart2 },
         { name: 'Manutenção', href: '/admin/maintenance', icon: Wrench },
         { name: 'Abastecimento', href: '/admin/fuel', icon: Fuel },
         { name: 'Pneus', href: '/admin/tyre-check', icon: Disc },

@@ -23,6 +23,7 @@ import Risks from './pages/admin/Risks';
 import ExecutiveDashboard from './pages/admin/ExecutiveDashboard';
 import ClientsAnalysis from './pages/admin/ClientsAnalysis';
 import Reports from './pages/admin/Reports';
+import Documents from './pages/admin/Documents';
 import Maintenance from './pages/admin/Maintenance';
 import TyreCheck from './pages/admin/TyreCheck';
 import Fleet from './pages/admin/Fleet';
@@ -72,6 +73,7 @@ function App() {
             <Route path="fleet" element={<Fleet />} />
             <Route path="trips" element={<Trips />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="documents" element={<Documents />} />
             <Route path="maintenance" element={<Maintenance />} />
             <Route path="fuel" element={<Fuel />} />
             <Route path="suppliers" element={<Suppliers />} />
