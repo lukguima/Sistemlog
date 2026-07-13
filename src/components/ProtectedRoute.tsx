@@ -34,8 +34,13 @@ export default function ProtectedRoute({ requiredRole }: ProtectedRouteProps) {
         return <Outlet />;
     }
 
-    // Verifica role específico
-    if (requiredRole && role !== requiredRole) {
+    // A área administrativa aceita admin e também os funcionários por setor
+    // (manager/operator) — o controle fino por setor é feito dentro do AdminLayout.
+    const allowed = requiredRole === 'admin'
+        ? ['admin', 'manager', 'operator']
+        : requiredRole ? [requiredRole] : null;
+
+    if (allowed && !allowed.includes(role ?? '')) {
         // Driver tentando acessar admin → redireciona para área do motorista
         if (role === 'driver') {
             return <Navigate to="/driver/home" replace />;
