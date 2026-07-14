@@ -117,12 +117,12 @@ export const tripService = {
 
         // Tenta com join de agregados; se falhar (tabela ainda não existe), busca sem
         const { data, error } = await applyFilters(
-            supabase.from('trips').select('*, vehicle:vehicles(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
+            supabase.from('trips').select('*, vehicle:vehicles!trips_vehicle_id_fkey(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
         );
         if (!error) return (data as any[]) ?? [];
 
         const { data: fallback, error: err2 } = await applyFilters(
-            supabase.from('trips').select('*, vehicle:vehicles(plate), driver:drivers(name)')
+            supabase.from('trips').select('*, vehicle:vehicles!trips_vehicle_id_fkey(plate), driver:drivers(name)')
         );
         if (err2) throw err2;
         return (fallback as any[]) ?? [];
@@ -143,13 +143,13 @@ export const tripService = {
 
         const [driverRes, vehicleRes, implementRes] = await Promise.all([
             driverId
-                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles(plate)').eq('driver_id', driverId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
+                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)').eq('driver_id', driverId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
             vehicleId
                 ? supabase.from('trips').select('id, origin, destination, created_at, driver:drivers(name)').eq('vehicle_id', vehicleId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
             implementId
-                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles(plate)').eq('implement_id', implementId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
+                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)').eq('implement_id', implementId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
         ]);
         return {
@@ -184,7 +184,7 @@ export const tripService = {
     async getActiveTrip(driverId: string) {
         const { data, error } = await supabase
             .from('trips')
-            .select('*, vehicle:vehicles(plate, current_km)')
+            .select('*, vehicle:vehicles!trips_vehicle_id_fkey(plate, current_km)')
             .eq('driver_id', driverId)
             .eq('status', 'in_transit')
             .order('created_at', { ascending: false })
@@ -1031,7 +1031,7 @@ export const dashboardService = {
 
         let tripQuery = supabase
             .from('trips')
-            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, created_at, vehicle:vehicles(plate)')
+            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -1508,7 +1508,7 @@ export const dashboardService = {
         // Busca viagens para receita por motorista e veículo principal usado
         let tripQuery = supabase
             .from('trips')
-            .select('driver_id, vehicle_id, gross_value, created_at, driver:drivers(name), vehicle:vehicles(plate)')
+            .select('driver_id, vehicle_id, gross_value, created_at, driver:drivers(name), vehicle:vehicles!trips_vehicle_id_fkey(plate)')
             .eq('company_id', companyId);
 
         // Busca abastecimentos agrupados por veículo para calcular KM/L do veículo
