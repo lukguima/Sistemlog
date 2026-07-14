@@ -72,15 +72,34 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     });
     const [loading, setLoading] = useState(false);
 
+    // Liga/desliga do imposto: desligado grava tax_rate = 0
+    const [taxOn, setTaxOn] = useState(true);
+    const lastTaxRef = React.useRef<string>('');
+
     React.useEffect(() => {
         if (!isOpen) return;
         if (isEditing && initialData) {
-            setFormDataState(buildEditData(initialData));
+            const d = buildEditData(initialData);
+            setFormDataState(d);
+            setTaxOn(parseFloat(d.tax_rate) !== 0);
         } else if (!isEditing) {
             const draft = loadDraft(DRAFT_KEY);
-            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+            const d = { ...makeEmpty(), ...(draft || {}) };
+            setFormDataState(d);
+            setTaxOn(parseFloat(d.tax_rate) !== 0 || d.tax_rate === '');
         }
     }, [isOpen, initialData?.id]);
+
+    const toggleTax = () => {
+        if (taxOn) {
+            lastTaxRef.current = formData.tax_rate;
+            setFormData({ tax_rate: '0' });
+            setTaxOn(false);
+        } else {
+            setFormData({ tax_rate: lastTaxRef.current && parseFloat(lastTaxRef.current) !== 0 ? lastTaxRef.current : '' });
+            setTaxOn(true);
+        }
+    };
 
     function setFormData(partial: Partial<ReturnType<typeof makeEmpty>>) {
         setFormDataState((prev: ReturnType<typeof makeEmpty>) => {
@@ -438,14 +457,28 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Imposto (%)</label>
+                            <div className="flex items-center justify-between pr-1">
+                                <label className={labelStyle}>Imposto (%)</label>
+                                <button
+                                    type="button"
+                                    onClick={toggleTax}
+                                    title={taxOn ? 'Desligar imposto nesta viagem' : 'Ligar imposto'}
+                                    className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-colors ${taxOn ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${taxOn ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                </button>
+                            </div>
                             <input
                                 type="number"
-                                className={inputStyle}
+                                disabled={!taxOn}
+                                className={`${inputStyle} ${!taxOn ? 'opacity-50 bg-slate-50' : ''}`}
                                 placeholder="12"
-                                value={formData.tax_rate}
+                                value={taxOn ? formData.tax_rate : '0'}
                                 onChange={e => setFormData({ ...formData, tax_rate: e.target.value })}
                             />
+                            {!taxOn && (
+                                <p className="text-[10px] text-slate-400 ml-1">Sem imposto nesta viagem.</p>
+                            )}
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>Comissão (%)</label>
