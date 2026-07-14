@@ -43,25 +43,37 @@ export default function Trips() {
         if (!companyId) return;
 
         const fetchData = async () => {
-            try {
-                setLoading(true);
-                const [tripsData, vehiclesData, driversData] = await Promise.all([
-                    tripService.getTrips(companyId, startDate, endDate),
-                    fleetService.getVehicles(companyId),
-                    fleetService.getDrivers(companyId)
-                ]);
-                setTrips(tripsData || []);
-                setVehicles(vehiclesData || []);
-                setDrivers(driversData || []);
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            } finally {
-                setLoading(false);
-            }
+            setLoading(true);
+            // Buscas independentes: uma falha não derruba as demais
+            const [tripsRes, vehiclesRes, driversRes] = await Promise.allSettled([
+                tripService.getTrips(companyId, startDate, endDate),
+                fleetService.getVehicles(companyId),
+                fleetService.getDrivers(companyId)
+            ]);
+            if (tripsRes.status === 'fulfilled') setTrips(tripsRes.value || []);
+            else console.error('Error fetching trips:', tripsRes.reason);
+            if (vehiclesRes.status === 'fulfilled') setVehicles(vehiclesRes.value || []);
+            else console.error('Error fetching vehicles:', vehiclesRes.reason);
+            if (driversRes.status === 'fulfilled') setDrivers(driversRes.value || []);
+            else console.error('Error fetching drivers:', driversRes.reason);
+            setLoading(false);
         };
 
         fetchData();
     }, [companyId, startDate, endDate]);
+
+    // Recarrega veículos/motoristas sempre que o modal de viagem abre
+    // (garante que um veículo recém-cadastrado na Frota apareça na hora)
+    useEffect(() => {
+        if (!isModalOpen || !companyId) return;
+        Promise.allSettled([
+            fleetService.getVehicles(companyId),
+            fleetService.getDrivers(companyId),
+        ]).then(([v, d]) => {
+            if (v.status === 'fulfilled') setVehicles(v.value || []);
+            if (d.status === 'fulfilled') setDrivers(d.value || []);
+        });
+    }, [isModalOpen, companyId]);
 
     const [simulatedTrip, setSimulatedTrip] = useState<any>(null);
 

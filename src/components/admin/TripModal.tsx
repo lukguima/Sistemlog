@@ -219,6 +219,9 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                     }}
                                 >
                                     <option value="">Selecione...</option>
+                                    {trucks.length === 0 && (
+                                        <option value="" disabled>Nenhum caminhão encontrado — cadastre na Frota</option>
+                                    )}
                                     {trucks.map(v => <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>)}
                                 </select>
                             </div>
