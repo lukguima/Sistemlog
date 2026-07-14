@@ -38,6 +38,26 @@ export const fleetService = {
             .eq('id', id);
         if (error) throw error;
     },
+    /**
+     * Engata/desengata um implemento no cavalo (engate persistente).
+     * Garante exclusividade: remove o implemento de qualquer outro cavalo antes.
+     * implementId = null → desacoplar.
+     */
+    async coupleImplement(companyId: string, vehicleId: string, implementId: string | null) {
+        if (implementId) {
+            await supabase
+                .from('vehicles')
+                .update({ current_implement_id: null })
+                .eq('company_id', companyId)
+                .eq('current_implement_id', implementId)
+                .neq('id', vehicleId);
+        }
+        const { error } = await supabase
+            .from('vehicles')
+            .update({ current_implement_id: implementId })
+            .eq('id', vehicleId);
+        if (error) throw error;
+    },
     async getDrivers(companyId: string) {
         if (!companyId) return [];
         const { data, error } = await supabase
@@ -117,21 +137,26 @@ export const tripService = {
         if (error) throw error;
         return data;
     },
-    async checkConflicts(driverId: string | null, vehicleId: string | null, excludeTripId?: string): Promise<{ driverBusy: boolean; vehicleBusy: boolean; driverTrip: any; vehicleTrip: any }> {
+    async checkConflicts(driverId: string | null, vehicleId: string | null, excludeTripId?: string, implementId?: string | null): Promise<{ driverBusy: boolean; vehicleBusy: boolean; implementBusy: boolean; driverTrip: any; vehicleTrip: any; implementTrip: any }> {
         const ACTIVE = ['pending', 'in_transit'];
         const idToExclude = excludeTripId || '00000000-0000-0000-0000-000000000000';
 
-        const [driverRes, vehicleRes] = await Promise.all([
+        const [driverRes, vehicleRes, implementRes] = await Promise.all([
             driverId
                 ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles(plate)').eq('driver_id', driverId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
             vehicleId
                 ? supabase.from('trips').select('id, origin, destination, created_at, driver:drivers(name)').eq('vehicle_id', vehicleId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
+            implementId
+                ? supabase.from('trips').select('id, origin, destination, created_at, vehicle:vehicles(plate)').eq('implement_id', implementId).in('status', ACTIVE).neq('id', idToExclude).limit(1).maybeSingle()
+                : Promise.resolve({ data: null, error: null }),
         ]);
         return {
             driverBusy: !!driverRes.data,
             vehicleBusy: !!vehicleRes.data,
+            implementBusy: !!implementRes.data,
+            implementTrip: implementRes.data,
             driverTrip: driverRes.data,
             vehicleTrip: vehicleRes.data,
         };

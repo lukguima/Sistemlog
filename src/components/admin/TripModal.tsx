@@ -209,7 +209,13 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                     onChange={e => {
                                         const vId = e.target.value;
                                         const vehicle = trucks.find(v => v.id === vId);
-                                        setFormData({ ...formData, vehicle_id: vId, start_km: vehicle?.current_km || '' });
+                                        // Pré-carrega o implemento engatado no cavalo (engate persistente)
+                                        setFormData({
+                                            ...formData,
+                                            vehicle_id: vId,
+                                            start_km: vehicle?.current_km || '',
+                                            implement_id: (vehicle as any)?.current_implement_id || '',
+                                        });
                                     }}
                                 >
                                     <option value="">Selecione...</option>
@@ -230,20 +236,23 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             </div>
                         </div>
                         {implementos.length > 0 && (
-                            <div className="space-y-1">
-                                <label className={labelStyle}>Implemento (opcional)</label>
+                            <div className="space-y-1 bg-violet-50/60 border border-violet-100 rounded-xl p-3">
+                                <label className={labelStyle}>🔗 Implemento Acoplado</label>
                                 <select
                                     className={inputStyle}
                                     value={formData.implement_id}
                                     onChange={e => setFormData({ ...formData, implement_id: e.target.value })}
                                 >
-                                    <option value="">Sem implemento</option>
+                                    <option value="">Sem implemento (desacoplado)</option>
                                     {implementos.map(v => (
                                         <option key={v.id} value={v.id}>
                                             {v.plate}{v.implement_type ? ` - ${v.implement_type}` : ''}
                                         </option>
                                     ))}
                                 </select>
+                                <p className="text-[10px] text-violet-500 ml-1">
+                                    Pré-carregado com o engate atual do cavalo. Trocar aqui acopla o novo implemento ao salvar a viagem.
+                                </p>
                             </div>
                         )}
                         </>

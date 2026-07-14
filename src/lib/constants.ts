@@ -47,6 +47,14 @@ export const TRUCK_TYPES = {
         tyre_count: 18,
         default_intervals: { oil: 25000, filter: 50000, tyre: 80000 }
     },
+    CAVALO_4E: {
+        id: 'CAVALO_4E',
+        name: 'C. Mecânico + Carreta 4 Eixos (26 Pneus)',
+        description: 'Cavalo 3 eixos (10 pneus) + Carreta 4 eixos (16 pneus).',
+        axles: 7,
+        tyre_count: 26,
+        default_intervals: { oil: 25000, filter: 50000, tyre: 80000 }
+    },
     BITREM: {
         id: 'BITREM',
         name: 'Bitrem (22 a 26 Pneus)',

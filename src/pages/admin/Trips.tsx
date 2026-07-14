@@ -146,25 +146,40 @@ export default function Trips() {
 
             if (editingId || data.id) {
                 if (!isAgregado) {
-                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id, idParaExcluir);
+                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id, idParaExcluir, dataToSave.implement_id);
                     const msgs: string[] = [];
                     if (conflicts.driverBusy && conflicts.driverTrip?.id !== idParaExcluir)
                         msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
                     if (conflicts.vehicleBusy && conflicts.vehicleTrip?.id !== idParaExcluir)
                         msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                    if (conflicts.implementBusy && conflicts.implementTrip?.id !== idParaExcluir)
+                        msgs.push(`Implemento já está em outra viagem ativa (cavalo: ${(conflicts.implementTrip as any)?.vehicle?.plate || '—'}).`);
                     if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja salvar mesmo assim?`)) return;
                 }
                 await tripService.updateTrip(idParaExcluir, dataToSave);
                 if (!isAgregado) await settlementService.recalculateSettlementForTrip(idParaExcluir);
             } else {
                 if (!isAgregado) {
-                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id);
+                    const conflicts = await tripService.checkConflicts(dataToSave.driver_id, dataToSave.vehicle_id, undefined, dataToSave.implement_id);
                     const msgs: string[] = [];
                     if (conflicts.driverBusy) msgs.push(`Motorista já está em outra viagem ativa (${conflicts.driverTrip?.origin} → ${conflicts.driverTrip?.destination}).`);
                     if (conflicts.vehicleBusy) msgs.push(`Veículo já está em outra viagem ativa (motorista: ${conflicts.vehicleTrip?.driver?.name || '—'}).`);
+                    if (conflicts.implementBusy) msgs.push(`Implemento já está em outra viagem ativa (cavalo: ${(conflicts.implementTrip as any)?.vehicle?.plate || '—'}).`);
                     if (msgs.length > 0 && !window.confirm(`Atenção:\n${msgs.join('\n')}\n\nDeseja registrar mesmo assim?`)) return;
                 }
                 await tripService.addTrip({ ...dataToSave, status: 'pending' });
+
+                // Engate persistente: viagem nova "leva" o acoplamento junto.
+                // (Edição de viagem antiga NÃO mexe no engate atual do cavalo.)
+                if (!isAgregado && dataToSave.vehicle_id) {
+                    try {
+                        await fleetService.coupleImplement(companyId, dataToSave.vehicle_id, dataToSave.implement_id || null);
+                        const vFresh = await fleetService.getVehicles(companyId);
+                        setVehicles(vFresh || []);
+                    } catch (e) {
+                        console.warn('Não foi possível atualizar o engate (rode PLANO5_ACOPLAR.sql):', e);
+                    }
+                }
             }
             fetchTrips();
             setIsModalOpen(false);

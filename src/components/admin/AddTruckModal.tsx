@@ -5,7 +5,7 @@ import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedF
 import React from 'react';
 
 const DRAFT_KEY = 'truck';
-const IMPLEMENT_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'BITREM', 'RODOTREM'];
+const IMPLEMENT_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
 
 const makeEmpty = () => ({
     plate: '', model: '', year: new Date().getFullYear(),

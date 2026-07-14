@@ -51,7 +51,7 @@ export default function Fleet() {
     const [swapVehicle, setSwapVehicle] = useState<any | null>(null);
     const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
 
-    const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'BITREM', 'RODOTREM'];
+    const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
 
     const companyId = (user as any)?.company_id;
     // Separa cavalos/caminhões dos implementos (legado sem category = truck)
@@ -414,6 +414,11 @@ export default function Fleet() {
                                                 >
                                                     {v.plate}
                                                 </button>
+                                                {v.current_implement_id && (
+                                                    <span className="block mt-0.5 text-[10px] font-bold text-violet-600" title="Implemento acoplado">
+                                                        🔗 {implementos.find(i => i.id === v.current_implement_id)?.plate || 'implemento'}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="font-medium text-slate-700 dark:text-slate-300">{v.model}</span>
