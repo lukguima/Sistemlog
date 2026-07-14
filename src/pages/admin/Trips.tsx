@@ -127,6 +127,15 @@ export default function Trips() {
             const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
             const isAgregado = rest.driver_type === 'agregado';
 
+            // Guarda contra datas absurdas (ex.: ano 62026 digitado por engano)
+            if (date) {
+                const y = parseInt(String(date).slice(0, 4), 10);
+                if (isNaN(y) || y < 2020 || y > 2099) {
+                    alert('Data da viagem inválida. Confira o ano digitado.');
+                    return;
+                }
+            }
+
             const weight = toNum(rest.weight);
             const tarifa = toNum(value);
             const dataToSave = {

@@ -369,6 +369,8 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <input
                                 required
                                 type="date"
+                                min="2020-01-01"
+                                max="2099-12-31"
                                 className={inputStyle}
                                 value={formData.date}
                                 onChange={e => setFormData({ ...formData, date: e.target.value })}
