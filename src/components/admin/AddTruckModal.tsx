@@ -8,7 +8,7 @@ const DRAFT_KEY = 'truck';
 const IMPLEMENT_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
 
 const makeEmpty = () => ({
-    plate: '', model: '', year: new Date().getFullYear(),
+    plate: '', brand: '', model: '', year: new Date().getFullYear(),
     initial_km: 0, current_km: 0, truck_type: '' as TruckTypeId | '',
     axle_count: 0, maint_oil_interval: 15000, maint_filter_interval: 30000,
     maint_tyre_interval: 60000, last_oil_change_km: 0, last_filter_change_km: 0,
@@ -138,7 +138,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                         )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Placa</label>
                             <input
@@ -151,11 +151,21 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                         </div>
 
                         <div className="space-y-1">
+                            <label className={labelStyle}>Marca</label>
+                            <input
+                                className={inputStyle}
+                                placeholder="Ex: Scania, Volvo"
+                                value={formData.brand}
+                                onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
                             <label className={labelStyle}>Modelo</label>
                             <input
                                 required
                                 className={inputStyle}
-                                placeholder="Ex: Scania R450"
+                                placeholder="Ex: R450"
                                 value={formData.model}
                                 onChange={e => setFormData({ ...formData, model: e.target.value })}
                             />

@@ -12,6 +12,7 @@ interface AddImplementModalProps {
 const makeEmpty = () => ({
     plate: '',
     implement_type: '',
+    brand: '',
     model: '',
     year: new Date().getFullYear(),
     axle_count: 0,
@@ -54,6 +55,7 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
                 category: 'implemento',
                 plate: formData.plate.toUpperCase().trim(),
                 implement_type: formData.implement_type,
+                brand: formData.brand || null,
                 model: formData.model || formData.implement_type,
                 year: Number(formData.year) || new Date().getFullYear(),
                 axle_count: Number(formData.axle_count) || 0,
@@ -110,8 +112,13 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
+                            <label className={labelStyle}>Marca</label>
+                            <input className={inputStyle} placeholder="Ex: Randon, Biasi, Librelato"
+                                value={formData.brand} onChange={e => set({ brand: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
                             <label className={labelStyle}>Modelo / Descrição</label>
-                            <input className={inputStyle} placeholder="Ex: Randon 3 eixos"
+                            <input className={inputStyle} placeholder="Ex: BTPP 3 eixos"
                                 value={formData.model} onChange={e => set({ model: e.target.value })} />
                         </div>
                         <div className="space-y-1">

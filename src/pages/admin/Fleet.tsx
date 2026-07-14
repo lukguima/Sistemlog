@@ -421,7 +421,7 @@ export default function Fleet() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="font-medium text-slate-700 dark:text-slate-300">{v.model}</span>
+                                                <span className="font-medium text-slate-700 dark:text-slate-300">{[v.brand, v.model].filter(Boolean).join(' ')}</span>
                                                 <span className="block text-xs text-slate-500">{v.year}</span>
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium">{(v.current_km || 0).toLocaleString('pt-BR')} km</td>
