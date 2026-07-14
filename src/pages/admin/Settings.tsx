@@ -258,13 +258,28 @@ export default function Settings() {
         e.preventDefault();
         e.stopPropagation();
 
-        if (!confirm('Tem certeza que deseja remover este usuário? Esta ação não pode ser desfeita.')) return;
-        
+        if (!confirm('Tem certeza que deseja remover este usuário? O login dele será revogado e esta ação não pode ser desfeita.')) return;
+
         setDeletingUserId(userId);
         try {
-            await profileService.deleteUser(userId);
+            // Exclusão real via Edge Function (revoga o login + apaga o perfil)
+            const { data: result, error: fnError } = await supabase.functions.invoke('delete-team-user', {
+                body: { user_id: userId },
+            });
+            if (fnError) {
+                let msg = fnError.message || 'Erro ao excluir usuário.';
+                try {
+                    const ctx = (fnError as any).context;
+                    if (ctx && typeof ctx.json === 'function') {
+                        const b = await ctx.json();
+                        if (b?.error) msg = b.error;
+                    }
+                } catch { /* ignora */ }
+                throw new Error(msg);
+            }
+            if ((result as any)?.error) throw new Error((result as any).error);
             setUsersList(usersList.filter(u => u.id !== userId));
-            setStatusMessage({ type: 'success', text: 'Usuário removido com sucesso!' });
+            setStatusMessage({ type: 'success', text: 'Usuário removido e acesso revogado!' });
         } catch (error) {
             console.error('Erro detalhado ao remover usuário:', error);
             const msg = (error as any).message || 'Erro desconhecido';
