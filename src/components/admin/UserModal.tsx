@@ -1,6 +1,6 @@
 import { X, User, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { ASSIGNABLE_SECTORS, PERMISSION_PRESETS, type SectorKey } from '../../lib/permissions';
+import { SECTORS, PAGES, PERMISSION_PRESETS, pagesOfSector, expandPermissions } from '../../lib/permissions';
 
 interface UserModalProps {
     isOpen: boolean;
@@ -16,7 +16,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
         password: '',
         role: 'operator',
         active: true,
-        permissions: [] as SectorKey[],
+        permissions: [] as string[],
     });
     const [loading, setLoading] = useState(false);
 
@@ -28,7 +28,8 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                 password: '',
                 role: initialData.role || 'operator',
                 active: initialData.active ?? true,
-                permissions: Array.isArray(initialData.permissions) ? initialData.permissions : [],
+                // Setores legados são expandidos nas abas correspondentes
+                permissions: expandPermissions(initialData.permissions),
             });
         } else {
             setFormData({
@@ -51,7 +52,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
     const isFrentista = formData.role === 'frentista';
     const showSectors = !isFullAccess && !isFrentista;
 
-    const toggleSector = (key: SectorKey) => {
+    const togglePage = (key: string) => {
         setFormData(prev => ({
             ...prev,
             permissions: prev.permissions.includes(key)
@@ -60,14 +61,23 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
         }));
     };
 
-    const applyPreset = (perms: SectorKey[]) => {
-        setFormData(prev => ({ ...prev, permissions: perms }));
+    const toggleGroup = (sectorKey: string) => {
+        const pages = pagesOfSector(sectorKey as any);
+        setFormData(prev => {
+            const allChecked = pages.every(k => prev.permissions.includes(k));
+            const without = prev.permissions.filter(p => !pages.includes(p));
+            return { ...prev, permissions: allChecked ? without : [...without, ...pages] };
+        });
+    };
+
+    const applyPreset = (perms: string[]) => {
+        setFormData(prev => ({ ...prev, permissions: [...perms] }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (showSectors && formData.permissions.length === 0) {
-            alert('Selecione ao menos um setor para o funcionário ou escolha outro nível de acesso.');
+            alert('Selecione ao menos uma aba para o funcionário ou escolha outro nível de acesso.');
             return;
         }
         if (!initialData && formData.password.length < 6) {
@@ -174,12 +184,12 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                             </div>
                         )}
 
-                        {/* Setores — só para funcionário por setor */}
+                        {/* Abas permitidas — escolha individual, agrupadas por área */}
                         {showSectors && (
                             <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck size={15} className="text-blue-600" />
-                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Setores permitidos</span>
+                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Abas permitidas</span>
                                 </div>
 
                                 <div className="flex flex-wrap gap-1.5">
@@ -195,28 +205,46 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                                     ))}
                                 </div>
 
-                                <div className="space-y-2">
-                                    {ASSIGNABLE_SECTORS.map(sector => {
-                                        const checked = formData.permissions.includes(sector.key);
+                                <div className="space-y-3">
+                                    {SECTORS.filter(s => s.assignable).map(sector => {
+                                        const pages = PAGES.filter(p => p.sector === sector.key);
+                                        const allChecked = pages.every(p => formData.permissions.includes(p.key));
+                                        const someChecked = pages.some(p => formData.permissions.includes(p.key));
                                         return (
-                                            <label
-                                                key={sector.key}
-                                                className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all border ${checked ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => toggleSector(sector.key)}
-                                                    className="mt-0.5 w-4 h-4 rounded accent-blue-600"
-                                                />
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-bold text-slate-800">{sector.label}</p>
-                                                    <p className="text-[10px] text-slate-400 leading-tight">{sector.description}</p>
+                                            <div key={sector.key} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                                <label className={`flex items-center justify-between px-3 py-2 cursor-pointer ${someChecked ? 'bg-blue-50/60' : 'bg-slate-50'}`}>
+                                                    <span className="text-[11px] font-black text-slate-700 uppercase tracking-wide">{sector.label}</span>
+                                                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                                                        marcar grupo
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={allChecked}
+                                                            onChange={() => toggleGroup(sector.key)}
+                                                            className="w-4 h-4 rounded accent-blue-600"
+                                                        />
+                                                    </span>
+                                                </label>
+                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 p-3">
+                                                    {pages.map(page => {
+                                                        const checked = formData.permissions.includes(page.key);
+                                                        return (
+                                                            <label key={page.key} className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={checked}
+                                                                    onChange={() => togglePage(page.key)}
+                                                                    className="w-3.5 h-3.5 rounded accent-blue-600"
+                                                                />
+                                                                <span className={`text-xs ${checked ? 'font-bold text-slate-800' : 'text-slate-500'}`}>{page.label}</span>
+                                                            </label>
+                                                        );
+                                                    })}
                                                 </div>
-                                            </label>
+                                            </div>
                                         );
                                     })}
                                 </div>
+                                <p className="text-[10px] text-slate-400">O Dashboard é sempre visível; os valores exibidos nele seguem as abas liberadas.</p>
                             </div>
                         )}
 

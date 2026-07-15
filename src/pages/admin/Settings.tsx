@@ -24,7 +24,7 @@ import { settingsService, profileService, subscriptionService } from '../../lib/
 import { SUBSCRIPTION_PLANS } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import UserModal from '../../components/admin/UserModal';
-import { SECTORS } from '../../lib/permissions';
+import { SECTORS, PAGES } from '../../lib/permissions';
 
 type Tab = 'company' | 'users' | 'security' | 'subscription' | 'branding';
 
@@ -512,10 +512,12 @@ export default function Settings() {
                                         {usr.role !== 'admin' && Array.isArray(usr.permissions) && usr.permissions.length > 0 && (
                                             <div className="flex flex-wrap gap-1">
                                                 {usr.permissions.map((p: string) => {
-                                                    const sector = SECTORS.find(s => s.key === p);
+                                                    const label = SECTORS.find(s => s.key === p)?.label
+                                                        ?? PAGES.find(pg => pg.key === p)?.label
+                                                        ?? p;
                                                     return (
                                                         <span key={p} className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                                            {sector?.label ?? p}
+                                                            {label}
                                                         </span>
                                                     );
                                                 })}
