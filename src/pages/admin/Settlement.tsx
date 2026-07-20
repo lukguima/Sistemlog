@@ -6,6 +6,7 @@ import { tripService, fleetService, settlementService, agregadoService, settings
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
 import { calcTripCommission, normalizeCommissionBase, type CommissionBase } from '../../lib/commission';
 import AddAdvanceModal from '../../components/admin/AddAdvanceModal';
+import TripModal from '../../components/admin/TripModal';
 import DriverReport from './DriverReport';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -220,7 +221,10 @@ export default function Settlement() {
     // Modal State
     const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
     const [drivers, setDrivers] = useState<any[]>([]);
+    const [vehicles, setVehicles] = useState<any[]>([]);
     const [editingAdvance, setEditingAdvance] = useState<any>(null);
+    const [isTripModalOpen, setIsTripModalOpen] = useState(false);
+    const [editingTrip, setEditingTrip] = useState<any>(null);
 
     const companyId = (user as any)?.company_id;
 
@@ -267,9 +271,20 @@ export default function Settlement() {
         }
     };
 
+    const fetchVehicles = async () => {
+        if (!companyId) return;
+        try {
+            const data = await fleetService.getVehicles(companyId);
+            setVehicles(data || []);
+        } catch (e) {
+            console.error('Error fetching vehicles:', e);
+        }
+    };
+
     useEffect(() => {
         fetchViagens();
         fetchDrivers();
+        fetchVehicles();
     }, [companyId]);
 
     useEffect(() => {
@@ -277,6 +292,107 @@ export default function Settlement() {
             fetchAllAdvances();
         }
     }, [activeTab, companyId]);
+
+    const handleEditTrip = (trip: any) => {
+        setEditingTrip({
+            ...trip,
+            vehicle_id: trip.vehicle_id,
+            driver_id: trip.driver_id,
+        });
+        setIsTripModalOpen(true);
+    };
+
+    const handleDeleteTrip = async (trip: any) => {
+        const isPaid = trip.status?.toLowerCase() === 'paid';
+        const msg = isPaid
+            ? 'Esta viagem está marcada como Paga. Excluir remove o frete do acerto. Continuar?'
+            : 'Tem certeza que deseja excluir esta viagem?';
+        if (!confirm(msg)) return;
+        try {
+            await tripService.deleteTrip(trip.id);
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(trip.id);
+                return next;
+            });
+            await fetchViagens();
+        } catch (error) {
+            console.error('Error deleting trip:', error);
+            alert('Erro ao excluir viagem.');
+        }
+    };
+
+    const handleSaveTrip = async (data: any) => {
+        if (!companyId || !editingTrip?.id) return;
+        try {
+            const { vehicle, driver, agregado, value, freight_total, cte, date, ...rest } = data;
+            const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
+            const isAgregado = rest.driver_type === 'agregado';
+
+            if (date) {
+                const y = parseInt(String(date).slice(0, 4), 10);
+                if (isNaN(y) || y < 2020 || y > 2099) {
+                    alert('Data da viagem inválida. Confira o ano digitado.');
+                    return;
+                }
+            }
+
+            const weight = toNum(rest.weight);
+            const tarifa = toNum(value);
+            const freteTotal = toNum(freight_total);
+            if (tarifa <= 0 && freteTotal <= 0) {
+                alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
+                return;
+            }
+            const gross_value = freteTotal > 0
+                ? freteTotal
+                : (weight > 0 && tarifa > 0 ? weight * tarifa : tarifa);
+
+            const dataToSave: any = {
+                ...rest,
+                gross_value,
+                cte_number: cte || '',
+                weight: toNum(rest.weight),
+                tax_rate: toNum(rest.tax_rate),
+                commission_rate: toNum(rest.commission_rate),
+                estimated_cost: toNum(rest.estimated_cost),
+                advance_value: toNum(rest.advance_value),
+                tolls_value: toNum(rest.tolls_value),
+                insurance_value: toNum(rest.insurance_value),
+                icms_value: toNum(rest.icms_value),
+                start_km: toNum(rest.start_km),
+                end_km: rest.end_km !== '' && rest.end_km != null ? Number(rest.end_km) : null,
+                created_at: date ? `${date}T12:00:00.000Z` : editingTrip.created_at,
+                driver_type: rest.driver_type || 'own',
+                agregado_id: isAgregado && rest.agregado_id ? rest.agregado_id : null,
+                agregado_value: isAgregado ? toNum(rest.agregado_value) : 0,
+                vehicle_id: isAgregado ? null : (rest.vehicle_id || null),
+                driver_id: isAgregado ? null : (rest.driver_id || null),
+                implement_id: isAgregado ? null : (rest.implement_id || null),
+            };
+            delete dataToSave.freight_total;
+            delete dataToSave.value;
+            delete dataToSave.cte;
+            delete dataToSave.date;
+            delete dataToSave.id;
+            delete dataToSave.vehicle;
+            delete dataToSave.driver;
+            delete dataToSave.agregado;
+            delete dataToSave.company_id;
+
+            await tripService.updateTrip(editingTrip.id, dataToSave);
+            if (!isAgregado) {
+                await settlementService.recalculateSettlementForTrip(editingTrip.id);
+            }
+            setIsTripModalOpen(false);
+            setEditingTrip(null);
+            await fetchViagens();
+        } catch (error: any) {
+            console.error('Error updating trip:', error);
+            alert(`Erro: ${error.message || 'Não foi possível salvar a viagem.'}`);
+            throw error;
+        }
+    };
 
     const handleToggleSelect = (id: string) => {
         const newSelected = new Set(selectedIds);
@@ -552,14 +668,19 @@ export default function Settlement() {
                                                 <th className="px-6 py-4 text-right">Frete Bruto</th>
                                                 <th className="px-6 py-4 text-right">Adiant/Despesas</th>
                                                 <th className="px-6 py-4">Status Base</th>
+                                                <th className="px-6 py-4 text-right">Ações</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                                             {loading ? (
-                                                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Carregando...</td></tr>
+                                                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Carregando...</td></tr>
                                             ) : paginatedViagens.length > 0 ? (
                                                 paginatedViagens.map(viagem => (
-                                                    <tr key={viagem.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer ${viagem.status?.toLowerCase() === 'paid' ? 'opacity-50' : ''}`} onClick={() => viagem.status?.toLowerCase() !== 'paid' && handleToggleSelect(viagem.id)}>
+                                                    <tr
+                                                        key={viagem.id}
+                                                        className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 ${viagem.status?.toLowerCase() === 'paid' ? '' : 'cursor-pointer'}`}
+                                                        onClick={() => viagem.status?.toLowerCase() !== 'paid' && handleToggleSelect(viagem.id)}
+                                                    >
                                                         <td className="px-6 py-4">
                                                             <input
                                                                 type="checkbox"
@@ -587,10 +708,30 @@ export default function Settlement() {
                                                                  viagem.status}
                                                             </span>
                                                         </td>
+                                                        <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                                                            <div className="flex justify-end gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    title="Editar frete"
+                                                                    onClick={() => handleEditTrip(viagem)}
+                                                                    className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-800"
+                                                                >
+                                                                    <Edit2 size={16} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Excluir frete"
+                                                                    onClick={() => handleDeleteTrip(viagem)}
+                                                                    className="p-2 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-500"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 ))
                                             ) : (
-                                                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Nada para exibir.</td></tr>
+                                                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">Nada para exibir.</td></tr>
                                             )}
                                         </tbody>
                                     </table>
@@ -778,6 +919,18 @@ export default function Settlement() {
                 drivers={drivers}
                 onSave={handleSaveAdvance}
                 initialData={editingAdvance}
+            />
+
+            <TripModal
+                isOpen={isTripModalOpen}
+                onClose={() => {
+                    setIsTripModalOpen(false);
+                    setEditingTrip(null);
+                }}
+                onSave={handleSaveTrip}
+                vehicles={vehicles}
+                drivers={drivers}
+                initialData={editingTrip}
             />
         </div>
     )

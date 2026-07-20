@@ -402,7 +402,6 @@ export default function Trips() {
                                 <th className="px-4 py-4">Valor Bruto</th>
                                 <th className="px-4 py-4">Imposto %</th>
                                 <th className="px-4 py-4">Comissão %</th>
-                                <th className="px-4 py-4">Custos (Est.)</th>
                                 <th className="px-4 py-4">Status</th>
                                 <th className="px-4 py-4 text-right">Ações</th>
                             </tr>
@@ -456,7 +455,6 @@ export default function Trips() {
                                         <td className="px-4 py-4 text-sm font-medium">{(Number(trip.gross_value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-4 py-4 text-sm">{trip.tax_rate || 0}%</td>
                                         <td className="px-4 py-4 text-sm">{trip.commission_rate || 0}%</td>
-                                        <td className="px-4 py-4 text-sm font-medium text-rose-500">{(Number(trip.estimated_cost) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-4 py-4">
                                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
                                                 trip.status?.toLowerCase() === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
