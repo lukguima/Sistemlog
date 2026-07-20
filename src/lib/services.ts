@@ -386,7 +386,7 @@ export const settlementService = {
             // Busca todas as trips do settlement
             const { data: trips, error: tErr } = await supabase
                 .from('trips')
-                .select('company_id, gross_value, commission_rate, tax_rate, icms_value, tolls_value, insurance_value, estimated_cost')
+                .select('company_id, gross_value, commission_rate, tax_rate, icms_value, tolls_value, insurance_value, estimated_cost, loading_cost, unloading_cost')
                 .in('id', tripIds);
             if (tErr || !trips) continue;
 
@@ -420,7 +420,7 @@ export const financeService = {
     async getKpis(companyId: string, startDate?: string, endDate?: string) {
         let tripQuery = supabase
             .from('trips')
-            .select('gross_value, status, tolls_value, insurance_value, icms_value, estimated_cost, commission_rate, tax_rate, driver_type, agregado_value')
+            .select('gross_value, status, tolls_value, insurance_value, icms_value, estimated_cost, loading_cost, unloading_cost, commission_rate, tax_rate, driver_type, agregado_value')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -472,10 +472,12 @@ export const financeService = {
         const arlaExpenses = fuel?.reduce((acc, record) => acc + (Number((record as any).arla_value) || 0), 0) || 0;
         const maintenanceExpenses = maintenance?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
         
-        // Custos de Viagem (Pedágio, Seguro, ICMS)
+        // Custos de Viagem (Pedágio, Seguro, ICMS, Carregamento, Descarga)
         const tripTolls = trips?.reduce((acc, trip) => acc + (Number((trip as any).tolls_value) || 0), 0) || 0;
         const tripInsurance = trips?.reduce((acc, trip) => acc + (Number((trip as any).insurance_value) || 0), 0) || 0;
         const tripIcms = trips?.reduce((acc, trip) => acc + (Number((trip as any).icms_value) || 0), 0) || 0;
+        const tripLoading = trips?.reduce((acc, trip) => acc + (Number((trip as any).loading_cost) || 0), 0) || 0;
+        const tripUnloading = trips?.reduce((acc, trip) => acc + (Number((trip as any).unloading_cost) || 0), 0) || 0;
         
         // Custos Fixos de Veículo (Seguro fixo - escalonado pelo período se necessário, mas aqui somaremos o total cadastrado)
         const fixedInsurance = vehicles?.reduce((acc, vehicle) => acc + (Number((vehicle as any).insurance_value) || 0), 0) || 0;
@@ -504,7 +506,7 @@ export const financeService = {
             return acc + (Number((t as any).agregado_value) || 0);
         }, 0) || 0;
 
-        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + tripIcms + fixedInsurance + totalCommission + totalTax + totalAgregado;
+        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + tripIcms + tripLoading + tripUnloading + fixedInsurance + totalCommission + totalTax + totalAgregado;
 
         return {
             grossRevenue,
@@ -515,6 +517,8 @@ export const financeService = {
             tripTolls,
             tripInsurance,
             tripIcms,
+            tripLoading,
+            tripUnloading,
             fixedInsurance,
             totalCommission,
             totalTax,
@@ -530,7 +534,7 @@ export const financeService = {
 
         const { data: trips, error: tError } = await supabase
             .from('trips')
-            .select('gross_value, tolls_value, insurance_value, icms_value, created_at')
+            .select('gross_value, tolls_value, insurance_value, icms_value, loading_cost, unloading_cost, created_at')
             .eq('company_id', companyId)
             .gte('created_at', sixMonthsAgo);
 
@@ -564,7 +568,9 @@ export const financeService = {
                 result[key].revenue += Number(t.gross_value) || 0;
                 result[key].expenses += (Number((t as any).tolls_value) || 0)
                     + (Number((t as any).insurance_value) || 0)
-                    + (Number((t as any).icms_value) || 0);
+                    + (Number((t as any).icms_value) || 0)
+                    + (Number((t as any).loading_cost) || 0)
+                    + (Number((t as any).unloading_cost) || 0);
             }
         });
 
@@ -1241,7 +1247,7 @@ export const dashboardService = {
 
         let tripQuery = supabase
             .from('trips')
-            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, icms_value, estimated_cost, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)')
+            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, icms_value, estimated_cost, loading_cost, unloading_cost, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -1300,7 +1306,7 @@ export const dashboardService = {
             const gross = Number(t.gross_value) || 0;
             const { expenses: br, commission } = calcTripCommission(t, commissionBase);
             profitByTruck[vId].gross += gross;
-            profitByTruck[vId].expenses += commission + br.taxAmount + br.icms + br.tolls + br.insurance;
+            profitByTruck[vId].expenses += commission + br.taxAmount + br.icms + br.tolls + br.insurance + br.loading + br.unloading;
         });
 
         fuels?.forEach(f => {
@@ -1373,10 +1379,12 @@ export const dashboardService = {
         // Manutenção
         const totalMaint = maintenances?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
 
-        // Pedágio + ICMS (custo por viagem)
+        // Pedágio + ICMS + carregamento/descarga (custo por viagem)
         const totalTolls = trips?.reduce((acc, t) => acc + (Number((t as any).tolls_value) || 0), 0) || 0;
         const totalIcms = trips?.reduce((acc, t) => acc + (Number((t as any).icms_value) || 0), 0) || 0;
         const totalInsurance = trips?.reduce((acc, t) => acc + (Number((t as any).insurance_value) || 0), 0) || 0;
+        const totalLoading = trips?.reduce((acc, t) => acc + (Number((t as any).loading_cost) || 0), 0) || 0;
+        const totalUnloading = trips?.reduce((acc, t) => acc + (Number((t as any).unloading_cost) || 0), 0) || 0;
 
         let commissionBase = normalizeCommissionBase('net_tax');
         try {
@@ -1395,7 +1403,7 @@ export const dashboardService = {
         }, 0) || 0;
 
         // Resultado líquido = Faturamento - todas as despesas
-        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalIcms + totalInsurance + totalCommission + totalTax;
+        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalIcms + totalInsurance + totalLoading + totalUnloading + totalCommission + totalTax;
         const netProfit = totalGross - totalExpenses;
 
         // KM/L: média das leituras consecutivas válidas (evita distorções por leituras extremas)
@@ -1426,6 +1434,8 @@ export const dashboardService = {
                 totalTolls,
                 totalIcms,
                 totalInsurance,
+                totalLoading,
+                totalUnloading,
                 totalCommission,
                 totalTax,
                 totalExpenses,

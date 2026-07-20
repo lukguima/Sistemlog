@@ -72,7 +72,7 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
     const chartData = data?.history?.trips ? data.history.trips.map((t: any) => ({
         name: new Date(t.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
         valor: t.gross_value || 0,
-        custo: (t.tolls_value || 0) + (t.fuel_expense || 0)
+        custo: (t.tolls_value || 0) + (t.loading_cost || 0) + (t.unloading_cost || 0) + (t.fuel_expense || 0)
     })).reverse() : [];
 
     const efficiencyData = (() => {
@@ -197,6 +197,8 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                     { label: 'ICMS', value: s.totalIcms || 0, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/10' },
                                     { label: 'Pedágio', value: s.totalTolls || 0, color: 'text-slate-600', bg: '' },
                                     { label: 'Seguro viagem', value: s.totalInsurance || 0, color: 'text-slate-600', bg: '' },
+                                    { label: 'Carregamento', value: s.totalLoading || 0, color: 'text-slate-600', bg: '' },
+                                    { label: 'Descarga', value: s.totalUnloading || 0, color: 'text-slate-600', bg: '' },
                                 ];
                                 return (
                                     <div className="card rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800">

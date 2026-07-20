@@ -23,6 +23,8 @@ export default function AdminDashboard() {
         tripTolls: 0,
         tripInsurance: 0,
         tripIcms: 0,
+        tripLoading: 0,
+        tripUnloading: 0,
         fixedInsurance: 0,
         totalCommission: 0,
         totalTax: 0,
@@ -157,7 +159,7 @@ export default function AdminDashboard() {
             const summaryData = [
                 { "Descrição": "RESUMO FINANCEIRO", "Valor": "" },
                 { "Descrição": "Receita Bruta", "Valor": kpis.grossRevenue },
-                { "Descrição": "Despesas Totais", "Valor": (kpis.fuelExpenses || 0) + (kpis.maintenanceExpenses || 0) + (kpis.tripTolls || 0) + (kpis.tripInsurance || 0) + (kpis.tripIcms || 0) + (kpis.fixedInsurance || 0) + (kpis.totalTax || 0) + (kpis.totalCommission || 0) },
+                { "Descrição": "Despesas Totais", "Valor": (kpis.fuelExpenses || 0) + (kpis.maintenanceExpenses || 0) + (kpis.tripTolls || 0) + (kpis.tripInsurance || 0) + (kpis.tripIcms || 0) + (kpis.tripLoading || 0) + (kpis.tripUnloading || 0) + (kpis.fixedInsurance || 0) + (kpis.totalTax || 0) + (kpis.totalCommission || 0) },
                 { "Descrição": "Lucro Líquido", "Valor": kpis.netRevenue },
                 { "Descrição": "", "Valor": "" },
                 { "Descrição": "KPIs DETALHADOS", "Valor": "" },
@@ -165,6 +167,8 @@ export default function AdminDashboard() {
                 { "Descrição": "Custo Manutenção", "Valor": kpis.maintenanceExpenses || 0 },
                 { "Descrição": "Pedágios", "Valor": kpis.tripTolls || 0 },
                 { "Descrição": "ICMS", "Valor": kpis.tripIcms || 0 },
+                { "Descrição": "Carregamento", "Valor": kpis.tripLoading || 0 },
+                { "Descrição": "Descarga", "Valor": kpis.tripUnloading || 0 },
                 { "Descrição": "Seguros", "Valor": (kpis.tripInsurance || 0) + (kpis.fixedInsurance || 0) },
             ];
 
@@ -178,6 +182,8 @@ export default function AdminDashboard() {
                 "Valor Bruto": t.gross_value,
                 "Pedágio": t.tolls_value || 0,
                 "Seguro": t.insurance_value || 0,
+                "Carregamento": t.loading_cost || 0,
+                "Descarga": t.unloading_cost || 0,
                 "Peso (Kg)": t.weight || 0,
                 "Status": t.status
             }));

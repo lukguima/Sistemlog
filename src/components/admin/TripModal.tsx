@@ -10,7 +10,8 @@ const makeEmpty = () => ({
     date: new Date().toISOString().split('T')[0], start_km: '', end_km: '', cte: '',
     weight: '', value: '', freight_total: '', icms_value: '',
     tax_rate: '', commission_rate: '', estimated_cost: '',
-    advance_value: '', tolls_value: '', insurance_value: '', status: 'pending',
+    advance_value: '', tolls_value: '', insurance_value: '',
+    loading_cost: '', unloading_cost: '', status: 'pending',
     // Campos de agregado
     driver_type: 'own' as 'own' | 'agregado',
     agregado_id: '',
@@ -67,6 +68,8 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
             advance_value: fmt(data?.advance_value),
             tolls_value: fmt(data?.tolls_value || data?.toll_expense),
             insurance_value: fmt(data?.insurance_value || data?.other_expenses),
+            loading_cost: fmt(data?.loading_cost),
+            unloading_cost: fmt(data?.unloading_cost),
             start_km: data?.start_km ?? '',
             end_km: data?.end_km ?? '',
             date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
@@ -567,6 +570,31 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 placeholder="0,00"
                                 value={formData.insurance_value}
                                 onChange={e => setFormData({ ...formData, insurance_value: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Carregamento (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.loading_cost}
+                                onChange={e => setFormData({ ...formData, loading_cost: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Descarga (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.unloading_cost}
+                                onChange={e => setFormData({ ...formData, unloading_cost: e.target.value })}
                             />
                         </div>
                     </div>

@@ -19,7 +19,7 @@ export const COMMISSION_BASE_OPTIONS: { id: CommissionBase; label: string; hint:
     {
         id: 'net_all',
         label: 'Líquido (todas as despesas)',
-        hint: 'Desconta imposto %, ICMS, pedágio, seguro e custos estimados antes da comissão.',
+        hint: 'Desconta imposto %, ICMS, pedágio, seguro, carregamento, descarga e custos estimados antes da comissão.',
     },
 ];
 
@@ -39,14 +39,16 @@ export function tripExpenseBreakdown(trip: any) {
     const tolls = Number(trip?.tolls_value) || 0;
     const insurance = Number(trip?.insurance_value) || 0;
     const estimated = Number(trip?.estimated_cost) || 0;
-    return { gross, taxRate, taxAmount, icms, tolls, insurance, estimated };
+    const loading = Number(trip?.loading_cost) || 0;
+    const unloading = Number(trip?.unloading_cost) || 0;
+    return { gross, taxRate, taxAmount, icms, tolls, insurance, estimated, loading, unloading };
 }
 
 export function calcTripCommissionBase(trip: any, baseMode: CommissionBase = 'net_tax'): number {
-    const { gross, taxAmount, icms, tolls, insurance, estimated } = tripExpenseBreakdown(trip);
+    const { gross, taxAmount, icms, tolls, insurance, estimated, loading, unloading } = tripExpenseBreakdown(trip);
     if (baseMode === 'gross') return round2(Math.max(0, gross));
     if (baseMode === 'net_all') {
-        return round2(Math.max(0, gross - taxAmount - icms - tolls - insurance - estimated));
+        return round2(Math.max(0, gross - taxAmount - icms - tolls - insurance - estimated - loading - unloading));
     }
     // net_tax (default / legado)
     return round2(Math.max(0, gross - taxAmount));

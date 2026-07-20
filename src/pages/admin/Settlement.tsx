@@ -360,6 +360,8 @@ export default function Settlement() {
                 tolls_value: toNum(rest.tolls_value),
                 insurance_value: toNum(rest.insurance_value),
                 icms_value: toNum(rest.icms_value),
+                loading_cost: toNum(rest.loading_cost),
+                unloading_cost: toNum(rest.unloading_cost),
                 start_km: toNum(rest.start_km),
                 end_km: rest.end_km !== '' && rest.end_km != null ? Number(rest.end_km) : null,
                 created_at: date ? `${date}T12:00:00.000Z` : editingTrip.created_at,

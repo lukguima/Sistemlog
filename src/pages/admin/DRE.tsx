@@ -127,6 +127,8 @@ export default function DRE() {
                                     {dre.adiantamentos > 0 && <DRELine label="Comissões / Adiantamentos" value={-dre.adiantamentos} indent={1} color="text-slate-600" />}
                                     {(dre.pedagios || 0) > 0 && <DRELine label="Pedágios" value={-dre.pedagios} indent={1} color="text-slate-600" />}
                                     {(dre.segurosViagem || 0) > 0 && <DRELine label="Seguros de viagem" value={-dre.segurosViagem} indent={1} color="text-slate-600" />}
+                                    {(dre.carregamento || 0) > 0 && <DRELine label="Carregamento" value={-dre.carregamento} indent={1} color="text-slate-600" />}
+                                    {(dre.descarga || 0) > 0 && <DRELine label="Descarga" value={-dre.descarga} indent={1} color="text-slate-600" />}
 
                                     <DRELine label="= LUCRO BRUTO OPERACIONAL" value={dre.lucroBruto} bold color={dre.lucroBruto >= 0 ? 'text-blue-700' : 'text-red-700'} separator />
 

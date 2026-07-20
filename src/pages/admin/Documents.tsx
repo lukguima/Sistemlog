@@ -39,6 +39,8 @@ interface TripImportItem {
     freight_display: number;
     tax_rate: string;
     tolls_value: string;
+    loading_cost: string;
+    unloading_cost: string;
     vehicle_id: string;
     implement_id: string;
     driver_id: string;
@@ -168,6 +170,8 @@ export default function Documents() {
             freight_display: gross,
             tax_rate: parsed.taxRate != null ? String(parsed.taxRate) : '',
             tolls_value: parsed.tollsValue != null ? String(parsed.tollsValue) : '',
+            loading_cost: '',
+            unloading_cost: '',
             vehicle_id: vehicle?.id || '',
             implement_id: implement?.id || '',
             driver_id: driver?.id || '',
@@ -316,6 +320,8 @@ export default function Documents() {
                 tolls_value: toNum(it.tolls_value),
                 insurance_value: 0,
                 icms_value: toNum(it.parsed?.icmsValue ?? 0),
+                loading_cost: toNum(it.loading_cost),
+                unloading_cost: toNum(it.unloading_cost),
                 advance_value: 0,
                 estimated_cost: 0,
                 start_km: toNum(it.start_km),
@@ -634,7 +640,7 @@ export default function Documents() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                     <div>
                                         <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Peso</label>
                                         <input type="number" step="0.001" value={it.weight} disabled={it.status === 'salvo'}
@@ -648,6 +654,20 @@ export default function Documents() {
                                             className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
                                     </div>
                                     <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Carregamento (R$)</label>
+                                        <input type="number" step="0.01" value={it.loading_cost} disabled={it.status === 'salvo'}
+                                            onChange={e => updateTripImport(it.id, { loading_cost: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Descarga (R$)</label>
+                                        <input type="number" step="0.01" value={it.unloading_cost} disabled={it.status === 'salvo'}
+                                            onChange={e => updateTripImport(it.id, { unloading_cost: e.target.value })}
+                                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <div className="md:col-span-1">
                                         <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Frete total</label>
                                         <div className="w-full border border-indigo-100 bg-indigo-50 rounded-lg px-2 py-1.5 text-xs font-bold text-indigo-800">
                                             {fmtMoney(
