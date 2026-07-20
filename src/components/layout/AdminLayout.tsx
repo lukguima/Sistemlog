@@ -87,7 +87,6 @@ export default function AdminLayout() {
     useEffect(() => {
         if (!user) return;
         const path = location.pathname;
-        // dashboard sempre liberado; demais rotas checam o setor
         if (!canAccessRoute(role, permissions, path)) {
             navigate(fallbackRoute, { replace: true });
         }

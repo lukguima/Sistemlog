@@ -23,6 +23,7 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
             ) AS perm(k)
             WHERE perm.k = ANY (
                 CASE sector
+                    WHEN 'dashboard'   THEN ARRAY['dashboard']
                     WHEN 'operacional' THEN ARRAY['trips','settlement','agregados']
                     WHEN 'frota'       THEN ARRAY['fleet','documents','maintenance','fuel','tyre-check','suppliers']
                     WHEN 'financeiro'  THEN ARRAY['financial','cash-flow','dre','vehicle-profitability','financings','simulator','accounting']

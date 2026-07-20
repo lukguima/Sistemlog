@@ -244,7 +244,7 @@ export default function UserModal({ isOpen, onClose, onSave, initialData }: User
                                         );
                                     })}
                                 </div>
-                                <p className="text-[10px] text-slate-400">O Dashboard é sempre visível; os valores exibidos nele seguem as abas liberadas.</p>
+                                <p className="text-[10px] text-slate-400">Os valores do Dashboard seguem as outras abas liberadas (ex.: financeiro, frota).</p>
                             </div>
                         )}
 

@@ -8,7 +8,7 @@
 // inteiro — compatibilidade com usuários já cadastrados.
 // ============================================================
 
-export type SectorKey = 'operacional' | 'frota' | 'financeiro' | 'analises' | 'admin_config';
+export type SectorKey = 'dashboard' | 'operacional' | 'frota' | 'financeiro' | 'analises' | 'admin_config';
 
 export interface Sector {
     key: SectorKey;
@@ -19,6 +19,7 @@ export interface Sector {
 }
 
 export const SECTORS: Sector[] = [
+    { key: 'dashboard', label: 'Dashboard', description: 'Painel principal com indicadores', assignable: true },
     { key: 'operacional', label: 'Operacional', description: 'Viagens, Acerto de Fretes e Agregados', assignable: true },
     { key: 'frota', label: 'Frota', description: 'Veículos, Documentos, Manutenção, Abastecimento, Pneus e Fornecedores', assignable: true },
     { key: 'financeiro', label: 'Financeiro', description: 'Financeiro, Fluxo de Caixa, DRE, Financiamentos, Contabilidade, Rentabilidade e Simulador', assignable: true },
@@ -37,6 +38,8 @@ export interface PageDef {
 }
 
 export const PAGES: PageDef[] = [
+    // Dashboard
+    { key: 'dashboard',             label: 'Dashboard',        route: '/admin/dashboard',             sector: 'dashboard' },
     // Operacional
     { key: 'trips',                 label: 'Viagens',          route: '/admin/trips',                 sector: 'operacional' },
     { key: 'settlement',            label: 'Acerto',           route: '/admin/settlement',            sector: 'operacional' },
@@ -78,8 +81,8 @@ export const ROUTE_SECTOR: Record<string, SectorKey> = {
 
 // Atalhos prontos para o modal de convite (marcam as abas correspondentes).
 export const PERMISSION_PRESETS: { label: string; permissions: string[] }[] = [
-    { label: 'Operacional (Viagens + Frota)', permissions: [...pagesOfSector('operacional'), ...pagesOfSector('frota')] },
-    { label: 'Financeiro', permissions: pagesOfSector('financeiro') },
+    { label: 'Operacional (Viagens + Frota)', permissions: ['dashboard', ...pagesOfSector('operacional'), ...pagesOfSector('frota')] },
+    { label: 'Financeiro', permissions: ['dashboard', ...pagesOfSector('financeiro')] },
     { label: 'Gerente (tudo, exceto Administração)', permissions: PAGES.map(p => p.key) },
 ];
 
@@ -120,7 +123,7 @@ export function hasSectorAccess(
 
 /**
  * Acesso a uma ROTA admin (menu + guard).
- * Rotas sem mapeamento (dashboard) são liberadas para qualquer autenticado.
+ * Rotas sem mapeamento em PAGES/ROUTE_SECTOR são liberadas.
  */
 export function canAccessRoute(
     role: string | undefined,
@@ -134,6 +137,6 @@ export function canAccessRoute(
             && (permissions.includes(page.key) || permissions.includes(page.sector));
     }
     const sector = ROUTE_SECTOR[path];
-    if (!sector) return true; // dashboard e afins
+    if (!sector) return true;
     return Array.isArray(permissions) && permissions.includes(sector);
 }
