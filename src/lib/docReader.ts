@@ -144,10 +144,12 @@ export function parseFilename(fileName: string): FilenameParse {
     return result;
 }
 
-function pageTextFromContent(content: { items: Array<{ str?: string; hasEOL?: boolean }> }): string {
+function pageTextFromContent(content: { items: unknown[] }): string {
     let out = '';
-    for (const it of content.items as any[]) {
-        out += it.str ?? '';
+    for (const raw of content.items) {
+        const it = raw as { str?: string; hasEOL?: boolean };
+        if (typeof it.str !== 'string') continue;
+        out += it.str;
         if (it.hasEOL) out += '\n';
         else if (it.str) out += ' ';
     }
