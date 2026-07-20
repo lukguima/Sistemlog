@@ -8,7 +8,8 @@ const DRAFT_KEY = 'trip';
 const makeEmpty = () => ({
     vehicle_id: '', implement_id: '', driver_id: '', cargo_description: '', origin: '', destination: '',
     date: new Date().toISOString().split('T')[0], start_km: '', end_km: '', cte: '',
-    weight: '', value: '', tax_rate: '', commission_rate: '', estimated_cost: '',
+    weight: '', value: '', freight_total: '', icms_value: '',
+    tax_rate: '', commission_rate: '', estimated_cost: '',
     advance_value: '', tolls_value: '', insurance_value: '', status: 'pending',
     // Campos de agregado
     driver_type: 'own' as 'own' | 'agregado',
@@ -36,20 +37,29 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const implementos = (vehicles || []).filter(v => v.category === 'implemento');
     const buildEditData = (data: any) => {
         const fmt = (v: any) => (v != null && v !== '') ? Number(v).toFixed(2) : '';
-        
-        // Se 'value' (tarifa) não existir, tenta extrair do gross_value/peso
+
+        // Reconstrói tarifa (R$/kg) ou frete total a partir do gross_value
         const weight = parseFloat(data?.weight) || 0;
         const gross = parseFloat(data?.gross_value) || 0;
         let tarifa = data?.value;
-        if (tarifa == null || tarifa === '') {
-            tarifa = (weight > 0) ? (gross / weight) : gross;
+        let freightTotal = data?.freight_total;
+        if ((tarifa == null || tarifa === '') && (freightTotal == null || freightTotal === '')) {
+            if (weight > 0 && gross > 0) {
+                tarifa = gross / weight;
+                freightTotal = '';
+            } else if (gross > 0) {
+                tarifa = '';
+                freightTotal = gross;
+            }
         }
 
         return {
             ...makeEmpty(),
             ...data,
             cte: data?.cte || data?.cte_number || '',
-            value: fmt(tarifa),
+            value: tarifa !== '' && tarifa != null ? fmt(tarifa) : '',
+            freight_total: freightTotal !== '' && freightTotal != null ? fmt(freightTotal) : '',
+            icms_value: fmt(data?.icms_value),
             weight: fmt(data?.weight),
             tax_rate: fmt(data?.tax_rate),
             commission_rate: fmt(data?.commission_rate),
@@ -135,7 +145,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 r.destination.toLowerCase().trim() === formData.destination.toLowerCase().trim()
             );
             if (match) {
-                setFormData({ value: match.freight_value });
+                setFormData({ value: match.freight_value, freight_total: '' });
             }
         }
     }, [formData.origin, formData.destination, fixedRoutes, initialData]);
@@ -144,6 +154,12 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const tarifa = parseFloat(formData.value) || 0;
+        const freteTotal = parseFloat(formData.freight_total) || 0;
+        if (tarifa <= 0 && freteTotal <= 0) {
+            alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
+            return;
+        }
         setLoading(true);
         try {
             await onSave(formData);
@@ -198,7 +214,8 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                         setFormData({
                                             origin: route.origin,
                                             destination: route.destination,
-                                            value: route.freight_value
+                                            value: route.freight_value,
+                                            freight_total: '',
                                         });
                                     }
                                 }}
@@ -318,8 +335,11 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             {(() => {
                                 const peso   = parseFloat(formData.weight);
                                 const tarifa = parseFloat(formData.value);
-                                const gross  = (!isNaN(peso) && !isNaN(tarifa) && peso > 0 && tarifa > 0)
-                                    ? peso * tarifa : parseFloat(formData.value) || 0;
+                                const freteTotal = parseFloat(formData.freight_total);
+                                const gross  = (!isNaN(freteTotal) && freteTotal > 0)
+                                    ? freteTotal
+                                    : ((!isNaN(peso) && !isNaN(tarifa) && peso > 0 && tarifa > 0)
+                                        ? peso * tarifa : parseFloat(formData.value) || 0);
                                 const tax    = parseFloat(formData.tax_rate) || 0;
                                 const agrVal = parseFloat(formData.agregado_value) || 0;
                                 if (gross <= 0) return null;
@@ -442,20 +462,41 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         </div>
                     </div>
 
-                    {/* Financeiro: Valor, Imposto, Comissão */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Financeiro: Tarifa / Frete total, Imposto, Comissão, ICMS */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Tarifa (R$/kg)</label>
                             <input
-                                required
                                 type="number"
                                 step="0.01"
                                 className={inputStyle}
                                 placeholder="0,00"
                                 value={formData.value}
-                                onChange={e => setFormData({ ...formData, value: e.target.value })}
+                                onChange={e => setFormData({
+                                    value: e.target.value,
+                                    freight_total: e.target.value ? '' : formData.freight_total,
+                                })}
                             />
+                            <p className="text-[10px] text-slate-400 ml-1">Deixe vazio se usar frete total.</p>
                         </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Frete total (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.freight_total}
+                                onChange={e => setFormData({
+                                    freight_total: e.target.value,
+                                    value: e.target.value ? '' : formData.value,
+                                })}
+                            />
+                            <p className="text-[10px] text-slate-400 ml-1">Use quando a empresa não cobra por kg.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
                             <div className="flex items-center justify-between pr-1">
                                 <label className={labelStyle}>Imposto (%)</label>
@@ -479,6 +520,18 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             {!taxOn && (
                                 <p className="text-[10px] text-slate-400 ml-1">Sem imposto nesta viagem.</p>
                             )}
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>ICMS (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                className={inputStyle}
+                                placeholder="0,00"
+                                value={formData.icms_value}
+                                onChange={e => setFormData({ ...formData, icms_value: e.target.value })}
+                            />
+                            <p className="text-[10px] text-slate-400 ml-1">Separado do imposto %.</p>
                         </div>
                         <div className="space-y-1">
                             <label className={labelStyle}>Comissão (%)</label>
@@ -545,9 +598,21 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     {(() => {
                         const peso = parseFloat(formData.weight);
                         const tarifa = parseFloat(formData.value);
+                        const freteTotal = parseFloat(formData.freight_total);
+                        const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        if (!isNaN(freteTotal) && freteTotal > 0) {
+                            return (
+                                <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-0.5">Valor Total Bruto Previsto</p>
+                                        <p className="text-[10px] text-blue-400">Frete total informado</p>
+                                    </div>
+                                    <p className="text-2xl font-black text-blue-700">{fmt(freteTotal)}</p>
+                                </div>
+                            );
+                        }
                         if (!isNaN(peso) && !isNaN(tarifa) && peso > 0 && tarifa > 0) {
                             const total = peso * tarifa;
-                            const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                             return (
                                 <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4 flex items-center justify-between">
                                     <div>

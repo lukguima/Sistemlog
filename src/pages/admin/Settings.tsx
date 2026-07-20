@@ -162,9 +162,11 @@ export default function Settings() {
                 company_id: user.company_id,
                 ...settings
             });
-            setStatusMessage({ type: 'success', text: 'Marca salva com sucesso!' });
-        } catch (error) {
-            setStatusMessage({ type: 'error', text: 'Erro ao salvar branding.' });
+            setStatusMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
+        } catch (error: any) {
+            const detail = error?.message || error?.details || error?.hint || 'Erro desconhecido';
+            console.error('Erro ao salvar settings:', error);
+            setStatusMessage({ type: 'error', text: `Erro ao salvar: ${detail}` });
         } finally {
             setLoading(false);
         }

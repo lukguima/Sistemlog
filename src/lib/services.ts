@@ -777,49 +777,100 @@ export const tyreService = {
 
 export const settingsService = {
     async getSettings(companyId: string) {
+        if (!companyId) return null;
         const { data, error } = await supabase
             .from('settings')
             .select('*')
             .eq('company_id', companyId)
             .maybeSingle();
-        if (error) throw error; 
-        return data;
+        if (error) throw error;
+        if (!data) return null;
+        // Normaliza nomes antigos (commission_rate/tax_rate/modules) → nomes do app
+        return {
+            ...data,
+            default_commission_rate: data.default_commission_rate ?? data.commission_rate ?? 12,
+            default_tax_rate: data.default_tax_rate ?? data.tax_rate ?? 6,
+            active_modules: data.active_modules ?? data.modules ?? ['portal', 'driver_app', 'monitoring'],
+        };
     },
     async saveSettings(settings: any) {
-        // Mapear active_modules do frontend para modules do banco
-        const dbSettings = {
-            ...settings,
-            modules: settings.active_modules || settings.modules
-        };
-        // Remover active_modules para não dar erro de coluna inexistente
-        delete (dbSettings as any).active_modules;
+        const companyId = settings.company_id;
+        if (!companyId) throw new Error('company_id obrigatório');
 
-        const { data, error } = await supabase
+        const commission = Number(settings.default_commission_rate ?? settings.commission_rate);
+        const tax = Number(settings.default_tax_rate ?? settings.tax_rate);
+        const modules = settings.active_modules ?? settings.modules ?? null;
+
+        // Payload mínimo — só colunas conhecidas (evita 400 por coluna inexistente)
+        const base: Record<string, unknown> = {
+            company_id: companyId,
+            system_name: settings.system_name ?? null,
+            logo_url: settings.logo_url || null,
+            primary_color: settings.primary_color || '#2563EB',
+        };
+        if (!Number.isNaN(commission)) base.default_commission_rate = commission;
+        if (!Number.isNaN(tax)) base.default_tax_rate = tax;
+        if (modules) base.modules = modules;
+
+        // 1ª tentativa: schema novo (default_* + modules)
+        let { data, error } = await supabase
             .from('settings')
-            .upsert(dbSettings)
+            .upsert(base, { onConflict: 'company_id' })
             .select()
             .single();
+
+        // Fallback: schema antigo (commission_rate / tax_rate / active_modules)
+        if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.code === '42703')) {
+            const legacy: Record<string, unknown> = {
+                company_id: companyId,
+                system_name: settings.system_name ?? null,
+                logo_url: settings.logo_url || null,
+                primary_color: settings.primary_color || '#2563EB',
+            };
+            if (!Number.isNaN(commission)) legacy.commission_rate = commission;
+            if (!Number.isNaN(tax)) legacy.tax_rate = tax;
+            if (modules) legacy.active_modules = modules;
+
+            const retry = await supabase
+                .from('settings')
+                .upsert(legacy, { onConflict: 'company_id' })
+                .select()
+                .single();
+            data = retry.data;
+            error = retry.error;
+        }
+
         if (error) throw error;
         return data;
     },
     async getCompanyProfile(companyId: string) {
+        if (!companyId) return { company_name: '' };
+
         const { data, error } = await supabase
-            .from('companies') // Caso a tabela exista, senão buscar do settings ou profiles
+            .from('companies')
             .select('*')
             .eq('id', companyId)
             .maybeSingle();
-        
-        // Fallback: se não houver tabela 'companies', retornar dados básicos do profile/settings
-        if (error || !data) {
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('full_name, company_name')
-                .eq('company_id', companyId)
-                .limit(1)
-                .maybeSingle();
-            return { company_name: profile?.company_name || '' };
+
+        // Sucesso: retorna a empresa
+        if (!error && data) return data;
+
+        // Rede/522/CORS: não tenta fallback (também falharia)
+        const msg = String(error?.message || '');
+        if (/Failed to fetch|NetworkError|fetch/i.test(msg) || error?.code === 'PGRST301') {
+            console.warn('companies indisponível:', error?.message);
+            return { company_name: '' };
         }
-        return data;
+
+        // Fallback: profiles NÃO tem company_name — só full_name/email
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('company_id', companyId)
+            .limit(1)
+            .maybeSingle();
+
+        return { company_name: profile?.full_name || '' };
     },
     async saveCompanyProfile(id: string, updates: any) {
         // Mapear campos do frontend para o esquema do banco de dados

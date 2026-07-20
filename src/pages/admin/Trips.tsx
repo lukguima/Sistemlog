@@ -122,7 +122,7 @@ export default function Trips() {
         if (!companyId) return;
 
         try {
-            const { vehicle, driver, agregado, value, cte, date, ...rest } = data;
+            const { vehicle, driver, agregado, value, freight_total, cte, date, ...rest } = data;
 
             const toNum = (v: any) => (v === '' || v === null || v === undefined) ? 0 : Number(v) || 0;
             const isAgregado = rest.driver_type === 'agregado';
@@ -138,9 +138,18 @@ export default function Trips() {
 
             const weight = toNum(rest.weight);
             const tarifa = toNum(value);
+            const freteTotal = toNum(freight_total);
+            if (tarifa <= 0 && freteTotal <= 0) {
+                alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
+                return;
+            }
+            const gross_value = freteTotal > 0
+                ? freteTotal
+                : (weight > 0 && tarifa > 0 ? weight * tarifa : tarifa);
+
             const dataToSave = {
                 ...rest,
-                gross_value: weight > 0 && tarifa > 0 ? weight * tarifa : tarifa,
+                gross_value,
                 cte_number: cte || '',
                 weight: toNum(rest.weight),
                 tax_rate: toNum(rest.tax_rate),
@@ -149,6 +158,7 @@ export default function Trips() {
                 advance_value: toNum(rest.advance_value),
                 tolls_value: toNum(rest.tolls_value),
                 insurance_value: toNum(rest.insurance_value),
+                icms_value: toNum(rest.icms_value),
                 start_km: toNum(rest.start_km),
                 end_km: rest.end_km !== '' && rest.end_km != null ? Number(rest.end_km) : null,
                 company_id: companyId,
@@ -162,6 +172,12 @@ export default function Trips() {
                 driver_id:  isAgregado ? null : (rest.driver_id  || null),
                 implement_id: isAgregado ? null : (rest.implement_id || null),
             };
+
+            // Campos só de UI — nunca enviar ao banco
+            delete (dataToSave as any).freight_total;
+            delete (dataToSave as any).value;
+            delete (dataToSave as any).cte;
+            delete (dataToSave as any).date;
 
             const idParaExcluir = data.id || editingId;
 
