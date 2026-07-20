@@ -522,7 +522,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             )}
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>ICMS (R$)</label>
+                            <label className={labelStyle}>ICMS/ISS (R$)</label>
                             <input
                                 type="number"
                                 step="0.01"

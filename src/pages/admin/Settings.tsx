@@ -25,6 +25,7 @@ import { SUBSCRIPTION_PLANS } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import UserModal from '../../components/admin/UserModal';
 import { SECTORS, PAGES } from '../../lib/permissions';
+import { COMMISSION_BASE_OPTIONS, type CommissionBase } from '../../lib/commission';
 
 type Tab = 'company' | 'users' | 'security' | 'subscription' | 'branding';
 
@@ -38,6 +39,7 @@ export default function Settings() {
         logo_url: '',
         default_commission_rate: '12',
         default_tax_rate: '6',
+        commission_base: 'net_tax' as CommissionBase,
     });
     const [companyProfile, setCompanyProfile] = useState({
         company_name: '',
@@ -126,6 +128,7 @@ export default function Settings() {
                     logo_url: data.logo_url || '',
                     default_commission_rate: String(data.default_commission_rate ?? '12'),
                     default_tax_rate: String(data.default_tax_rate ?? '6'),
+                    commission_base: (data.commission_base as CommissionBase) || 'net_tax',
                 });
             }
 
@@ -429,6 +432,36 @@ export default function Settings() {
                                         onChange={e => setSettings({ ...settings, default_tax_rate: e.target.value })}
                                     />
                                     <p className="text-[11px] text-slate-400 mt-1.5 px-1">Percentual de imposto aplicado ao frete</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-6">
+                                <label className="text-[10px] font-black text-[#8B95B1] uppercase tracking-widest block mb-3 px-1">
+                                    Base da comissão no acerto
+                                </label>
+                                <div className="space-y-2">
+                                    {COMMISSION_BASE_OPTIONS.map(opt => (
+                                        <label
+                                            key={opt.id}
+                                            className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all ${
+                                                settings.commission_base === opt.id
+                                                    ? 'border-amber-400 bg-amber-50/80'
+                                                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="commission_base"
+                                                className="mt-1 accent-amber-500"
+                                                checked={settings.commission_base === opt.id}
+                                                onChange={() => setSettings({ ...settings, commission_base: opt.id })}
+                                            />
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-900">{opt.label}</p>
+                                                <p className="text-[11px] text-slate-500 mt-0.5">{opt.hint}</p>
+                                            </div>
+                                        </label>
+                                    ))}
                                 </div>
                             </div>
                         </div>

@@ -285,7 +285,7 @@ export const cashFlowService = {
 export const dreService = {
     async get(companyId: string, startDate: string, endDate: string) {
         const [tripsRes, fuelRes, maintRes, txRes, advRes] = await Promise.all([
-            supabase.from('trips').select('gross_value, status')
+            supabase.from('trips').select('gross_value, status, tolls_value, insurance_value, icms_value, tax_rate')
                 .eq('company_id', companyId)
                 .gte('created_at', `${startDate}T00:00:00`)
                 .lte('created_at', `${endDate}T23:59:59`)
@@ -310,6 +310,14 @@ export const dreService = {
         const combustivel = (fuelRes.data ?? []).reduce((s: number, f: any) => s + (Number(f.total_value) || 0), 0);
         const manutencao = (maintRes.data ?? []).reduce((s: number, m: any) => s + (Number(m.cost) || 0), 0);
         const adiantamentos = (advRes.data ?? []).reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+        const pedagios = (tripsRes.data ?? []).reduce((s: number, t: any) => s + (Number(t.tolls_value) || 0), 0);
+        const segurosViagem = (tripsRes.data ?? []).reduce((s: number, t: any) => s + (Number(t.insurance_value) || 0), 0);
+        const icms = (tripsRes.data ?? []).reduce((s: number, t: any) => s + (Number(t.icms_value) || 0), 0);
+        const impostoFrete = (tripsRes.data ?? []).reduce((s: number, t: any) => {
+            const gross = Number(t.gross_value) || 0;
+            const rate = Number(t.tax_rate) || 0;
+            return s + gross * rate / 100;
+        }, 0);
 
         let receitasExtras = 0, despesasAdmin = 0, impostos = 0, financiamentos = 0, outrasDesp = 0;
         (txRes.data ?? []).forEach((t: any) => {
@@ -322,8 +330,10 @@ export const dreService = {
             else outrasDesp += v;
         });
 
+        impostos += impostoFrete + icms;
+
         const receitaBruta = receitaFretes + receitasExtras;
-        const custosOperacionais = combustivel + manutencao + adiantamentos;
+        const custosOperacionais = combustivel + manutencao + adiantamentos + pedagios + segurosViagem;
         const lucroBruto = receitaBruta - custosOperacionais;
         const despesasTotais = despesasAdmin + impostos + financiamentos + outrasDesp;
         const resultadoLiquido = lucroBruto - despesasTotais;
@@ -331,7 +341,7 @@ export const dreService = {
 
         return {
             receitaFretes, receitasExtras, receitaBruta,
-            combustivel, manutencao, adiantamentos, custosOperacionais,
+            combustivel, manutencao, adiantamentos, pedagios, segurosViagem, icms, impostoFrete, custosOperacionais,
             lucroBruto,
             despesasAdmin, impostos, financiamentos, outrasDesp, despesasTotais,
             resultadoLiquido, margem

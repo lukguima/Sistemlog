@@ -52,6 +52,34 @@ export function isDacteText(text: string): boolean {
         || /\bCT-?E\b/.test(t) && /CHAVE DE ACESSO/.test(t);
 }
 
+/** Nome do arquivo sugere DACTe / CT-e (ex.: ...-DACTe.pdf) */
+export function looksLikeDacteFilename(fileName: string): boolean {
+    return /dacte|ct-?e/i.test(fileName);
+}
+
+/** Extrai chave de 44 dígitos e número do CT-e a partir do nome do arquivo */
+export function parseDacteHintsFromFilename(fileName: string): { accessKey: string | null; cteNumber: string | null } {
+    const key = (fileName.match(/\b(\d{44})\b/) || [])[1] || null;
+    if (!key) return { accessKey: null, cteNumber: null };
+    const cteNumber = key.slice(25, 34).replace(/^0+/, '') || null;
+    return { accessKey: key, cteNumber };
+}
+
+/**
+ * Garante isDacte=true quando o nome do arquivo indica DACTe,
+ * mesmo se o texto do PDF veio vazio/fraco no browser.
+ */
+export function ensureDacteFromFilename(fileName: string, parsed: DacteParseResult): DacteParseResult {
+    if (parsed.isDacte || !looksLikeDacteFilename(fileName)) return parsed;
+    const hints = parseDacteHintsFromFilename(fileName);
+    return {
+        ...parsed,
+        isDacte: true,
+        accessKey: parsed.accessKey || hints.accessKey,
+        cteNumber: parsed.cteNumber || hints.cteNumber,
+    };
+}
+
 function parseDateBr(s: string): string | null {
     const m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (!m) return null;

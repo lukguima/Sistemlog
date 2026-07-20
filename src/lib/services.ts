@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { calcTripCommission, normalizeCommissionBase } from './commission';
 
 export const fleetService = {
     async getVehicles(companyId: string) {
@@ -313,19 +314,24 @@ export const settlementService = {
             // Busca todas as trips do settlement
             const { data: trips, error: tErr } = await supabase
                 .from('trips')
-                .select('gross_value, commission_rate, tax_rate')
+                .select('company_id, gross_value, commission_rate, tax_rate, icms_value, tolls_value, insurance_value, estimated_cost')
                 .in('id', tripIds);
             if (tErr || !trips) continue;
+
+            const companyId = trips[0]?.company_id || settlement.company_id;
+            let baseMode = normalizeCommissionBase('net_tax');
+            if (companyId) {
+                try {
+                    const s = await settingsService.getSettings(companyId);
+                    baseMode = normalizeCommissionBase(s?.commission_base);
+                } catch { /* default net_tax */ }
+            }
 
             const round2 = (n: number) => Math.round(n * 100) / 100;
 
             const totalGross = trips.reduce((acc, t) => acc + (Number(t.gross_value) || 0), 0);
             const totalCommission = trips.reduce((acc, t) => {
-                const gross = Number(t.gross_value) || 0;
-                const tax = Number(t.tax_rate) || 0;
-                const rate = Number(t.commission_rate) || 12;
-                const netBase = gross * (1 - tax / 100);
-                return acc + round2(netBase * rate / 100);
+                return acc + calcTripCommission(t, baseMode, 12).commission;
             }, 0);
 
             const netPaid = round2(Math.max(0, totalCommission - (Number(settlement.total_advances_applied) || 0) - (Number(settlement.total_trip_discounts) || 0)));
@@ -342,7 +348,7 @@ export const financeService = {
     async getKpis(companyId: string, startDate?: string, endDate?: string) {
         let tripQuery = supabase
             .from('trips')
-            .select('gross_value, status, tolls_value, insurance_value, commission_rate, tax_rate, driver_type, agregado_value')
+            .select('gross_value, status, tolls_value, insurance_value, icms_value, estimated_cost, commission_rate, tax_rate, driver_type, agregado_value')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -394,20 +400,23 @@ export const financeService = {
         const arlaExpenses = fuel?.reduce((acc, record) => acc + (Number((record as any).arla_value) || 0), 0) || 0;
         const maintenanceExpenses = maintenance?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
         
-        // Custos de Viagem (Pedágio e Seguro por viagem)
+        // Custos de Viagem (Pedágio, Seguro, ICMS)
         const tripTolls = trips?.reduce((acc, trip) => acc + (Number((trip as any).tolls_value) || 0), 0) || 0;
         const tripInsurance = trips?.reduce((acc, trip) => acc + (Number((trip as any).insurance_value) || 0), 0) || 0;
+        const tripIcms = trips?.reduce((acc, trip) => acc + (Number((trip as any).icms_value) || 0), 0) || 0;
         
         // Custos Fixos de Veículo (Seguro fixo - escalonado pelo período se necessário, mas aqui somaremos o total cadastrado)
         const fixedInsurance = vehicles?.reduce((acc, vehicle) => acc + (Number((vehicle as any).insurance_value) || 0), 0) || 0;
 
-        // Comissão dos motoristas (commission_rate % sobre valor líquido = gross - imposto)
+        let commissionBase = normalizeCommissionBase('net_tax');
+        try {
+            const s = await settingsService.getSettings(companyId);
+            commissionBase = normalizeCommissionBase(s?.commission_base);
+        } catch { /* default */ }
+
+        // Comissão dos motoristas (base configurável por empresa)
         const totalCommission = trips?.reduce((acc, t) => {
-            const gross = Number(t.gross_value) || 0;
-            const tax = Number((t as any).tax_rate) || 0;
-            const rate = Number((t as any).commission_rate) || 0;
-            const netBase = gross * (1 - tax / 100);
-            return acc + (netBase * rate / 100);
+            return acc + calcTripCommission(t, commissionBase).commission;
         }, 0) || 0;
 
         // Impostos (tax_rate % sobre gross_value por viagem)
@@ -423,7 +432,7 @@ export const financeService = {
             return acc + (Number((t as any).agregado_value) || 0);
         }, 0) || 0;
 
-        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + fixedInsurance + totalCommission + totalTax + totalAgregado;
+        const totalExpenses = fuelExpenses + arlaExpenses + maintenanceExpenses + tripTolls + tripInsurance + tripIcms + fixedInsurance + totalCommission + totalTax + totalAgregado;
 
         return {
             grossRevenue,
@@ -433,6 +442,7 @@ export const financeService = {
             maintenanceExpenses,
             tripTolls,
             tripInsurance,
+            tripIcms,
             fixedInsurance,
             totalCommission,
             totalTax,
@@ -448,7 +458,7 @@ export const financeService = {
 
         const { data: trips, error: tError } = await supabase
             .from('trips')
-            .select('gross_value, created_at')
+            .select('gross_value, tolls_value, insurance_value, icms_value, created_at')
             .eq('company_id', companyId)
             .gte('created_at', sixMonthsAgo);
 
@@ -480,9 +490,9 @@ export const financeService = {
             const key = `${d.getFullYear()}-${d.getMonth()}`;
             if (result[key]) {
                 result[key].revenue += Number(t.gross_value) || 0;
-                // Deduzir pedágio e seguro da receita ou adicionar às despesas? 
-                // Colocaremos como despesas mensais para clareza
-                result[key].expenses += (Number((t as any).tolls_value) || 0) + (Number((t as any).insurance_value) || 0);
+                result[key].expenses += (Number((t as any).tolls_value) || 0)
+                    + (Number((t as any).insurance_value) || 0)
+                    + (Number((t as any).icms_value) || 0);
             }
         });
 
@@ -791,6 +801,9 @@ export const settingsService = {
             default_commission_rate: data.default_commission_rate ?? data.commission_rate ?? 12,
             default_tax_rate: data.default_tax_rate ?? data.tax_rate ?? 6,
             active_modules: data.active_modules ?? data.modules ?? ['portal', 'driver_app', 'monitoring'],
+            commission_base: data.commission_base === 'gross' || data.commission_base === 'net_all' || data.commission_base === 'net_tax'
+                ? data.commission_base
+                : 'net_tax',
         };
     },
     async saveSettings(settings: any) {
@@ -800,6 +813,9 @@ export const settingsService = {
         const commission = Number(settings.default_commission_rate ?? settings.commission_rate);
         const tax = Number(settings.default_tax_rate ?? settings.tax_rate);
         const modules = settings.active_modules ?? settings.modules ?? null;
+        const commissionBase = settings.commission_base === 'gross' || settings.commission_base === 'net_all' || settings.commission_base === 'net_tax'
+            ? settings.commission_base
+            : 'net_tax';
 
         // Payload mínimo — só colunas conhecidas (evita 400 por coluna inexistente)
         const base: Record<string, unknown> = {
@@ -807,19 +823,20 @@ export const settingsService = {
             system_name: settings.system_name ?? null,
             logo_url: settings.logo_url || null,
             primary_color: settings.primary_color || '#2563EB',
+            commission_base: commissionBase,
         };
         if (!Number.isNaN(commission)) base.default_commission_rate = commission;
         if (!Number.isNaN(tax)) base.default_tax_rate = tax;
         if (modules) base.modules = modules;
 
-        // 1ª tentativa: schema novo (default_* + modules)
+        // 1ª tentativa: schema novo (default_* + modules + commission_base)
         let { data, error } = await supabase
             .from('settings')
             .upsert(base, { onConflict: 'company_id' })
             .select()
             .single();
 
-        // Fallback: schema antigo (commission_rate / tax_rate / active_modules)
+        // Fallback: schema antigo / sem commission_base ainda
         if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.code === '42703')) {
             const legacy: Record<string, unknown> = {
                 company_id: companyId,
@@ -830,12 +847,23 @@ export const settingsService = {
             if (!Number.isNaN(commission)) legacy.commission_rate = commission;
             if (!Number.isNaN(tax)) legacy.tax_rate = tax;
             if (modules) legacy.active_modules = modules;
+            // tenta com commission_base; se falhar de novo, sem ela
+            legacy.commission_base = commissionBase;
 
-            const retry = await supabase
+            let retry = await supabase
                 .from('settings')
                 .upsert(legacy, { onConflict: 'company_id' })
                 .select()
                 .single();
+
+            if (retry.error && String(retry.error.message || '').includes('commission_base')) {
+                delete legacy.commission_base;
+                retry = await supabase
+                    .from('settings')
+                    .upsert(legacy, { onConflict: 'company_id' })
+                    .select()
+                    .single();
+            }
             data = retry.data;
             error = retry.error;
         }
@@ -1082,7 +1110,7 @@ export const dashboardService = {
 
         let tripQuery = supabase
             .from('trips')
-            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)')
+            .select('vehicle_id, gross_value, commission_rate, tax_rate, tolls_value, insurance_value, icms_value, estimated_cost, created_at, vehicle:vehicles!trips_vehicle_id_fkey(plate)')
             .eq('company_id', companyId);
 
         let fuelQuery = supabase
@@ -1123,6 +1151,12 @@ export const dashboardService = {
         // Ranking é de cavalos/caminhões — ignora implementos (custo deles já entra no DRE)
         const implementIds = new Set((vehList ?? []).filter((v: any) => v.category === 'implemento').map((v: any) => v.id));
 
+        let commissionBase = normalizeCommissionBase('net_tax');
+        try {
+            const s = await settingsService.getSettings(companyId);
+            commissionBase = normalizeCommissionBase(s?.commission_base);
+        } catch { /* default */ }
+
         const profitByTruck: Record<string, { vehicle_id: string; plate: string; gross: number; expenses: number; net: number }> = {};
 
         trips?.forEach(t => {
@@ -1133,13 +1167,9 @@ export const dashboardService = {
                 profitByTruck[vId] = { vehicle_id: vId, plate: vehicleData?.plate || '---', gross: 0, expenses: 0, net: 0 };
             }
             const gross = Number(t.gross_value) || 0;
-            const tax = gross * (Number((t as any).tax_rate) || 0) / 100;
-            const netBase = gross - tax;
-            const commission = netBase * (Number((t as any).commission_rate) || 0) / 100;
-            const tolls = Number((t as any).tolls_value) || 0;
-            const insurance = Number((t as any).insurance_value) || 0;
+            const { expenses: br, commission } = calcTripCommission(t, commissionBase);
             profitByTruck[vId].gross += gross;
-            profitByTruck[vId].expenses += commission + tax + tolls + insurance;
+            profitByTruck[vId].expenses += commission + br.taxAmount + br.icms + br.tolls + br.insurance;
         });
 
         fuels?.forEach(f => {
@@ -1212,16 +1242,19 @@ export const dashboardService = {
         // Manutenção
         const totalMaint = maintenances?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
 
-        // Pedágio (custo por viagem)
+        // Pedágio + ICMS (custo por viagem)
         const totalTolls = trips?.reduce((acc, t) => acc + (Number((t as any).tolls_value) || 0), 0) || 0;
+        const totalIcms = trips?.reduce((acc, t) => acc + (Number((t as any).icms_value) || 0), 0) || 0;
+        const totalInsurance = trips?.reduce((acc, t) => acc + (Number((t as any).insurance_value) || 0), 0) || 0;
 
-        // Comissão motorista: (gross - imposto) * commission_rate / 100 por viagem
+        let commissionBase = normalizeCommissionBase('net_tax');
+        try {
+            const s = await settingsService.getSettings(companyId);
+            commissionBase = normalizeCommissionBase(s?.commission_base);
+        } catch { /* default */ }
+
         const totalCommission = trips?.reduce((acc, t) => {
-            const gross = Number(t.gross_value) || 0;
-            const tax = Number((t as any).tax_rate) || 0;
-            const rate = Number((t as any).commission_rate) || 0;
-            const netBase = gross * (1 - tax / 100);
-            return acc + (netBase * rate / 100);
+            return acc + calcTripCommission(t, commissionBase).commission;
         }, 0) || 0;
 
         // Imposto: gross_value * tax_rate / 100 por viagem
@@ -1231,7 +1264,7 @@ export const dashboardService = {
         }, 0) || 0;
 
         // Resultado líquido = Faturamento - todas as despesas
-        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalCommission + totalTax;
+        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalIcms + totalInsurance + totalCommission + totalTax;
         const netProfit = totalGross - totalExpenses;
 
         // KM/L: média das leituras consecutivas válidas (evita distorções por leituras extremas)
@@ -1260,6 +1293,8 @@ export const dashboardService = {
                 totalArla,
                 totalMaint,
                 totalTolls,
+                totalIcms,
+                totalInsurance,
                 totalCommission,
                 totalTax,
                 totalExpenses,

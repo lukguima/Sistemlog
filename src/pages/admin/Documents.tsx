@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { fleetService, tripService, settingsService } from '../../lib/services';
@@ -6,13 +7,17 @@ import {
     DOC_TYPES, analyzePdf, extractPdfText, normPlate, type AnalyzedDoc, type DocTypeKey,
 } from '../../lib/docReader';
 import {
-    isDacteText, parseDacteText, matchVehicleByPlate, matchDriver, buildTripValueFields,
+    isDacteText, parseDacteText, ensureDacteFromFilename, looksLikeDacteFilename,
+    parseDacteHintsFromFilename,
+    matchVehicleByPlate, matchDriver, buildTripValueFields,
     type DacteParseResult,
 } from '../../lib/dacteReader';
 import {
     UploadCloud, FileText, CheckCircle2, AlertTriangle, Loader2,
     Trash2, ExternalLink, ShieldCheck, Truck,
 } from 'lucide-react';
+
+type UploadMode = 'auto' | 'compliance' | 'trip';
 
 interface ReviewItem extends AnalyzedDoc {
     id: string;
@@ -43,6 +48,11 @@ interface TripImportItem {
     tripStatus: 'completed' | 'pending';
     errorMsg?: string;
     matchNotes: string[];
+    partialRead: boolean;
+    pdfPlateHint: string;
+    pdfDriverHint: string;
+    vehicleMatched: boolean;
+    driverMatched: boolean;
 }
 
 const fmtDate = (d?: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
@@ -59,6 +69,7 @@ export default function Documents() {
     const [history, setHistory] = useState<any[]>([]);
     const [reading, setReading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
+    const [uploadMode, setUploadMode] = useState<UploadMode>('auto');
     const inputRef = useRef<HTMLInputElement>(null);
 
     const trucks = vehicles.filter(v => v.category !== 'implemento');
@@ -110,7 +121,7 @@ export default function Documents() {
         return '';
     };
 
-    const buildTripImport = (file: File, parsed: DacteParseResult, idx: number): TripImportItem => {
+    const buildTripImport = (file: File, parsed: DacteParseResult, idx: number, partialRead = false): TripImportItem => {
         const { weight, value, gross } = buildTripValueFields(parsed);
         const notes: string[] = [];
         const plate0 = parsed.plates[0] || '';
@@ -131,12 +142,18 @@ export default function Documents() {
 
         const driver = matchDriver(drivers, parsed.driverName, parsed.driverCpf);
 
+        if (partialRead) notes.push('Revise: leitura parcial do PDF');
         if (plate0 && !vehicle) notes.push(`Placa ${plate0} não encontrada na frota`);
         if (plate1 && !implement) notes.push(`Implemento ${plate1} não encontrado na frota`);
         if (parsed.driverName && !driver) notes.push(`Motorista "${parsed.driverName}" não encontrado`);
         if (vehicle) notes.push(`Cavalo: ${vehicle.plate}`);
         if (implement) notes.push(`Implemento: ${implement.plate}`);
         if (driver) notes.push(`Motorista: ${driver.name}`);
+
+        const pdfPlateHint = [plate0, plate1].filter(Boolean).join(' · ');
+        const pdfDriverHint = parsed.driverName
+            ? `${parsed.driverName}${parsed.driverCpf ? ` (CPF ${parsed.driverCpf})` : ''}`
+            : '';
 
         return {
             id: `dacte-${Date.now()}-${idx}`,
@@ -159,6 +176,11 @@ export default function Documents() {
             status: 'pendente',
             tripStatus: 'completed',
             matchNotes: notes,
+            partialRead,
+            pdfPlateHint,
+            pdfDriverHint,
+            vehicleMatched: !!vehicle,
+            driverMatched: !!driver,
         };
     };
 
@@ -174,11 +196,44 @@ export default function Documents() {
             for (let i = 0; i < pdfs.length; i++) {
                 const file = pdfs[i];
                 const text = await extractPdfText(file);
+                const nameIsDacte = looksLikeDacteFilename(file.name);
 
-                if (isDacteText(text) || /dacte|ct-?e/i.test(file.name)) {
-                    const parsed = parseDacteText(text);
+                // Modo Conformidade: nunca tenta viagem
+                if (uploadMode === 'compliance') {
+                    const a = await analyzePdf(file);
+                    complianceBatch.push({
+                        ...a,
+                        id: `${Date.now()}-${i}`,
+                        entityId: matchEntity(a),
+                        status: 'pendente',
+                    });
+                    continue;
+                }
+
+                // Modo Viagens: sempre caminho de viagem (mesmo com texto fraco)
+                if (uploadMode === 'trip') {
+                    let parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
+                    if (!parsed.isDacte) {
+                        const hints = parseDacteHintsFromFilename(file.name);
+                        parsed = {
+                            ...parsed,
+                            isDacte: true,
+                            accessKey: parsed.accessKey || hints.accessKey,
+                            cteNumber: parsed.cteNumber || hints.cteNumber,
+                        };
+                    }
+                    const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
+                    tripBatch.push(buildTripImport(file, parsed, i, partial));
+                    continue;
+                }
+
+                // Automático: DACTe por texto ou nome (força viagem se nome bater)
+                if (isDacteText(text) || nameIsDacte) {
+                    let parsed = parseDacteText(text);
+                    const wasEmpty = !parsed.isDacte;
+                    parsed = ensureDacteFromFilename(file.name, parsed);
                     if (parsed.isDacte) {
-                        tripBatch.push(buildTripImport(file, parsed, i));
+                        tripBatch.push(buildTripImport(file, parsed, i, wasEmpty || (nameIsDacte && !isDacteText(text))));
                         continue;
                     }
                 }
@@ -271,6 +326,7 @@ export default function Documents() {
                 commission_rate: commission,
                 tolls_value: toNum(it.tolls_value),
                 insurance_value: 0,
+                icms_value: toNum(it.parsed?.icmsValue ?? 0),
                 advance_value: 0,
                 estimated_cost: 0,
                 start_km: toNum(it.start_km),
@@ -364,6 +420,29 @@ export default function Documents() {
                 </p>
             </div>
 
+            {/* Tipo de upload */}
+            <div className="flex flex-wrap gap-2">
+                {([
+                    { id: 'auto' as const, label: 'Automático', hint: 'Detecta o tipo' },
+                    { id: 'compliance' as const, label: 'Conformidade', hint: 'CIV, CNH, ASO…' },
+                    { id: 'trip' as const, label: 'Viagens (DACTe)', hint: 'Importar frete' },
+                ]).map(m => (
+                    <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setUploadMode(m.id)}
+                        className={`px-4 py-2.5 rounded-xl border text-left transition-all ${
+                            uploadMode === m.id
+                                ? 'border-blue-500 bg-blue-50 text-blue-800 ring-1 ring-blue-200'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        }`}
+                    >
+                        <span className="block text-xs font-black uppercase tracking-wide">{m.label}</span>
+                        <span className="block text-[10px] opacity-70 mt-0.5">{m.hint}</span>
+                    </button>
+                ))}
+            </div>
+
             {/* Dropzone */}
             <div
                 onClick={() => inputRef.current?.click()}
@@ -384,7 +463,14 @@ export default function Documents() {
                         <UploadCloud size={40} className="text-blue-500" />
                         <p className="font-black text-slate-700">Arraste os PDFs aqui ou clique para escolher</p>
                         <p className="text-xs max-w-lg">
-                            Conformidade (CIV, CNH…) atualiza vencimentos. <span className="font-semibold text-slate-600">DACTe / CT-e</span> importa viagem histórica automaticamente.
+                            {uploadMode === 'compliance' && 'Somente conformidade: CIV, CIPP, CNH, ASO e demais vencimentos.'}
+                            {uploadMode === 'trip' && 'Somente viagens: cada PDF será tratado como DACTe / CT-e para importar frete.'}
+                            {uploadMode === 'auto' && (
+                                <>
+                                    Conformidade (CIV, CNH…) atualiza vencimentos.{' '}
+                                    <span className="font-semibold text-slate-600">DACTe / CT-e</span> (pelo conteúdo ou pelo nome do arquivo) importa viagem.
+                                </>
+                            )}
                         </p>
                     </div>
                 )}
@@ -445,6 +531,27 @@ export default function Documents() {
                                             className="p-1 text-slate-300 hover:text-rose-500"><Trash2 size={14} /></button>
                                     </div>
                                 </div>
+
+                                {it.partialRead && (
+                                    <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                        Revise: leitura parcial do PDF — confira CT-e, frete e datas.
+                                    </p>
+                                )}
+
+                                {(!it.vehicleMatched || !it.driverMatched) && (it.pdfPlateHint || it.pdfDriverHint) && (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                                            <AlertTriangle size={11} className="shrink-0" />
+                                            PDF: {[it.pdfPlateHint, it.pdfDriverHint].filter(Boolean).join(' · ')} — não cadastrado
+                                        </span>
+                                        <Link
+                                            to="/admin/fleet"
+                                            className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800"
+                                        >
+                                            Cadastrar na Frota <ExternalLink size={11} />
+                                        </Link>
+                                    </div>
+                                )}
 
                                 {it.matchNotes.length > 0 && (
                                     <p className="text-[10px] text-slate-500 leading-relaxed">{it.matchNotes.join(' · ')}</p>

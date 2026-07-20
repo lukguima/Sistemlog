@@ -194,7 +194,9 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                                     { label: 'Comissão Motorista', value: s.totalCommission || 0, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/10' },
                                     { label: 'Manutenção', value: s.totalMaint || 0, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/10' },
                                     { label: 'Imposto', value: s.totalTax || 0, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/10' },
+                                    { label: 'ICMS', value: s.totalIcms || 0, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/10' },
                                     { label: 'Pedágio', value: s.totalTolls || 0, color: 'text-slate-600', bg: '' },
+                                    { label: 'Seguro viagem', value: s.totalInsurance || 0, color: 'text-slate-600', bg: '' },
                                 ];
                                 return (
                                     <div className="card rounded-3xl overflow-hidden border border-slate-100 dark:border-slate-800">

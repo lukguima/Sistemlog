@@ -4,6 +4,7 @@ import { tripService, fleetService, settlementService, settingsService } from '.
 import { useAuth } from '../../context/AuthContext';
 import { generateDriverPaymentReceipt, exportToExcel } from '../../lib/exports';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
+import { calcTripCommission, normalizeCommissionBase, type CommissionBase } from '../../lib/commission';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -37,12 +38,16 @@ export default function DriverReport() {
     const [loading, setLoading] = useState(false);
     const [generated, setGenerated] = useState(false);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [commissionBase, setCommissionBase] = useState<CommissionBase>('net_tax');
 
     useEffect(() => {
         if (!companyId) return;
         fleetService.getDrivers(companyId).then(setDrivers).catch(() => {});
         settingsService.getCompanyProfile(companyId)
             .then(p => setCompanyName(p?.name || p?.company_name || 'Empresa'))
+            .catch(() => {});
+        settingsService.getSettings(companyId)
+            .then(s => setCommissionBase(normalizeCommissionBase(s?.commission_base)))
             .catch(() => {});
     }, [companyId]);
 
@@ -78,10 +83,8 @@ export default function DriverReport() {
                     };
                 }
 
-                const rate = Number(trip.commission_rate) || DEFAULT_COMMISSION_RATE;
-                const tax = Number(trip.tax_rate) || 0;
+                const { commission: commissionValue, rate } = calcTripCommission(trip, commissionBase, DEFAULT_COMMISSION_RATE);
                 const gross = Number(trip.gross_value) || 0;
-                const commissionValue = round2(gross * (1 - tax / 100) * (rate / 100));
                 const advance = Number(trip.advance_value) || 0;
 
                 byDriver[trip.driver_id].trips.push({ ...trip, commissionValue, commissionRate: rate });

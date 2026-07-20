@@ -125,12 +125,16 @@ export default function DRE() {
                                     <DRELine label="Combustível" value={-dre.combustivel} indent={1} color="text-slate-600" />
                                     <DRELine label="Manutenção" value={-dre.manutencao} indent={1} color="text-slate-600" />
                                     {dre.adiantamentos > 0 && <DRELine label="Comissões / Adiantamentos" value={-dre.adiantamentos} indent={1} color="text-slate-600" />}
+                                    {(dre.pedagios || 0) > 0 && <DRELine label="Pedágios" value={-dre.pedagios} indent={1} color="text-slate-600" />}
+                                    {(dre.segurosViagem || 0) > 0 && <DRELine label="Seguros de viagem" value={-dre.segurosViagem} indent={1} color="text-slate-600" />}
 
                                     <DRELine label="= LUCRO BRUTO OPERACIONAL" value={dre.lucroBruto} bold color={dre.lucroBruto >= 0 ? 'text-blue-700' : 'text-red-700'} separator />
 
                                     <DRELine label="(-) DESPESAS DIVERSAS" value={-dre.despesasTotais} bold color="text-red-700" separator />
                                     {dre.despesasAdmin > 0 && <DRELine label="Administrativo / Salários" value={-dre.despesasAdmin} indent={1} color="text-slate-600" />}
-                                    {dre.impostos > 0 && <DRELine label="Impostos" value={-dre.impostos} indent={1} color="text-slate-600" />}
+                                    {dre.impostos > 0 && <DRELine label="Impostos (incl. ICMS e imposto %)" value={-dre.impostos} indent={1} color="text-slate-600" />}
+                                    {(dre.icms || 0) > 0 && <DRELine label="ICMS (viagens)" value={-dre.icms} indent={2} color="text-slate-500" />}
+                                    {(dre.impostoFrete || 0) > 0 && <DRELine label="Imposto % frete" value={-dre.impostoFrete} indent={2} color="text-slate-500" />}
                                     {dre.financiamentos > 0 && <DRELine label="Financiamentos" value={-dre.financiamentos} indent={1} color="text-slate-600" />}
                                     {dre.outrasDesp > 0 && <DRELine label="Outras despesas" value={-dre.outrasDesp} indent={1} color="text-slate-600" />}
 

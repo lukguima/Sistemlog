@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake, FileDown } from 'lucide-react';
 import { exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
-import { tripService, fleetService, settlementService, agregadoService } from '../../lib/services';
+import { tripService, fleetService, settlementService, agregadoService, settingsService } from '../../lib/services';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
+import { calcTripCommission, normalizeCommissionBase, type CommissionBase } from '../../lib/commission';
 import AddAdvanceModal from '../../components/admin/AddAdvanceModal';
 import DriverReport from './DriverReport';
 
@@ -207,6 +208,7 @@ export default function Settlement() {
     const [pendingAdvances, setPendingAdvances] = useState<any[]>([]);
     const [settlePage, setSettlePage] = useState(1);
     const SETTLE_PAGE_SIZE = 20;
+    const [commissionBase, setCommissionBase] = useState<CommissionBase>('net_tax');
 
     // Agregados Tab State
     const [agregadoTrips, setAgregadoTrips] = useState<any[]>([]);
@@ -226,7 +228,11 @@ export default function Settlement() {
         if (!companyId) return;
         setLoading(true);
         try {
-            const data = await tripService.getTrips(companyId);
+            const [data, settings] = await Promise.all([
+                tripService.getTrips(companyId),
+                settingsService.getSettings(companyId).catch(() => null),
+            ]);
+            setCommissionBase(normalizeCommissionBase(settings?.commission_base));
             const all = data || [];
             // Separa viagens de frota própria das de agregado
             setViagens(all.filter((t: any) => t.driver_type !== 'agregado'));
@@ -319,10 +325,7 @@ export default function Settlement() {
         const totalVales = tripAdvancesAmount + driverAdvancesAmount;
 
         const comissaoBrutaTotal = round2(selected.reduce((sum, item) => {
-            const taxa = Number(item.commission_rate) || DEFAULT_COMMISSION_RATE;
-            const imposto = Number(item.tax_rate) || 0;
-            const baseCalculo = (Number(item.gross_value) || 0) * (1 - (imposto / 100));
-            return sum + (baseCalculo * (taxa / 100));
+            return sum + calcTripCommission(item, commissionBase, DEFAULT_COMMISSION_RATE).commission;
         }, 0));
 
         const comissaoPagar = round2(Math.max(0, comissaoBrutaTotal - totalVales));
@@ -337,7 +340,7 @@ export default function Settlement() {
             qty: selected.length, 
             advancesForSelected 
         };
-    }, [selectedIds, viagens, pendingAdvances]);
+    }, [selectedIds, viagens, pendingAdvances, commissionBase]);
 
     // Bloco C: Instrução de Transição de Estado em Lote
     const executePaymentBatch = async () => {
@@ -375,10 +378,7 @@ export default function Settlement() {
                     const totalAdvancesApplied = round2(driverAdvances.reduce((sum, adv) => sum + (Number(adv.amount) || 0), 0));
 
                     const comissaoBrutaTotal = round2(driverTrips.reduce((sum, item) => {
-                        const taxa = Number(item.commission_rate) || DEFAULT_COMMISSION_RATE;
-                        const imposto = Number(item.tax_rate) || 0;
-                        const baseCalculo = (Number(item.gross_value) || 0) * (1 - (imposto / 100));
-                        return sum + (baseCalculo * (taxa / 100));
+                        return sum + calcTripCommission(item, commissionBase, DEFAULT_COMMISSION_RATE).commission;
                     }, 0));
 
                     const netPaid = round2(Math.max(0, comissaoBrutaTotal - totalTripDiscounts - totalAdvancesApplied));
