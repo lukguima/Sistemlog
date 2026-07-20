@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Droplet, Truck, Gauge, Send, CheckCircle2, LogOut, Loader2, Search, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { fleetService, driverService } from '../../lib/services';
+import { fleetService, driverService, isFuelDupOdometerError } from '../../lib/services';
 import { useNavigate } from 'react-router-dom';
 
 export default function PostoRefuel() {
@@ -92,7 +92,11 @@ export default function PostoRefuel() {
             setSuccess(true);
             setTimeout(() => { setSuccess(false); reset(); }, 2000);
         } catch (error: any) {
-            alert(error?.message || 'Erro ao registrar abastecimento.');
+            if (isFuelDupOdometerError(error)) {
+                alert(`${error.message}\n\nAbra a aba Abastecimento e ajuste o filtro de datas para a data do lançamento, ou peça ao admin para editar o registro.`);
+            } else {
+                alert(error?.message || 'Erro ao registrar abastecimento.');
+            }
         } finally {
             setSaving(false);
         }

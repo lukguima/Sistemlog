@@ -651,27 +651,86 @@ export const preventiveTypesService = {
     }
 };
 
+export class FuelDupOdometerError extends Error {
+    readonly code = 'FUEL_DUP_ODOMETER' as const;
+    readonly existing: {
+        id: string;
+        created_at: string;
+        odometer: number | null;
+        liters: number | null;
+        total_value: number | null;
+        vehicle_id: string | null;
+        vehicle?: { plate?: string } | null;
+    };
+
+    constructor(existing: FuelDupOdometerError['existing']) {
+        const plate = existing.vehicle?.plate || '—';
+        const day = existing.created_at?.slice(0, 10);
+        const dateBr = day
+            ? (() => { const [y, m, d] = day.split('-'); return `${d}/${m}/${y}`; })()
+            : '—';
+        const km = existing.odometer != null ? Number(existing.odometer) : '—';
+        super(`Já existe abastecimento para ${plate} em ${dateBr} com hodômetro ${km} km.`);
+        this.name = 'FuelDupOdometerError';
+        this.existing = existing;
+    }
+}
+
+export function isFuelDupOdometerError(e: unknown): e is FuelDupOdometerError {
+    return !!e && typeof e === 'object' && (e as any).code === 'FUEL_DUP_ODOMETER';
+}
+
 export const driverService = {
     async addFuelRecord(record: any) {
         // Impede duplicata: mesmo veículo + mesmo odômetro + mesma empresa
         if (record.vehicle_id && record.odometer && record.company_id) {
             const { data: dup } = await supabase
                 .from('fuel_records')
-                .select('id')
+                .select('id, created_at, odometer, liters, total_value, vehicle_id, vehicle:vehicles(plate)')
                 .eq('vehicle_id', record.vehicle_id)
                 .eq('odometer', record.odometer)
                 .eq('company_id', record.company_id)
                 .limit(1)
                 .maybeSingle();
-            if (dup) throw new Error(`Já existe um abastecimento registrado para este veículo com hodômetro ${record.odometer} km.`);
+            if (dup) throw new FuelDupOdometerError(dup as FuelDupOdometerError['existing']);
         }
         const { data, error } = await supabase
             .from('fuel_records')
             .insert([record])
-            .select()
+            .select('*, vehicle:vehicles(plate)')
+            .single();
+        if (error) {
+            // Fallback: constraint UNIQUE no banco
+            if (error.code === '23505' && record.vehicle_id && record.odometer && record.company_id) {
+                const existing = await this.getFuelRecordByVehicleOdometer(
+                    record.company_id, record.vehicle_id, record.odometer
+                );
+                if (existing) throw new FuelDupOdometerError(existing);
+            }
+            throw error;
+        }
+        return data;
+    },
+    async getFuelRecordById(id: string) {
+        const { data, error } = await supabase
+            .from('fuel_records')
+            .select('*, vehicle:vehicles(plate), driver:drivers(name)')
+            .eq('id', id)
             .single();
         if (error) throw error;
         return data;
+    },
+    async getFuelRecordByVehicleOdometer(companyId: string, vehicleId: string, odometer: number) {
+        const { data, error } = await supabase
+            .from('fuel_records')
+            .select('id, created_at, odometer, liters, total_value, vehicle_id, vehicle:vehicles(plate)')
+            .eq('company_id', companyId)
+            .eq('vehicle_id', vehicleId)
+            .eq('odometer', odometer)
+            .limit(1)
+            .maybeSingle();
+        if (error) throw error;
+        return data as FuelDupOdometerError['existing'] | null;
     },
     async getLastFuelRecord(vehicleId: string) {
         const { data, error } = await supabase

@@ -68,9 +68,13 @@ export default function NewRefuel() {
 
             alert("Abastecimento registrado com sucesso!");
             navigate('/driver/home');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving fuel record:', error);
-            alert("Erro ao salvar abastecimento.");
+            if (error?.code === 'FUEL_DUP_ODOMETER') {
+                alert(error.message || 'Já existe abastecimento com este hodômetro.');
+            } else {
+                alert(error?.message || 'Erro ao salvar abastecimento.');
+            }
         }
     }
 

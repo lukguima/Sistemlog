@@ -1,6 +1,6 @@
 import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { driverService, fleetService, supplierService } from '../../lib/services';
+import { driverService, fleetService, supplierService, isFuelDupOdometerError } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 
 import FuelModal from '../../components/admin/FuelModal.tsx';
@@ -20,6 +20,26 @@ export default function Fuel() {
     const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [filterPlate, setFilterPlate] = useState('');
     const [filterDriver, setFilterDriver] = useState('');
+    const [highlightId, setHighlightId] = useState<string | null>(null);
+
+    const openExistingFuel = async (existingId: string, createdAt?: string) => {
+        try {
+            const full = await driverService.getFuelRecordById(existingId);
+            const day = (createdAt || full.created_at || '').slice(0, 10);
+            if (day) {
+                if (day < startDate) setStartDate(day);
+                if (day > endDate) setEndDate(day);
+            }
+            setFilterPlate('');
+            setFilterDriver('');
+            setHighlightId(existingId);
+            setEditingRecord(full);
+            setIsModalOpen(true);
+        } catch (e) {
+            console.error('Erro ao abrir abastecimento existente:', e);
+            alert('Não foi possível abrir o lançamento existente.');
+        }
+    };
 
     const loadData = async () => {
         if (!user?.company_id) return;
@@ -98,8 +118,18 @@ export default function Fuel() {
             loadData();
             setIsModalOpen(false);
             setEditingRecord(null);
+            setHighlightId(null);
         } catch (error: any) {
             console.error('Erro ao salvar abastecimento:', error);
+            if (isFuelDupOdometerError(error)) {
+                const open = confirm(
+                    `${error.message}\n\nDeseja abrir o lançamento existente para revisar/editar?`
+                );
+                if (open) {
+                    await openExistingFuel(error.existing.id, error.existing.created_at);
+                }
+                return;
+            }
             alert(`Erro ao salvar abastecimento: ${error.message || 'Erro desconhecido'}`);
         }
     };
@@ -237,6 +267,7 @@ export default function Fuel() {
                             <tr className="bg-white">
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Veículo</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hodômetro</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motorista</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Diesel (L)</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Diesel</th>
@@ -256,13 +287,16 @@ export default function Fuel() {
                                 });
                                 if (filtered.length === 0) return (
                                     <tr>
-                                        <td colSpan={9} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                        <td colSpan={10} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
                                             Nenhum abastecimento encontrado
                                         </td>
                                     </tr>
                                 );
                                 return filtered.map((r: any) => (
-                                    <tr key={r.id} className="hover:bg-slate-50/10 transition-colors group">
+                                    <tr
+                                        key={r.id}
+                                        className={`hover:bg-slate-50/10 transition-colors group ${highlightId === r.id ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : ''}`}
+                                    >
                                         <td className="px-6 py-5 text-slate-500 text-sm">
                                             {(() => { const [y,m,d] = r.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })()}
                                         </td>
@@ -279,6 +313,11 @@ export default function Fuel() {
                                                     <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
                                                 )}
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
+                                            {r.odometer != null
+                                                ? `${Number(r.odometer).toLocaleString('pt-BR')} km`
+                                                : <span className="text-slate-300">—</span>}
                                         </td>
                                         <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
                                         <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
@@ -326,7 +365,7 @@ export default function Fuel() {
 
             <FuelModal
                 isOpen={isModalOpen}
-                onClose={() => { setIsModalOpen(false); setEditingRecord(null); }}
+                onClose={() => { setIsModalOpen(false); setEditingRecord(null); setHighlightId(null); }}
                 onSave={handleSave}
                 vehicles={vehicles}
                 drivers={drivers}
