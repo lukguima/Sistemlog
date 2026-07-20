@@ -8,7 +8,6 @@ import {
 } from '../../lib/docReader';
 import {
     isDacteText, parseDacteText, ensureDacteFromFilename, looksLikeDacteFilename,
-    parseDacteHintsFromFilename,
     matchVehicleByPlate, matchDriver, buildTripValueFields,
     type DacteParseResult,
 } from '../../lib/dacteReader';
@@ -212,16 +211,7 @@ export default function Documents() {
 
                 // Modo Viagens: sempre caminho de viagem (mesmo com texto fraco)
                 if (uploadMode === 'trip') {
-                    let parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
-                    if (!parsed.isDacte) {
-                        const hints = parseDacteHintsFromFilename(file.name);
-                        parsed = {
-                            ...parsed,
-                            isDacte: true,
-                            accessKey: parsed.accessKey || hints.accessKey,
-                            cteNumber: parsed.cteNumber || hints.cteNumber,
-                        };
-                    }
+                    const parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
                     const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
                     tripBatch.push(buildTripImport(file, parsed, i, partial));
                     continue;
@@ -229,11 +219,10 @@ export default function Documents() {
 
                 // Automático: DACTe por texto ou nome (força viagem se nome bater)
                 if (isDacteText(text) || nameIsDacte) {
-                    let parsed = parseDacteText(text);
-                    const wasEmpty = !parsed.isDacte;
-                    parsed = ensureDacteFromFilename(file.name, parsed);
+                    const parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
                     if (parsed.isDacte) {
-                        tripBatch.push(buildTripImport(file, parsed, i, wasEmpty || (nameIsDacte && !isDacteText(text))));
+                        const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
+                        tripBatch.push(buildTripImport(file, parsed, i, partial));
                         continue;
                     }
                 }

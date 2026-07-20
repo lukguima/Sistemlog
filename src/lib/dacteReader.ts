@@ -48,8 +48,9 @@ export function parseBrMoney(s: string): number | null {
 export function isDacteText(text: string): boolean {
     const t = norm(text);
     return /\bDACTE\b/.test(t)
-        || /DOCUMENTO AUXILIAR DO\s+CONHECIMENTO DE TRANSPORTE/.test(t)
-        || /\bCT-?E\b/.test(t) && /CHAVE DE ACESSO/.test(t);
+        || /DACTE/.test(t)
+        || /DOCUMENTO AUXILIAR DO\s*CONHECIMENTO DE TRANSPORTE/.test(t)
+        || (/\bCT-?E\b/.test(t) && (/CHAVE DE ACESSO/.test(t) || /N[ºO°]?\s*DOCUMENTO/.test(t)));
 }
 
 /** Nome do arquivo sugere DACTe / CT-e (ex.: ...-DACTe.pdf) */
@@ -59,7 +60,8 @@ export function looksLikeDacteFilename(fileName: string): boolean {
 
 /** Extrai chave de 44 dígitos e número do CT-e a partir do nome do arquivo */
 export function parseDacteHintsFromFilename(fileName: string): { accessKey: string | null; cteNumber: string | null } {
-    const key = (fileName.match(/\b(\d{44})\b/) || [])[1] || null;
+    // Sem \b: nomes como "terceiro412607...4200...-DACTe.pdf" grudam letras na chave
+    const key = (fileName.match(/(\d{44})/) || [])[1] || null;
     if (!key) return { accessKey: null, cteNumber: null };
     const cteNumber = key.slice(25, 34).replace(/^0+/, '') || null;
     return { accessKey: key, cteNumber };
@@ -67,11 +69,12 @@ export function parseDacteHintsFromFilename(fileName: string): { accessKey: stri
 
 /**
  * Garante isDacte=true quando o nome do arquivo indica DACTe,
- * mesmo se o texto do PDF veio vazio/fraco no browser.
+ * e completa CT-e/chave mesmo se o texto do PDF veio vazio/fraco no browser.
  */
 export function ensureDacteFromFilename(fileName: string, parsed: DacteParseResult): DacteParseResult {
-    if (parsed.isDacte || !looksLikeDacteFilename(fileName)) return parsed;
     const hints = parseDacteHintsFromFilename(fileName);
+    const force = looksLikeDacteFilename(fileName) || !!hints.accessKey;
+    if (!force) return parsed;
     return {
         ...parsed,
         isDacte: true,
@@ -94,7 +97,7 @@ function extractCteNumber(t: string): string | null {
     m = t.match(/S[ÉE]RIE\s+(\d{1,3})\s+(\d{1,9})\s+N[ÚU]MERO/i);
     if (m) return m[2];
     // Chave de acesso: posições 26-34 = número do CT-e (9 dígitos)
-    m = t.match(/\b(\d{44})\b/);
+    m = t.match(/(\d{44})/);
     if (m) {
         const num = m[1].slice(25, 34).replace(/^0+/, '');
         return num || null;
@@ -259,7 +262,7 @@ export function parseDacteText(rawText: string): DacteParseResult {
 
     const { origin, destination } = extractOriginDest(rawText);
     const { name: driverName, cpf: driverCpf } = extractDriver(rawText);
-    const accessKey = (rawText.match(/\b(\d{44})\b/) || [])[1] || null;
+    const accessKey = (rawText.match(/(\d{44})/) || [])[1] || null;
 
     const freightValue =
         extractMoneyAfter(rawText, /VALOR TOTAL DO SERVI[ÇC]O/i)

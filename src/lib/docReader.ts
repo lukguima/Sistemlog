@@ -8,8 +8,12 @@
 import * as pdfjs from 'pdfjs-dist';
 // @ts-ignore — worker via URL (Vite)
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// @ts-ignore — pasta de fontes padrão (Vite)
+import liberationRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+
+const STANDARD_FONT_DATA_URL = String(liberationRegularUrl).replace(/LiberationSans-Regular\.ttf(\?.*)?$/i, '');
 
 export type DocTypeKey =
     | 'crlv' | 'antt' | 'civ' | 'tacografo' | 'cipp' | 'afericao'
@@ -140,22 +144,51 @@ export function parseFilename(fileName: string): FilenameParse {
     return result;
 }
 
+function pageTextFromContent(content: { items: Array<{ str?: string; hasEOL?: boolean }> }): string {
+    let out = '';
+    for (const it of content.items as any[]) {
+        out += it.str ?? '';
+        if (it.hasEOL) out += '\n';
+        else if (it.str) out += ' ';
+    }
+    return out;
+}
+
+async function readPdfPages(data: Uint8Array, opts: Record<string, unknown> = {}): Promise<string> {
+    const pdf = await pdfjs.getDocument({
+        data: data.slice(),
+        useSystemFonts: true,
+        standardFontDataUrl: STANDARD_FONT_DATA_URL,
+        ...opts,
+    }).promise;
+    let text = '';
+    const maxPages = Math.min(pdf.numPages, 5);
+    for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += pageTextFromContent(content) + '\n';
+    }
+    return text;
+}
+
 /** Extrai o texto completo de um PDF (todas as páginas) */
 export async function extractPdfText(file: File): Promise<string> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
     try {
-        const buf = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument({ data: buf }).promise;
-        let text = '';
-        const maxPages = Math.min(pdf.numPages, 5);
-        for (let i = 1; i <= maxPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            text += content.items.map((it: any) => it.str ?? '').join(' ') + '\n';
-        }
-        return text;
+        return await readPdfPages(bytes);
     } catch (e) {
-        console.warn('Falha ao extrair texto do PDF:', e);
-        return '';
+        console.warn('Falha ao extrair texto do PDF (worker); tentando na thread principal:', e);
+        try {
+            const prev = pdfjs.GlobalWorkerOptions.workerSrc;
+            // Força fallback sem worker quando o worker falha no browser
+            (pdfjs.GlobalWorkerOptions as { workerSrc: string }).workerSrc = '';
+            const text = await readPdfPages(bytes, { disableWorker: true });
+            pdfjs.GlobalWorkerOptions.workerSrc = prev;
+            return text;
+        } catch (e2) {
+            console.warn('Falha ao extrair texto do PDF:', e2);
+            return '';
+        }
     }
 }
 
