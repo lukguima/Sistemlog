@@ -214,7 +214,79 @@ export const tripService = {
         if (error) throw error;
         return data;
     },
+    /**
+     * Exclui a viagem do sistema inteiro:
+     * - remove/atualiza settlements (trips_ids)
+     * - reabre vales se o acerto ficar vazio
+     * - apaga financial_transactions e accounts_receivable com trip_id
+     * - apaga accounts_payable de agregado com "Viagem ID: …"
+     * - por fim apaga a linha em trips
+     */
     async deleteTrip(id: string) {
+        // 1) Ajustar/remover fechamentos de acerto que referenciam esta viagem
+        const { data: settlements, error: sErr } = await supabase
+            .from('settlements')
+            .select('*')
+            .contains('trips_ids', [id]);
+        if (sErr) throw sErr;
+
+        for (const settlement of settlements || []) {
+            const remaining: string[] = (settlement.trips_ids || []).filter((tid: string) => tid !== id);
+            if (remaining.length === 0) {
+                const advIds: string[] = settlement.advances_ids || [];
+                if (advIds.length > 0) {
+                    await supabase
+                        .from('driver_advances')
+                        .update({ status: 'pending' })
+                        .in('id', advIds)
+                        .eq('status', 'settled');
+                }
+                const { error: delSetErr } = await supabase
+                    .from('settlements')
+                    .delete()
+                    .eq('id', settlement.id);
+                if (delSetErr) throw delSetErr;
+            } else {
+                const { error: updErr } = await supabase
+                    .from('settlements')
+                    .update({ trips_ids: remaining })
+                    .eq('id', settlement.id);
+                if (updErr) throw updErr;
+                // Recalcula totais com as viagens restantes (ainda existem no banco)
+                await settlementService.recalculateSettlementForTrip(remaining[0]);
+            }
+        }
+
+        // 2) Lançamentos financeiros e contas a receber vinculados
+        const { error: ftErr } = await supabase
+            .from('financial_transactions')
+            .delete()
+            .eq('trip_id', id);
+        if (ftErr) throw ftErr;
+
+        const { error: arErr } = await supabase
+            .from('accounts_receivable')
+            .delete()
+            .eq('trip_id', id);
+        if (arErr) throw arErr;
+
+        // 3) Contas a pagar de agregado (notes: "Viagem ID: <uuid>")
+        const { data: payables } = await supabase
+            .from('accounts_payable')
+            .select('id, notes')
+            .ilike('notes', `%Viagem ID: ${id}%`);
+        const payableIds = (payables || [])
+            .filter((p: any) => String(p.notes || '').includes(`Viagem ID: ${id}`))
+            .map((p: any) => p.id);
+        if (payableIds.length > 0) {
+            const { error: apErr } = await supabase
+                .from('accounts_payable')
+                .delete()
+                .in('id', payableIds);
+            if (apErr) throw apErr;
+        }
+
+        // 4) Viagem
         const { error } = await supabase
             .from('trips')
             .delete()

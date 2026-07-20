@@ -231,7 +231,7 @@ export default function Trips() {
     };
 
     const handleDeleteTrip = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir esta viagem?")) return;
+        if (!confirm('Excluir esta viagem remove também acerto, financeiro e contas ligadas a ela em todo o sistema. Continuar?')) return;
         try {
             await tripService.deleteTrip(id);
             setTrips(trips.filter(t => t.id !== id));

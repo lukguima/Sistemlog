@@ -305,8 +305,8 @@ export default function Settlement() {
     const handleDeleteTrip = async (trip: any) => {
         const isPaid = trip.status?.toLowerCase() === 'paid';
         const msg = isPaid
-            ? 'Esta viagem está marcada como Paga. Excluir remove o frete do acerto. Continuar?'
-            : 'Tem certeza que deseja excluir esta viagem?';
+            ? 'Esta viagem está Paga. Excluir remove o frete, o acerto vinculado, lançamentos financeiros e contas geradas. Continuar?'
+            : 'Excluir esta viagem remove também acerto, financeiro e contas ligadas a ela. Continuar?';
         if (!confirm(msg)) return;
         try {
             await tripService.deleteTrip(trip.id);
