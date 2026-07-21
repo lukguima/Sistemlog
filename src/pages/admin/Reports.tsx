@@ -163,32 +163,40 @@ export default function Reports() {
 
                     {/* Chart Illustration */}
                     <div className="relative w-full h-[250px] mb-4">
-                        <ResponsiveContainer width="100%" height={250}>
-                            <PieChart>
-                                <Pie
-                                    data={costDistribution}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {costDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip
-                                    contentStyle={{ backgroundColor: '#1E293B', borderColor: '#334155', borderRadius: '12px', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    formatter={(value: any) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <span className="text-2xl font-black text-white">100%</span>
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Custo Total</span>
-                        </div>
+                        {costDistribution.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-slate-500 text-sm font-medium">
+                                Sem dados.
+                            </div>
+                        ) : (
+                            <>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <PieChart>
+                                        <Pie
+                                            data={costDistribution}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {costDistribution.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip
+                                            contentStyle={{ backgroundColor: '#1E293B', borderColor: '#334155', borderRadius: '12px', color: '#fff' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            formatter={(value: any) => `R$ ${Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                    <span className="text-2xl font-black text-white">100%</span>
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Custo Total</span>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="w-full grid grid-cols-2 gap-4 text-left">

@@ -2,7 +2,7 @@ import { TrendingUp, Truck, Wrench, Fuel, Download, ChevronLeft, ChevronRight, A
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { financeService, tripService, dashboardService, maintenanceService } from '../../lib/services';
+import { financeService, tripService, dashboardService, maintenanceService, settlementService } from '../../lib/services';
 import { exportMultipleSheetsToExcel } from '../../lib/exports';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import FreightSimulatorModal from '../../components/admin/FreightSimulatorModal';
@@ -66,6 +66,17 @@ export default function AdminDashboard() {
                 }
                 const startDate = start.toISOString().split('T')[0];
                 const endDate = end.toISOString().split('T')[0];
+
+                // Limpa settlements órfãos uma vez por sessão (exclusões antigas sem cascata)
+                try {
+                    const purgeKey = `purge_settlements_${companyId}`;
+                    if (!sessionStorage.getItem(purgeKey)) {
+                        await settlementService.purgeOrphanSettlements(companyId);
+                        sessionStorage.setItem(purgeKey, '1');
+                    }
+                } catch (e) {
+                    console.warn('purgeOrphanSettlements:', e);
+                }
 
                 const [kpisRes, tripsRes, trucksRes, driversRes, alertsRes, costRes] = await Promise.allSettled([
                     financeService.getKpis(companyId, startDate, endDate),
@@ -452,29 +463,37 @@ export default function AdminDashboard() {
                             <TrendingUp size={20} className="text-blue-500" /> Composição de Custos
                         </h3>
                         <p className="text-xs text-slate-500 self-start mb-6">Onde seu dinheiro está aplicado</p>
-                        <div className="h-[220px] w-full flex-1">
-                            <ResponsiveContainer width="100%" height={220}>
-                                <PieChart>
-                                    <Pie data={costDist} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
-                                        {costDist.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip formatter={(value: any) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="grid grid-cols-1 w-full gap-2 mt-4 text-[13px]">
-                            {costDist.map((item, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                                        <span className="font-semibold text-slate-600 dark:text-slate-400">{item.label}</span>
-                                    </div>
-                                    <span className="font-bold">{item.percentage.toFixed(1)}%</span>
+                        {costDist.length === 0 ? (
+                            <div className="h-[220px] w-full flex-1 flex items-center justify-center text-slate-400 text-sm font-medium">
+                                Sem dados.
+                            </div>
+                        ) : (
+                            <>
+                                <div className="h-[220px] w-full flex-1">
+                                    <ResponsiveContainer width="100%" height={220}>
+                                        <PieChart>
+                                            <Pie data={costDist} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
+                                                {costDist.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: any) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="grid grid-cols-1 w-full gap-2 mt-4 text-[13px]">
+                                    {costDist.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                                                <span className="font-semibold text-slate-600 dark:text-slate-400">{item.label}</span>
+                                            </div>
+                                            <span className="font-bold">{item.percentage.toFixed(1)}%</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Column 3: Alerts & Maintenance */}

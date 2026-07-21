@@ -413,6 +413,69 @@ export const settlementService = {
                 .update({ total_gross: totalGross, net_paid: netPaid })
                 .eq('id', settlement.id);
         }
+    },
+
+    /**
+     * Remove settlements cujos trips_ids não existem mais (órfãos de exclusões antigas)
+     * e recalcula os que ainda têm viagens válidas.
+     */
+    async purgeOrphanSettlements(companyId?: string) {
+        let query = supabase.from('settlements').select('id, company_id, trips_ids, total_advances_applied, total_trip_discounts');
+        if (companyId) query = query.eq('company_id', companyId);
+        const { data: settlements, error } = await query;
+        if (error) throw error;
+        if (!settlements?.length) return { deleted: 0, updated: 0 };
+
+        let deleted = 0;
+        let updated = 0;
+
+        for (const settlement of settlements) {
+            const tripIds: string[] = settlement.trips_ids || [];
+            if (tripIds.length === 0) {
+                await supabase.from('settlements').delete().eq('id', settlement.id);
+                deleted += 1;
+                continue;
+            }
+
+            const { data: existingTrips } = await supabase
+                .from('trips')
+                .select('id, company_id, gross_value, commission_rate, tax_rate, icms_value, tolls_value, insurance_value, estimated_cost, loading_cost, unloading_cost')
+                .in('id', tripIds);
+
+            const alive = existingTrips || [];
+            if (alive.length === 0) {
+                await supabase.from('settlements').delete().eq('id', settlement.id);
+                deleted += 1;
+                continue;
+            }
+
+            const aliveIds = alive.map((t: any) => t.id);
+            const hadGhosts = aliveIds.length !== tripIds.length;
+
+            let baseMode = normalizeCommissionBase('net_tax');
+            const cid = alive[0]?.company_id || settlement.company_id;
+            if (cid) {
+                try {
+                    const s = await settingsService.getSettings(cid);
+                    baseMode = normalizeCommissionBase(s?.commission_base);
+                } catch { /* default */ }
+            }
+
+            const round2 = (n: number) => Math.round(n * 100) / 100;
+            const totalGross = alive.reduce((acc: number, t: any) => acc + (Number(t.gross_value) || 0), 0);
+            const totalCommission = alive.reduce((acc: number, t: any) => {
+                return acc + calcTripCommission(t, baseMode, 12).commission;
+            }, 0);
+            const netPaid = round2(Math.max(0, totalCommission - (Number(settlement.total_advances_applied) || 0) - (Number(settlement.total_trip_discounts) || 0)));
+
+            await supabase
+                .from('settlements')
+                .update({ trips_ids: aliveIds, total_gross: totalGross, net_paid: netPaid })
+                .eq('id', settlement.id);
+            if (hadGhosts) updated += 1;
+        }
+
+        return { deleted, updated };
     }
 };
 
@@ -1918,57 +1981,73 @@ export const dashboardService = {
            .from('maintenance')
            .select('cost, date')
            .eq('company_id', companyId);
-       
+
+        // Vales liquidados (status histórico inconsistente: settled | paid)
         let advancesQuery = supabase
            .from('driver_advances')
-           .select('amount, created_at')
+           .select('amount, created_at, status')
            .eq('company_id', companyId)
-           .eq('status', 'paid');
+           .in('status', ['settled', 'paid']);
 
-        let settlementsQuery = supabase
-           .from('settlements')
-           .select('net_paid, settlement_date')
+        // Comissão alinhada aos KPIs: viagens reais do período (não settlements órfãos)
+        let tripsQuery = supabase
+           .from('trips')
+           .select('gross_value, commission_rate, tax_rate, icms_value, tolls_value, insurance_value, estimated_cost, loading_cost, unloading_cost, status')
            .eq('company_id', companyId)
-           .eq('status', 'paid');
+           .in('status', ['completed', 'paid']);
 
         if (startDate) {
             fuelQuery = fuelQuery.gte('created_at', startDate);
             maintenanceQuery = maintenanceQuery.gte('date', startDate);
             advancesQuery = advancesQuery.gte('created_at', startDate);
-            settlementsQuery = settlementsQuery.gte('settlement_date', startDate);
+            tripsQuery = tripsQuery.gte('created_at', startDate);
         }
         if (endDate) {
-            fuelQuery = fuelQuery.lte('created_at', endDate);
+            fuelQuery = fuelQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
             maintenanceQuery = maintenanceQuery.lte('date', endDate);
-            advancesQuery = advancesQuery.lte('created_at', endDate);
-            settlementsQuery = settlementsQuery.lte('settlement_date', endDate);
+            advancesQuery = advancesQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
+            tripsQuery = tripsQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
         }
 
-        const [{ data: fuel, error: fError }, { data: maintenance, error: mError }, { data: advances, error: aError }, { data: settlements }] = await Promise.all([
+        const [
+            { data: fuel, error: fError },
+            { data: maintenance, error: mError },
+            { data: advances, error: aError },
+            { data: trips, error: tError },
+        ] = await Promise.all([
             fuelQuery,
             maintenanceQuery,
             advancesQuery,
-            settlementsQuery
+            tripsQuery,
         ]);
 
-        if (fError || mError || aError) throw fError || mError || aError;
+        if (fError || mError || aError || tError) throw fError || mError || aError || tError;
+
+        let commissionBase = normalizeCommissionBase('net_tax');
+        try {
+            const s = await settingsService.getSettings(companyId);
+            commissionBase = normalizeCommissionBase(s?.commission_base);
+        } catch { /* default */ }
+
         const fuelTotal = fuel?.reduce((acc, f) => acc + (Number(f.total_value) || 0), 0) || 0;
         const arlaTotal = fuel?.reduce((acc, f) => acc + (Number((f as any).arla_value) || 0), 0) || 0;
         const maintenanceTotal = maintenance?.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0) || 0;
         const advancesTotal = advances?.reduce((acc, a) => acc + (Number(a.amount) || 0), 0) || 0;
-        const commissionsTotal = settlements?.reduce((acc, s) => acc + (Number(s.net_paid) || 0), 0) || 0;
+        const commissionsTotal = trips?.reduce((acc, t) => {
+            return acc + calcTripCommission(t, commissionBase).commission;
+        }, 0) || 0;
         const laborTotal = advancesTotal + commissionsTotal;
 
         const total = fuelTotal + arlaTotal + maintenanceTotal + laborTotal;
+        if (total <= 0) return [];
 
         const items = [
-           { label: 'Diesel', value: fuelTotal, percentage: total ? (fuelTotal / total) * 100 : 0, color: '#2563EB' },
-           { label: 'ARLA 32', value: arlaTotal, percentage: total ? (arlaTotal / total) * 100 : 0, color: '#0D9488' },
-           { label: 'Manutenção', value: maintenanceTotal, percentage: total ? (maintenanceTotal / total) * 100 : 0, color: '#F43F5E' },
-           { label: 'Pessoal', value: laborTotal, percentage: total ? (laborTotal / total) * 100 : 0, color: '#10B981' },
+           { label: 'Diesel', value: fuelTotal, percentage: (fuelTotal / total) * 100, color: '#2563EB' },
+           { label: 'ARLA 32', value: arlaTotal, percentage: (arlaTotal / total) * 100, color: '#0D9488' },
+           { label: 'Manutenção', value: maintenanceTotal, percentage: (maintenanceTotal / total) * 100, color: '#F43F5E' },
+           { label: 'Pessoal', value: laborTotal, percentage: (laborTotal / total) * 100, color: '#10B981' },
         ];
-        // Omite ARLA do gráfico se não houver lançamentos de ARLA
-        return arlaTotal > 0 ? items : items.filter(i => i.label !== 'ARLA 32');
+        return items.filter(i => i.value > 0);
     }
 };
 
