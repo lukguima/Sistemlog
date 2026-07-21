@@ -67,12 +67,15 @@ export default function AdminDashboard() {
                 const startDate = start.toISOString().split('T')[0];
                 const endDate = end.toISOString().split('T')[0];
 
-                // Limpa settlements órfãos uma vez por sessão (exclusões antigas sem cascata)
+                // Limpa settlements órfãos em background (não bloqueia o paint do Dashboard)
                 try {
                     const purgeKey = `purge_settlements_${companyId}`;
                     if (!sessionStorage.getItem(purgeKey)) {
-                        await settlementService.purgeOrphanSettlements(companyId);
                         sessionStorage.setItem(purgeKey, '1');
+                        void settlementService.purgeOrphanSettlements(companyId).catch((e) => {
+                            console.warn('purgeOrphanSettlements:', e);
+                            sessionStorage.removeItem(purgeKey);
+                        });
                     }
                 } catch (e) {
                     console.warn('purgeOrphanSettlements:', e);
@@ -80,7 +83,7 @@ export default function AdminDashboard() {
 
                 const [kpisRes, tripsRes, trucksRes, driversRes, alertsRes, costRes] = await Promise.allSettled([
                     financeService.getKpis(companyId, startDate, endDate),
-                    tripService.getTrips(companyId, startDate, endDate),
+                    tripService.getRecentTrips(companyId, startDate, endDate, 5),
                     dashboardService.getTruckProfitability(companyId, startDate, endDate),
                     dashboardService.getDriverEfficiency(companyId, startDate, endDate),
                     dashboardService.getSystemAlerts(companyId),
@@ -90,7 +93,7 @@ export default function AdminDashboard() {
                 if (kpisRes.status === 'fulfilled') setKpis(kpisRes.value);
                 else console.error('Error getKpis:', kpisRes.reason);
 
-                if (tripsRes.status === 'fulfilled') setTrips(tripsRes.value.slice(0, 5));
+                if (tripsRes.status === 'fulfilled') setTrips(tripsRes.value);
                 else console.error('Error getTrips:', tripsRes.reason);
 
                 if (trucksRes.status === 'fulfilled') setTruckProfitability(trucksRes.value.slice(0, 5));
@@ -560,7 +563,7 @@ export default function AdminDashboard() {
                                         <tr key={f.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-6 py-4">
                                                 <div className="font-bold text-slate-800 dark:text-slate-200">{f.cargo_description || 'Frete Geral'}</div>
-                                                <div className="text-xs text-slate-500 mt-0.5">{f.origin_city} → {f.destination_city}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">{f.origin || f.origin_city} → {f.destination || f.destination_city}</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <button 

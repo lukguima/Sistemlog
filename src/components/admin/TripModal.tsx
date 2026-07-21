@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
-import { fixedRouteService, settingsService, agregadoService } from '../../lib/services';
+import { fixedRouteService, settingsService, agregadoService, tripService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
 
@@ -31,6 +31,9 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const { user } = useAuth();
     const companyId = (user as any)?.company_id;
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
+    const [recentPairs, setRecentPairs] = useState<{ origin: string; destination: string; count: number }[]>([]);
+    const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+    const [routePick, setRoutePick] = useState('');
     const [agregados, setAgregados] = useState<any[]>([]);
     const isEditing = !!initialData;
     // Separa cavalos/caminhões (para o campo Veículo) dos implementos
@@ -124,7 +127,10 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     useEffect(() => {
         if (isOpen && companyId) {
-            fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes);
+            fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes).catch(() => setFixedRoutes([]));
+            tripService.getRecentRoutePairs(companyId).then(setRecentPairs).catch(() => setRecentPairs([]));
+            tripService.getCitySuggestions(companyId).then(setCitySuggestions).catch(() => setCitySuggestions([]));
+            setRoutePick('');
             agregadoService.getAll(companyId).then(setAgregados).catch(() => {});
             if (!isEditing) {
                 settingsService.getSettings(companyId).then(s => {
@@ -139,6 +145,40 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
             }
         }
     }, [isOpen, companyId]);
+
+    const routeOptions = useMemo(() => {
+        const opts: { key: string; label: string; origin: string; destination: string; freight_value?: number | string; kind: 'fixed' | 'recent' }[] = [];
+        const seen = new Set<string>();
+        for (const r of fixedRoutes) {
+            const origin = String(r.origin || '').trim();
+            const destination = String(r.destination || '').trim();
+            if (!origin || !destination) continue;
+            const norm = `${origin.toLowerCase()}→${destination.toLowerCase()}`;
+            seen.add(norm);
+            const val = parseFloat(String(r.freight_value));
+            opts.push({
+                key: `fixed:${r.id}`,
+                label: `${origin} → ${destination}${Number.isFinite(val) ? ` (R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})` : ''} · Fixo`,
+                origin,
+                destination,
+                freight_value: r.freight_value,
+                kind: 'fixed',
+            });
+        }
+        for (const p of recentPairs) {
+            const norm = `${p.origin.toLowerCase()}→${p.destination.toLowerCase()}`;
+            if (seen.has(norm)) continue;
+            seen.add(norm);
+            opts.push({
+                key: `recent:${norm}`,
+                label: `${p.origin} → ${p.destination} · Usado ${p.count}x`,
+                origin: p.origin,
+                destination: p.destination,
+                kind: 'recent',
+            });
+        }
+        return opts;
+    }, [fixedRoutes, recentPairs]);
 
     // Auto-fill value based on fixed routes
     useEffect(() => {
@@ -203,35 +243,38 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         ))}
                     </div>
 
-                    {/* Seleção de Trecho Fixo (Opcional) */}
-                    {!initialData && fixedRoutes.length > 0 && (
+                    {/* Seleção de Trecho (fixos + recentes) */}
+                    {!initialData && (
                         <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 mb-2">
-                            <label className={`${labelStyle} text-blue-600`}>Usar Trecho Fixo (Opcional)</label>
+                            <label className={`${labelStyle} text-blue-600`}>Usar Trecho (Opcional)</label>
                             <select
                                 className={`${inputStyle} border-blue-200 focus:ring-blue-500/30`}
+                                value={routePick}
                                 onChange={e => {
-                                    const routeId = e.target.value;
-                                    if (!routeId) return;
-                                    const route = fixedRoutes.find(r => r.id === routeId);
+                                    const key = e.target.value;
+                                    setRoutePick(key);
+                                    if (!key) return;
+                                    const route = routeOptions.find(r => r.key === key);
                                     if (route) {
                                         setFormData({
                                             origin: route.origin,
                                             destination: route.destination,
-                                            value: route.freight_value,
-                                            freight_total: '',
+                                            ...(route.kind === 'fixed' && route.freight_value != null
+                                                ? { value: String(route.freight_value), freight_total: '' }
+                                                : {}),
                                         });
                                     }
                                 }}
                             >
-                                <option value="">--- Selecione um trecho para carregar dados ---</option>
-                                {fixedRoutes.map(r => (
-                                    <option key={r.id} value={r.id}>
-                                        {r.origin} → {r.destination} (R$ {parseFloat(r.freight_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
-                                    </option>
+                                <option value="">--- Selecione um trecho para carregar origem e destino ---</option>
+                                {routeOptions.map(r => (
+                                    <option key={r.key} value={r.key}>{r.label}</option>
                                 ))}
                             </select>
                             <p className="text-[10px] text-blue-500 mt-2 ml-1">
-                                Selecionar um trecho preencherá automaticamente Origem, Destino e Valor.
+                                {routeOptions.length > 0
+                                    ? 'Trechos fixos preenchem também o valor. Rotas recentes vêm das viagens já lançadas.'
+                                    : 'Nenhum trecho ainda — digite as cidades abaixo ou cadastre em Trechos Fixos na tela de Viagens.'}
                             </p>
                         </div>
                     )}
@@ -385,10 +428,12 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <label className={labelStyle}>Cidade de Origem</label>
                             <input
                                 required
+                                list="trip-city-suggestions"
                                 className={inputStyle}
                                 placeholder="Cidade - UF"
                                 value={formData.origin}
-                                onChange={e => setFormData({ ...formData, origin: e.target.value })}
+                                onChange={e => setFormData({ origin: e.target.value })}
+                                autoComplete="off"
                             />
                         </div>
 
@@ -396,12 +441,19 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <label className={labelStyle}>Cidade de Destino</label>
                             <input
                                 required
+                                list="trip-city-suggestions"
                                 className={inputStyle}
                                 placeholder="Cidade - UF"
                                 value={formData.destination}
-                                onChange={e => setFormData({ ...formData, destination: e.target.value })}
+                                onChange={e => setFormData({ destination: e.target.value })}
+                                autoComplete="off"
                             />
                         </div>
+                        <datalist id="trip-city-suggestions">
+                            {citySuggestions.map(city => (
+                                <option key={city} value={city} />
+                            ))}
+                        </datalist>
                     </div>
 
                     {/* Data da Viagem e KM Inicial */}

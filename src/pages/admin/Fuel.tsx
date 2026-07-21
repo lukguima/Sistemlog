@@ -1,9 +1,15 @@
-import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets, Search } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets, Search, FileDown } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { driverService, fleetService, supplierService, isFuelDupOdometerError } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
+import { exportToPDF } from '../../lib/exports';
 
 import FuelModal from '../../components/admin/FuelModal.tsx';
+
+const fmtDateBr = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+};
 
 export default function Fuel() {
     const { user, isSubscriptionBlocked } = useAuth();
@@ -45,40 +51,48 @@ export default function Fuel() {
         if (!user?.company_id) return;
         try {
             setLoading(true);
-            const [fuelData, allFuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
+            const [fuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
                 driverService.getFuelRecords(user.company_id, startDate, endDate),
-                driverService.getFuelRecords(user.company_id), // todos os registros para calcular KM/L
                 fleetService.getVehicles(user.company_id),
                 fleetService.getDrivers(user.company_id),
                 supplierService.getSuppliers(user.company_id)
             ]);
-            // Calcula KM/L usando TODOS os registros (sem filtro de data) para ter registro anterior sempre disponível
-            const sorted = [...(allFuelData || [])].sort((a: any, b: any) => {
-                if (a.vehicle_id !== b.vehicle_id) return a.vehicle_id.localeCompare(b.vehicle_id);
+
+            const period = fuelData || [];
+            const vehicleIds = [...new Set(period.map((r: any) => r.vehicle_id).filter(Boolean))] as string[];
+            const odometers = await driverService.getFuelOdometersForVehicles(user.company_id, vehicleIds);
+
+            const sorted = [...odometers].sort((a: any, b: any) => {
+                if (a.vehicle_id !== b.vehicle_id) return String(a.vehicle_id).localeCompare(String(b.vehicle_id));
                 return (Number(a.odometer) || 0) - (Number(b.odometer) || 0);
             });
-            const kmPerLiterMap: Record<string, number | null> = {};
+            const prevById: Record<string, number | null> = {};
             for (let i = 0; i < sorted.length; i++) {
                 const r = sorted[i];
                 const prev = i > 0 && sorted[i - 1].vehicle_id === r.vehicle_id ? sorted[i - 1] : null;
-                const kmDelta = prev && Number(r.odometer) > Number(prev.odometer)
-                    ? Number(r.odometer) - Number(prev.odometer) : null;
-                const liters = Number(r.liters) || 0;
-                kmPerLiterMap[r.id] = kmDelta !== null && liters > 0 ? kmDelta / liters : null;
+                prevById[r.id] = prev ? Number(prev.odometer) : null;
             }
-            setKmPerLiterMap(kmPerLiterMap);
-            setRecords(fuelData || []);
-            // Implementos não abastecem — só cavalos/caminhões
+            const kmMap: Record<string, number | null> = {};
+            for (const r of period) {
+                const prevOdo = prevById[r.id];
+                const liters = Number(r.liters) || 0;
+                const cur = Number(r.odometer) || 0;
+                kmMap[r.id] = prevOdo != null && cur > prevOdo && liters > 0
+                    ? (cur - prevOdo) / liters
+                    : null;
+            }
+            setKmPerLiterMap(kmMap);
+            setRecords(period);
             setVehicles((vehiclesData || []).filter((v: any) => v.category !== 'implemento'));
             setDrivers(driversData || []);
             setSuppliers((suppliersData || []).filter((s: any) => s.category === 'Combustível'));
 
-            const totalLiters = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0);
-            const totalValue = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
-            const totalArlaLiters = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.arla_liters) || 0), 0);
-            const totalArlaValue = (fuelData || []).reduce((acc: number, r: any) => acc + (Number(r.arla_value) || 0), 0);
+            const totalLiters = period.reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0);
+            const totalValue = period.reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
+            const totalArlaLiters = period.reduce((acc: number, r: any) => acc + (Number(r.arla_liters) || 0), 0);
+            const totalArlaValue = period.reduce((acc: number, r: any) => acc + (Number(r.arla_value) || 0), 0);
 
-            setStats({ totalLiters, totalValue, count: (fuelData || []).length, totalArlaLiters, totalArlaValue });
+            setStats({ totalLiters, totalValue, count: period.length, totalArlaLiters, totalArlaValue });
         } catch (error) {
             console.error('Erro ao carregar abastecimentos:', error);
         } finally {
@@ -89,6 +103,63 @@ export default function Fuel() {
     useEffect(() => {
         if (user?.company_id) loadData();
     }, [user, startDate, endDate]);
+
+    const filteredRecords = useMemo(() => {
+        const plateQ = filterPlate.toLowerCase();
+        const driverQ = filterDriver.toLowerCase();
+        return records.filter(r => {
+            const plate = (r.vehicle?.plate || '').toLowerCase();
+            const driver = (r.driver?.name || '').toLowerCase();
+            return plate.includes(plateQ) && driver.includes(driverQ);
+        });
+    }, [records, filterPlate, filterDriver]);
+
+    const handleExportPDF = () => {
+        if (filteredRecords.length === 0) {
+            alert('Nenhum abastecimento no filtro.');
+            return;
+        }
+        const fmtMoney = (v: number) =>
+            new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+        const headers = [['Data', 'Veículo', 'Hodômetro', 'Motorista', 'Diesel (L)', 'Valor Diesel', 'ARLA (L)', 'Valor ARLA', 'Total']];
+        let totDieselL = 0, totDieselV = 0, totArlaL = 0, totArlaV = 0, totAll = 0;
+        const rows = filteredRecords.map((r: any) => {
+            const dieselL = Number(r.liters) || 0;
+            const dieselV = Number(r.total_value) || 0;
+            const arlaL = Number(r.arla_liters) || 0;
+            const arlaV = Number(r.arla_value) || 0;
+            const total = dieselV + arlaV;
+            totDieselL += dieselL;
+            totDieselV += dieselV;
+            totArlaL += arlaL;
+            totArlaV += arlaV;
+            totAll += total;
+            return [
+                fmtDateBr(r.created_at),
+                r.vehicle?.plate || '---',
+                r.odometer != null ? Number(r.odometer).toLocaleString('pt-BR') : '—',
+                r.driver?.name || '---',
+                dieselL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+                fmtMoney(dieselV),
+                arlaL ? arlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—',
+                arlaV ? fmtMoney(arlaV) : '—',
+                fmtMoney(total),
+            ];
+        });
+        rows.push([
+            'TOTAL',
+            '',
+            '',
+            '',
+            totDieselL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+            fmtMoney(totDieselV),
+            totArlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+            fmtMoney(totArlaV),
+            fmtMoney(totAll),
+        ]);
+        const title = `Abastecimentos — ${fmtDateBr(startDate)} a ${fmtDateBr(endDate)}`;
+        exportToPDF(title, headers, rows, `abastecimentos_${startDate}_${endDate}`);
+    };
 
     const handleSave = async (data: any) => {
         if (!user?.company_id) return;
@@ -157,19 +228,27 @@ export default function Fuel() {
 
     return (
         <div className="space-y-8 pb-12 font-display">
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end gap-3 flex-wrap">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900">Gestão de Abastecimentos</h1>
                     <p className="text-slate-500 mt-1 uppercase text-xs font-bold tracking-widest">Controle de consumo e gastos com combustível</p>
                 </div>
-                <button
-                    onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
-                    disabled={isSubscriptionBlocked}
-                    title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
-                    className="bg-primary-500 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-primary-600 transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    <Plus size={18} /> Novo Registro
-                </button>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={handleExportPDF}
+                        className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase hover:bg-slate-50 transition-colors"
+                    >
+                        <FileDown size={18} className="text-rose-500" /> PDF
+                    </button>
+                    <button
+                        onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
+                        disabled={isSubscriptionBlocked}
+                        title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
+                        className="bg-primary-500 text-black px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-primary-600 transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Plus size={18} /> Novo Registro
+                    </button>
+                </div>
             </div>
 
             {/* Stats cards */}
@@ -278,86 +357,77 @@ export default function Fuel() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {(() => {
-                                const filtered = records.filter(r => {
-                                    const plate = (r.vehicle?.plate || '').toLowerCase();
-                                    const driver = (r.driver?.name || '').toLowerCase();
-                                    return plate.includes(filterPlate.toLowerCase()) &&
-                                           driver.includes(filterDriver.toLowerCase());
-                                });
-                                if (filtered.length === 0) return (
-                                    <tr>
-                                        <td colSpan={10} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
-                                            Nenhum abastecimento encontrado
-                                        </td>
-                                    </tr>
-                                );
-                                return filtered.map((r: any) => (
-                                    <tr
-                                        key={r.id}
-                                        className={`hover:bg-slate-50/10 transition-colors group ${highlightId === r.id ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : ''}`}
-                                    >
-                                        <td className="px-6 py-5 text-slate-500 text-sm">
-                                            {(() => { const [y,m,d] = r.created_at.slice(0,10).split('-'); return `${d}/${m}/${y}`; })()}
-                                        </td>
-                                        <td className="px-6 py-5 font-black text-slate-900">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm w-fit">
-                                                    {r.vehicle?.plate || '---'}
+                            {filteredRecords.length === 0 ? (
+                                <tr>
+                                    <td colSpan={10} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                        Nenhum abastecimento encontrado
+                                    </td>
+                                </tr>
+                            ) : filteredRecords.map((r: any) => (
+                                <tr
+                                    key={r.id}
+                                    className={`hover:bg-slate-50/10 transition-colors group ${highlightId === r.id ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : ''}`}
+                                >
+                                    <td className="px-6 py-5 text-slate-500 text-sm">
+                                        {fmtDateBr(r.created_at)}
+                                    </td>
+                                    <td className="px-6 py-5 font-black text-slate-900">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm w-fit">
+                                                {r.vehicle?.plate || '---'}
+                                            </span>
+                                            {kmPerLiterMap[r.id] !== null && kmPerLiterMap[r.id] !== undefined ? (
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                                    {kmPerLiterMap[r.id]!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L
                                                 </span>
-                                                {kmPerLiterMap[r.id] !== null && kmPerLiterMap[r.id] !== undefined ? (
-                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-                                                        {kmPerLiterMap[r.id]!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
-                                            {r.odometer != null
-                                                ? `${Number(r.odometer).toLocaleString('pt-BR')} km`
-                                                : <span className="text-slate-300">—</span>}
-                                        </td>
-                                        <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
-                                        <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
-                                        <td className="px-6 py-5 font-bold text-primary-600 text-sm">{fmt(Number(r.total_value) || 0)}</td>
-                                        <td className="px-6 py-5 text-sm">
-                                            {r.arla_liters ? (
-                                                <span className="font-bold text-teal-700">{Number(r.arla_liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
                                             ) : (
-                                                <span className="text-slate-300">—</span>
+                                                <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
                                             )}
-                                        </td>
-                                        <td className="px-6 py-5 text-sm">
-                                            {r.arla_value ? (
-                                                <span className="font-bold text-teal-600">{fmt(Number(r.arla_value))}</span>
-                                            ) : (
-                                                <span className="text-slate-300">—</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-5 text-sm">
-                                            <span className="font-black text-slate-900">{fmt((Number(r.total_value) || 0) + (Number(r.arla_value) || 0))}</span>
-                                        </td>
-                                        <td className="px-6 py-5 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
-                                                    className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"
-                                                >
-                                                    <Edit2 size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(r.id)}
-                                                    className="p-2 hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ));
-                            })()}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5 font-mono text-sm font-bold text-slate-800">
+                                        {r.odometer != null
+                                            ? `${Number(r.odometer).toLocaleString('pt-BR')} km`
+                                            : <span className="text-slate-300">—</span>}
+                                    </td>
+                                    <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
+                                    <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
+                                    <td className="px-6 py-5 font-bold text-primary-600 text-sm">{fmt(Number(r.total_value) || 0)}</td>
+                                    <td className="px-6 py-5 text-sm">
+                                        {r.arla_liters ? (
+                                            <span className="font-bold text-teal-700">{Number(r.arla_liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
+                                        ) : (
+                                            <span className="text-slate-300">—</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-5 text-sm">
+                                        {r.arla_value ? (
+                                            <span className="font-bold text-teal-600">{fmt(Number(r.arla_value))}</span>
+                                        ) : (
+                                            <span className="text-slate-300">—</span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-5 text-sm">
+                                        <span className="font-black text-slate-900">{fmt((Number(r.total_value) || 0) + (Number(r.arla_value) || 0))}</span>
+                                    </td>
+                                    <td className="px-6 py-5 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => { setEditingRecord(r); setIsModalOpen(true); }}
+                                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-colors"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(r.id)}
+                                                className="p-2 hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-500 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>

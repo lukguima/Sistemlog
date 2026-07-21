@@ -225,6 +225,8 @@ export default function Settlement() {
     const [editingAdvance, setEditingAdvance] = useState<any>(null);
     const [isTripModalOpen, setIsTripModalOpen] = useState(false);
     const [editingTrip, setEditingTrip] = useState<any>(null);
+    const [startDate, setStartDate] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
     const companyId = (user as any)?.company_id;
 
@@ -232,13 +234,19 @@ export default function Settlement() {
         if (!companyId) return;
         setLoading(true);
         try {
-            const [data, settings] = await Promise.all([
-                tripService.getTrips(companyId),
+            const [periodData, unsettledData, settings] = await Promise.all([
+                tripService.getTrips(companyId, startDate, endDate),
+                tripService.getUnsettledTrips(companyId),
                 settingsService.getSettings(companyId).catch(() => null),
             ]);
             setCommissionBase(normalizeCommissionBase(settings?.commission_base));
-            const all = data || [];
-            // Separa viagens de frota própria das de agregado
+            const byId = new Map<string, any>();
+            for (const t of [...(periodData || []), ...(unsettledData || [])]) {
+                if (t?.id) byId.set(t.id, t);
+            }
+            const all = Array.from(byId.values()).sort((a, b) =>
+                String(b.created_at || '').localeCompare(String(a.created_at || ''))
+            );
             setViagens(all.filter((t: any) => t.driver_type !== 'agregado'));
             setAgregadoTrips(all.filter((t: any) => t.driver_type === 'agregado' && t.status !== 'paid'));
 
@@ -285,7 +293,7 @@ export default function Settlement() {
         fetchViagens();
         fetchDrivers();
         fetchVehicles();
-    }, [companyId]);
+    }, [companyId, startDate, endDate]);
 
     useEffect(() => {
         if (activeTab === 'advances') {
@@ -643,8 +651,8 @@ export default function Settlement() {
                         {/* Painel Central: Listagem de Fretes pra Liquidar */}
                         <div className="flex-[2] space-y-6">
                             <div className="card h-full flex flex-col">
-                                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/30">
-                                    <div className="relative w-64">
+                                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 justify-between items-center bg-slate-50 dark:bg-slate-800/30">
+                                    <div className="relative w-full sm:w-64">
                                         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                         <input
                                             type="text"
@@ -654,8 +662,25 @@ export default function Settlement() {
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                     </div>
-                                    <div className="text-sm font-medium text-slate-500">
-                                        Mostrando fretes finalizados aguardando pagamento
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <input
+                                            type="date"
+                                            className="input-field py-1.5 text-xs"
+                                            value={startDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            title="Início do período"
+                                        />
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase">até</span>
+                                        <input
+                                            type="date"
+                                            className="input-field py-1.5 text-xs"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            title="Fim do período"
+                                        />
+                                        <span className="text-xs text-slate-500 hidden lg:inline">
+                                            Pendências fora do período entram automaticamente
+                                        </span>
                                     </div>
                                 </div>
 

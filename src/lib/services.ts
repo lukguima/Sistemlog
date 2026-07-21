@@ -32,6 +32,28 @@ export const fleetService = {
         if (error) throw error;
         return data;
     },
+    /**
+     * Sobe o hodômetro oficial do veículo somente se o valor for maior que o atual.
+     * Usado por abastecimento, viagem e manutenção para não deixar current_km defasado/regredir.
+     */
+    async bumpVehicleKm(vehicleId: string, km: number | string | null | undefined) {
+        const n = Number(km);
+        if (!vehicleId || !Number.isFinite(n) || n <= 0) return;
+        const { data: vehicle, error: readErr } = await supabase
+            .from('vehicles')
+            .select('current_km')
+            .eq('id', vehicleId)
+            .maybeSingle();
+        if (readErr) throw readErr;
+        if (!vehicle) return;
+        const current = Number(vehicle.current_km) || 0;
+        if (n <= current) return;
+        const { error } = await supabase
+            .from('vehicles')
+            .update({ current_km: n })
+            .eq('id', vehicleId);
+        if (error) throw error;
+    },
     async deleteVehicle(id: string) {
         const { error } = await supabase
             .from('vehicles')
@@ -128,6 +150,77 @@ export const tripService = {
         if (err2) throw err2;
         return (fallback as any[]) ?? [];
     },
+    /** Últimas N viagens do período (Dashboard) — evita carregar o mês inteiro só para slice(0,5). */
+    async getRecentTrips(companyId: string, startDate?: string, endDate?: string, limit = 5): Promise<any[]> {
+        let q = supabase
+            .from('trips')
+            .select('id, origin, destination, cargo_description, gross_value, status, created_at, vehicle_id, vehicle:vehicles!trips_vehicle_id_fkey(plate), driver:drivers(name)')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (startDate) q = q.gte('created_at', startDate);
+        if (endDate) q = q.lte('created_at', `${endDate}T23:59:59.999Z`);
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data as any[]) ?? [];
+    },
+    /** Viagens ainda não pagas (acerto) — sem filtro de data, para não esconder pendências antigas. */
+    async getUnsettledTrips(companyId: string): Promise<any[]> {
+        const apply = (q: any) => q.eq('company_id', companyId).neq('status', 'paid').order('created_at', { ascending: false });
+        const { data, error } = await apply(
+            supabase.from('trips').select('*, vehicle:vehicles!trips_vehicle_id_fkey(plate), driver:drivers(name), agregado:agregados(name,vehicle_plate)')
+        );
+        if (!error) return (data as any[]) ?? [];
+        const { data: fallback, error: err2 } = await apply(
+            supabase.from('trips').select('*, vehicle:vehicles!trips_vehicle_id_fkey(plate), driver:drivers(name)')
+        );
+        if (err2) throw err2;
+        return (fallback as any[]) ?? [];
+    },
+    /** Cidades usadas em viagens (frequência desc) para autocomplete. */
+    async getCitySuggestions(companyId: string, limit = 80): Promise<string[]> {
+        const { data, error } = await supabase
+            .from('trips')
+            .select('origin, destination')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+            .limit(400);
+        if (error) throw error;
+        const counts: Record<string, number> = {};
+        for (const t of data || []) {
+            for (const raw of [t.origin, t.destination]) {
+                const city = String(raw || '').trim();
+                if (!city) continue;
+                counts[city] = (counts[city] || 0) + 1;
+            }
+        }
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+            .slice(0, limit)
+            .map(([city]) => city);
+    },
+    /** Pares origem→destino mais usados (atalho de trecho recente). */
+    async getRecentRoutePairs(companyId: string, limit = 25): Promise<{ origin: string; destination: string; count: number }[]> {
+        const { data, error } = await supabase
+            .from('trips')
+            .select('origin, destination')
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+            .limit(300);
+        if (error) throw error;
+        const map: Record<string, { origin: string; destination: string; count: number }> = {};
+        for (const t of data || []) {
+            const origin = String(t.origin || '').trim();
+            const destination = String(t.destination || '').trim();
+            if (!origin || !destination) continue;
+            const key = `${origin.toLowerCase()}→${destination.toLowerCase()}`;
+            if (!map[key]) map[key] = { origin, destination, count: 0 };
+            map[key].count += 1;
+        }
+        return Object.values(map)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, limit);
+    },
     async updateTripStatus(tripId: string, status: string) {
         const { data, error } = await supabase
             .from('trips')
@@ -171,6 +264,10 @@ export const tripService = {
             .select()
             .single();
         if (error) throw error;
+        const km = Number(tripData.end_km) || Number(tripData.start_km) || 0;
+        if (tripData.vehicle_id && km > 0) {
+            try { await fleetService.bumpVehicleKm(tripData.vehicle_id, km); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        }
         return data;
     },
     async settleTrips(tripIds: string[]) {
@@ -212,6 +309,11 @@ export const tripService = {
             .select()
             .single();
         if (error) throw error;
+        const vehicleId = updates.vehicle_id || data?.vehicle_id;
+        const km = Number(updates.end_km) || Number(updates.start_km) || Number(data?.end_km) || Number(data?.start_km) || 0;
+        if (vehicleId && km > 0) {
+            try { await fleetService.bumpVehicleKm(vehicleId, km); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        }
         return data;
     },
     /**
@@ -680,25 +782,27 @@ export const maintenanceService = {
             .single();
         if (error) throw error;
 
-        // Atualiza current_km do veículo se informado
+        // Atualiza current_km do veículo se informado (só sobe)
         const kmDone = Number(maintenance.km || maintenance.current_km) || 0;
-        if (kmDone > 0) {
-            const vehicleUpdate: Record<string, any> = { current_km: kmDone };
+        if (kmDone > 0 && maintenance.vehicle_id) {
+            try { await fleetService.bumpVehicleKm(maintenance.vehicle_id, kmDone); } catch (e) { console.warn('bumpVehicleKm:', e); }
 
             // Sincroniza campos de histórico do veículo para manter alertas corretos
+            const vehicleUpdate: Record<string, any> = {};
             if (maintenance.type === 'preventive') {
                 if (maintenance.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
                 if (maintenance.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
                 if (maintenance.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
             }
-            // Tipos diretos (oil/tyres) também atualizam os campos de histórico
             if (maintenance.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
             if (maintenance.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
 
-            await supabase
-                .from('vehicles')
-                .update(vehicleUpdate)
-                .eq('id', maintenance.vehicle_id);
+            if (Object.keys(vehicleUpdate).length > 0) {
+                await supabase
+                    .from('vehicles')
+                    .update(vehicleUpdate)
+                    .eq('id', maintenance.vehicle_id);
+            }
         }
         return data;
     },
@@ -718,16 +822,18 @@ export const maintenanceService = {
         // Sincroniza campos do veículo se manutenção preventiva de óleo/filtro foi atualizada
         const kmDone = Number(updates.km || updates.current_km) || 0;
         if (kmDone > 0 && updates.vehicle_id) {
-            const vehicleUpdate: Record<string, any> = { current_km: kmDone };
+            try { await fleetService.bumpVehicleKm(updates.vehicle_id, kmDone); } catch (e) { console.warn('bumpVehicleKm:', e); }
+            const vehicleUpdate: Record<string, any> = {};
             if (updates.type === 'preventive') {
                 if (updates.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
                 if (updates.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
                 if (updates.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
             }
-            // Tipos diretos (oil/tyres) também atualizam os campos de histórico
             if (updates.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
             if (updates.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
-            await supabase.from('vehicles').update(vehicleUpdate).eq('id', updates.vehicle_id);
+            if (Object.keys(vehicleUpdate).length > 0) {
+                await supabase.from('vehicles').update(vehicleUpdate).eq('id', updates.vehicle_id);
+            }
         }
         return data;
     },
@@ -850,6 +956,9 @@ export const driverService = {
             }
             throw error;
         }
+        if (record.vehicle_id && record.odometer) {
+            try { await fleetService.bumpVehicleKm(record.vehicle_id, record.odometer); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        }
         return data;
     },
     async getFuelRecordById(id: string) {
@@ -911,6 +1020,19 @@ export const driverService = {
         if (error) throw error;
         return data;
     },
+    /** Odômetros leves por veículo (para KM/L sem baixar histórico completo com joins). */
+    async getFuelOdometersForVehicles(companyId: string, vehicleIds: string[]) {
+        if (!vehicleIds.length) return [] as { id: string; vehicle_id: string; odometer: number }[];
+        const { data, error } = await supabase
+            .from('fuel_records')
+            .select('id, vehicle_id, odometer')
+            .eq('company_id', companyId)
+            .in('vehicle_id', vehicleIds)
+            .not('odometer', 'is', null)
+            .order('odometer', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    },
     async updateFuelRecord(id: string, updates: any) {
         const { data, error } = await supabase
             .from('fuel_records')
@@ -919,6 +1041,11 @@ export const driverService = {
             .select()
             .single();
         if (error) throw error;
+        const vehicleId = updates.vehicle_id || data?.vehicle_id;
+        const odo = updates.odometer ?? data?.odometer;
+        if (vehicleId && odo) {
+            try { await fleetService.bumpVehicleKm(vehicleId, odo); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        }
         return data;
     },
     async deleteFuelRecord(id: string) {
@@ -1596,14 +1723,48 @@ export const dashboardService = {
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-        // 1. Veículos — select('*') para incluir todos os vencimentos de documentos
-        //    (CRLV, ANTT, CIV, Cronotacógrafo, CIPP, Aferição) sem depender de migration
-        const { data: vehicles, error: vError } = await supabase
-            .from('vehicles')
-            .select('*')
-            .eq('company_id', companyId);
+        const vehicleCols = 'id, plate, category, current_km, maint_oil_interval, last_oil_change_km, maint_filter_interval, last_filter_change_km, maint_tyre_interval, last_tyre_change_km, document_expiry, antt_expiry, civ_expiry, tacografo_expiry, cipp_expiry, afericao_expiry';
+        const driverCols = 'id, name, license_expiry, aso_expiry, nr20_expiry, nr35_expiry, mopp_expiry';
+
+        let vehiclesRes = await Promise.all([
+            supabase.from('vehicles').select(vehicleCols).eq('company_id', companyId),
+            supabase.from('maintenance')
+                .select('vehicle_id, type, preventive_type, km, next_maintenance_km, maintenance_interval, next_maintenance_date')
+                .eq('company_id', companyId)
+                .order('date', { ascending: false }),
+            supabase.from('drivers').select(driverCols).eq('company_id', companyId),
+            supabase.from('tyres')
+                .select('id, vehicle_id, position, tread_depth_mm, brand')
+                .eq('company_id', companyId)
+                .lte('tread_depth_mm', 1.6),
+        ]);
+
+        // Fallback se colunas opcionais ainda não existem no banco
+        if (vehiclesRes[0].error || vehiclesRes[2].error) {
+            vehiclesRes = await Promise.all([
+                supabase.from('vehicles').select('*').eq('company_id', companyId),
+                vehiclesRes[1].error
+                    ? supabase.from('maintenance')
+                        .select('vehicle_id, type, preventive_type, km, next_maintenance_km, maintenance_interval, next_maintenance_date')
+                        .eq('company_id', companyId)
+                        .order('date', { ascending: false })
+                    : Promise.resolve(vehiclesRes[1]),
+                supabase.from('drivers').select('*').eq('company_id', companyId),
+                Promise.resolve(vehiclesRes[3]),
+            ]);
+        }
+
+        const [
+            { data: vehicles, error: vError },
+            { data: maintenances, error: mError },
+            { data: drivers, error: dError },
+            { data: tyres, error: tError },
+        ] = vehiclesRes;
 
         if (vError) throw vError;
+        if (mError) throw mError;
+        if (dError) throw dError;
+        if (tError) throw tError;
 
         // Helper genérico de alerta de documento (janela de 30 dias / crítico se vencido)
         const pushDocAlert = (idPrefix: string, entityLabel: string, docLabel: string, dateVal: any) => {
@@ -1621,33 +1782,6 @@ export const dashboardService = {
                 date: new Date().toISOString()
             });
         };
-
-        // Alertas de manutenção — freios/correias/revisao_geral/tacografo por km ou data
-        // Óleo/filtros: buscados também na tabela para garantir sincronia com registros diretos
-        const { data: maintenances, error: mError } = await supabase
-            .from('maintenance')
-            .select('vehicle_id, type, preventive_type, km, next_maintenance_km, maintenance_interval, next_maintenance_date')
-            .eq('company_id', companyId)
-            .order('date', { ascending: false });
-
-        if (mError) throw mError;
-
-        // 2. Motoristas — select('*') para incluir CNH, ASO, NR20, NR35, MOPP
-        const { data: drivers, error: dError } = await supabase
-            .from('drivers')
-            .select('*')
-            .eq('company_id', companyId);
-
-        if (dError) throw dError;
-
-        // 3. Pneus (TWI Crítico)
-        const { data: tyres, error: tError } = await supabase
-            .from('tyres')
-            .select('id, vehicle_id, position, tread_depth_mm, brand')
-            .eq('company_id', companyId)
-            .lte('tread_depth_mm', 1.6);
-
-        if (tError) throw tError;
 
         // Registro mais recente por veículo+tipo (apenas para os tipos especiais por KM/data)
         const SPECIAL_TYPES = ['freios', 'correias', 'revisao_geral', 'tacografo'];
