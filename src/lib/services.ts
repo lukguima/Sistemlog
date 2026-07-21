@@ -2225,6 +2225,51 @@ export const supplierService = {
     }
 };
 
+export const clientService = {
+    async getClients(companyId: string, opts?: { activeOnly?: boolean }) {
+        let q = supabase
+            .from('clients')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name', { ascending: true });
+        if (opts?.activeOnly) q = q.eq('active', true);
+        const { data, error } = await q;
+        if (error) throw error;
+        return data || [];
+    },
+
+    async addClient(data: any) {
+        const { id: _id, ...clientData } = data;
+        const { data: row, error } = await supabase
+            .from('clients')
+            .insert([{ ...clientData, active: clientData.active !== false }])
+            .select()
+            .single();
+        if (error) throw error;
+        return row;
+    },
+
+    async updateClient(id: string, data: any) {
+        const { id: _id, company_id: _c, created_at: _ca, ...updates } = data;
+        const { data: row, error } = await supabase
+            .from('clients')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return row;
+    },
+
+    async deleteClient(id: string) {
+        const { error } = await supabase
+            .from('clients')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+    },
+};
+
 export const fixedRouteService = {
     async getFixedRoutes(companyId: string) {
         const { data, error } = await supabase

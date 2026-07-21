@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
-import { fixedRouteService, settingsService, agregadoService, tripService } from '../../lib/services';
+import { fixedRouteService, settingsService, agregadoService, tripService, clientService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
 
 const DRAFT_KEY = 'trip';
 const makeEmpty = () => ({
     vehicle_id: '', implement_id: '', driver_id: '', cargo_description: '', origin: '', destination: '',
+    client_id: '',
     date: new Date().toISOString().split('T')[0], start_km: '', end_km: '', cte: '',
     weight: '', value: '', freight_total: '', icms_value: '',
     tax_rate: '', commission_rate: '', estimated_cost: '',
@@ -33,6 +34,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
     const [fixedRoutes, setFixedRoutes] = useState<any[]>([]);
     const [recentPairs, setRecentPairs] = useState<{ origin: string; destination: string; count: number }[]>([]);
     const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+    const [clients, setClients] = useState<any[]>([]);
     const [routePick, setRoutePick] = useState('');
     const [agregados, setAgregados] = useState<any[]>([]);
     const isEditing = !!initialData;
@@ -75,6 +77,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
             unloading_cost: fmt(data?.unloading_cost),
             start_km: data?.start_km ?? '',
             end_km: data?.end_km ?? '',
+            client_id: data?.client_id ?? '',
             date: data?.date || (data?.created_at ? data.created_at.slice(0, 10) : new Date().toISOString().split('T')[0]),
             driver_type: data?.driver_type ?? 'own',
             agregado_id: data?.agregado_id ?? '',
@@ -130,6 +133,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
             fixedRouteService.getFixedRoutes(companyId).then(setFixedRoutes).catch(() => setFixedRoutes([]));
             tripService.getRecentRoutePairs(companyId).then(setRecentPairs).catch(() => setRecentPairs([]));
             tripService.getCitySuggestions(companyId).then(setCitySuggestions).catch(() => setCitySuggestions([]));
+            clientService.getClients(companyId, { activeOnly: true }).then(setClients).catch(() => setClients([]));
             setRoutePick('');
             agregadoService.getAll(companyId).then(setAgregados).catch(() => {});
             if (!isEditing) {
@@ -420,6 +424,36 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             value={formData.cargo_description}
                             onChange={e => setFormData({ ...formData, cargo_description: e.target.value })}
                         />
+                    </div>
+
+                    {/* Cliente (opcional) */}
+                    <div className="space-y-1">
+                        <label className={labelStyle}>Cliente</label>
+                        <select
+                            className={inputStyle}
+                            value={formData.client_id || ''}
+                            onChange={e => {
+                                const clientId = e.target.value;
+                                const client = clients.find((c: any) => c.id === clientId);
+                                const next: Partial<ReturnType<typeof makeEmpty>> = { client_id: clientId };
+                                if (client?.default_destination) {
+                                    next.destination = client.default_destination;
+                                }
+                                setFormData(next);
+                            }}
+                        >
+                            <option value="">— Sem cliente (opcional) —</option>
+                            {clients.map((c: any) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}{c.default_destination ? ` · ${c.default_destination}` : ''}
+                                </option>
+                            ))}
+                        </select>
+                        {clients.length === 0 && (
+                            <p className="text-[10px] text-slate-400 ml-1">
+                                Cadastre clientes em Clientes → Cadastro (e rode ADD_CLIENTS_TABLE.sql se ainda não rodou).
+                            </p>
+                        )}
                     </div>
 
                     {/* Origem e Destino */}

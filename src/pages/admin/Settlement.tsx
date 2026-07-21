@@ -379,6 +379,7 @@ export default function Settlement() {
                 vehicle_id: isAgregado ? null : (rest.vehicle_id || null),
                 driver_id: isAgregado ? null : (rest.driver_id || null),
                 implement_id: isAgregado ? null : (rest.implement_id || null),
+                client_id: rest.client_id || null,
             };
             delete dataToSave.freight_total;
             delete dataToSave.value;
@@ -389,6 +390,7 @@ export default function Settlement() {
             delete dataToSave.driver;
             delete dataToSave.agregado;
             delete dataToSave.company_id;
+            delete dataToSave.client;
 
             await tripService.updateTrip(editingTrip.id, dataToSave);
             if (!isAgregado) {

@@ -173,6 +173,7 @@ export default function Trips() {
                 vehicle_id: isAgregado ? null : (rest.vehicle_id || null),
                 driver_id:  isAgregado ? null : (rest.driver_id  || null),
                 implement_id: isAgregado ? null : (rest.implement_id || null),
+                client_id: rest.client_id || null,
             };
 
             // Campos só de UI — nunca enviar ao banco
@@ -180,6 +181,7 @@ export default function Trips() {
             delete (dataToSave as any).value;
             delete (dataToSave as any).cte;
             delete (dataToSave as any).date;
+            delete (dataToSave as any).client;
 
             const idParaExcluir = data.id || editingId;
 
