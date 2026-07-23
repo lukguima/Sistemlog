@@ -1,4 +1,12 @@
 export const TRUCK_TYPES = {
+    UTILITARIO: {
+        id: 'UTILITARIO',
+        name: 'Utilitário 2 eixos (4 Pneus)',
+        description: 'Utilitário leve de 2 eixos com 4 pneus.',
+        axles: 2,
+        tyre_count: 4,
+        default_intervals: { oil: 10000, filter: 20000, tyre: 40000 }
+    },
     VUC: {
         id: 'VUC',
         name: 'VUC - 2 Eixos (4 Pneus)',

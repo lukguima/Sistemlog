@@ -126,6 +126,7 @@ export default function DriverReport() {
             period,
             trips: driver.trips.map(t => ({
                 date: new Date(t.created_at).toLocaleDateString('pt-BR'),
+                cte: t.cte_number || t.cte || '',
                 origin: t.origin || '-',
                 destination: t.destination || '-',
                 vehicle: t.vehicle?.plate || '-',
@@ -152,6 +153,7 @@ export default function DriverReport() {
                 rows.push({
                     'Motorista': driver.driverName,
                     'Data': new Date(t.created_at).toLocaleDateString('pt-BR'),
+                    'CTE': t.cte_number || '-',
                     'Origem': t.origin || '-',
                     'Destino': t.destination || '-',
                     'Veículo': t.vehicle?.plate || '-',
@@ -291,6 +293,7 @@ export default function DriverReport() {
                                     <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <tr>
                                             <th className="px-5 py-3">Data</th>
+                                            <th className="px-5 py-3">CTE</th>
                                             <th className="px-5 py-3">Origem → Destino</th>
                                             <th className="px-5 py-3">Veículo</th>
                                             <th className="px-5 py-3 text-right">Frete Bruto</th>
@@ -307,6 +310,7 @@ export default function DriverReport() {
                                             return (
                                                 <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                     <td className="px-5 py-3 text-sm text-slate-500 whitespace-nowrap">{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
+                                                    <td className="px-5 py-3 text-sm font-mono text-slate-600 whitespace-nowrap">{t.cte_number || '-'}</td>
                                                     <td className="px-5 py-3 text-sm font-medium">{t.origin || '-'} → {t.destination || '-'}</td>
                                                     <td className="px-5 py-3 text-sm font-mono text-slate-600">{t.vehicle?.plate || '-'}</td>
                                                     <td className="px-5 py-3 text-sm font-bold text-right">{fmt(Number(t.gross_value) || 0)}</td>

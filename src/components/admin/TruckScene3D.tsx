@@ -4,6 +4,13 @@ import { Suspense, useEffect } from 'react';
 
 // Configurações de layout para cada tipo de caminhão
 const TRUCK_LAYOUTS: Record<string, any> = {
+    UTILITARIO: {
+        chassisLength: 4.0,
+        axles: [
+            { id: 1, z: 1.5, type: 'steering' },
+            { id: 2, z: -1.5, type: 'single' }
+        ]
+    },
     VUC: {
         chassisLength: 4.2,
         axles: [

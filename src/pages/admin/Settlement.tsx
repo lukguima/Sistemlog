@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake, FileDown } from 'lucide-react';
+import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake, FileDown, Undo2 } from 'lucide-react';
 import { exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { tripService, fleetService, settlementService, agregadoService, settingsService } from '../../lib/services';
@@ -327,6 +327,31 @@ export default function Settlement() {
         } catch (error) {
             console.error('Error deleting trip:', error);
             alert('Erro ao excluir viagem.');
+        }
+    };
+
+    const handleRevertPayment = async (trip: any) => {
+        if (trip.status?.toLowerCase() !== 'paid') return;
+        const driver = trip.driver?.name || 'S/ Motorista';
+        const ok = confirm(
+            `Voltar este frete para Pendente?\n\nMotorista: ${driver}\nFrete: ${fmt(Number(trip.gross_value) || 0)}\n\nIsso desfaz o acerto deste frete: a viagem deixa de contar como paga no dashboard/financeiro e os vales do fechamento voltam a pendente se o acerto inteiro for desfeito.`
+        );
+        if (!ok) return;
+        try {
+            setLoading(true);
+            await settlementService.revertTripPayment(trip.id);
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(trip.id);
+                return next;
+            });
+            await Promise.all([fetchViagens(), fetchAllAdvances()]);
+            alert('Pagamento desfeito. Frete voltou para Pendente.');
+        } catch (error: any) {
+            console.error('Error reverting payment:', error);
+            alert(error?.message || 'Erro ao voltar frete para Pendente.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -739,6 +764,16 @@ export default function Settlement() {
                                                         </td>
                                                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                                                             <div className="flex justify-end gap-1">
+                                                                {viagem.status?.toLowerCase() === 'paid' && (
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Voltar para Pendente"
+                                                                        onClick={() => handleRevertPayment(viagem)}
+                                                                        className="p-2 hover:bg-amber-50 rounded-full text-slate-400 hover:text-amber-600"
+                                                                    >
+                                                                        <Undo2 size={16} />
+                                                                    </button>
+                                                                )}
                                                                 <button
                                                                     type="button"
                                                                     title="Editar frete"

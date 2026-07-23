@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import { calcTripCommission, normalizeCommissionBase } from './commission';
 
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 export const fleetService = {
     async getVehicles(companyId: string) {
         if (!companyId) return [];
@@ -446,6 +448,78 @@ export const settlementService = {
             .eq('id', id);
         if (error) throw error;
     },
+    /**
+     * Desfaz o pagamento de um frete (Pago → Pendente):
+     * - remove a viagem do settlement (ou apaga o settlement se ficar vazio)
+     * - reabre vales liquidados nesse acerto quando o fechamento inteiro some
+     * - volta o status da viagem para pending
+     * Dashboard/financeiro/produção passam a refletir sem o pagamento (status + vales).
+     */
+    async revertTripPayment(tripId: string) {
+        if (!tripId) throw new Error('ID da viagem não informado.');
+
+        const { data: trip, error: tripErr } = await supabase
+            .from('trips')
+            .select('id, status, driver_type')
+            .eq('id', tripId)
+            .maybeSingle();
+        if (tripErr) throw tripErr;
+        if (!trip) throw new Error('Viagem não encontrada.');
+        if (String(trip.status || '').toLowerCase() !== 'paid') {
+            throw new Error('Somente fretes com status Pago podem voltar para Pendente.');
+        }
+
+        const { data: settlements, error: sErr } = await supabase
+            .from('settlements')
+            .select('*')
+            .contains('trips_ids', [tripId]);
+        if (sErr) throw sErr;
+
+        for (const settlement of settlements || []) {
+            const remaining: string[] = (settlement.trips_ids || []).filter((tid: string) => tid !== tripId);
+
+            if (remaining.length === 0) {
+                const advIds: string[] = settlement.advances_ids || [];
+                if (advIds.length > 0) {
+                    const { error: advErr } = await supabase
+                        .from('driver_advances')
+                        .update({ status: 'pending' })
+                        .in('id', advIds)
+                        .in('status', ['settled', 'paid']);
+                    if (advErr) throw advErr;
+                }
+                const { error: delErr } = await supabase
+                    .from('settlements')
+                    .delete()
+                    .eq('id', settlement.id);
+                if (delErr) throw delErr;
+            } else {
+                // Proporção simples dos descontos de vale por viagem do lote
+                const oldCount = (settlement.trips_ids || []).length || 1;
+                const ratio = remaining.length / oldCount;
+                const totalAdvances = round2((Number(settlement.total_advances_applied) || 0) * ratio);
+                const totalTripDiscounts = round2((Number(settlement.total_trip_discounts) || 0) * ratio);
+
+                const { error: updErr } = await supabase
+                    .from('settlements')
+                    .update({
+                        trips_ids: remaining,
+                        total_advances_applied: totalAdvances,
+                        total_trip_discounts: totalTripDiscounts,
+                    })
+                    .eq('id', settlement.id);
+                if (updErr) throw updErr;
+                await this.recalculateSettlementForTrip(remaining[0]);
+            }
+        }
+
+        const { error: statusErr } = await supabase
+            .from('trips')
+            .update({ status: 'pending', updated_at: new Date().toISOString() })
+            .eq('id', tripId);
+        if (statusErr) throw statusErr;
+    },
+
     async createSettlement(settlement: any) {
         // Impede duplicata: verifica se algum trip_id já está em outro settlement
         if (settlement.trips_ids?.length) {
@@ -500,8 +574,6 @@ export const settlementService = {
                     baseMode = normalizeCommissionBase(s?.commission_base);
                 } catch { /* default net_tax */ }
             }
-
-            const round2 = (n: number) => Math.round(n * 100) / 100;
 
             const totalGross = trips.reduce((acc, t) => acc + (Number(t.gross_value) || 0), 0);
             const totalCommission = trips.reduce((acc, t) => {

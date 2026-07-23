@@ -8,7 +8,7 @@ export const generateDriverPaymentReceipt = (params: {
     driverCpf?: string;
     period: string;
     trips: Array<{
-        date: string; origin: string; destination: string; vehicle: string;
+        date: string; cte?: string; origin: string; destination: string; vehicle: string;
         grossValue: number; commissionRate: number; commissionValue: number;
         advance: number; net: number;
     }>;
@@ -45,9 +45,10 @@ export const generateDriverPaymentReceipt = (params: {
 
     // Trips table
     autoTable(doc, {
-        head: [['Data', 'Origem → Destino', 'Veículo', 'Frete Bruto', 'Comissão', 'Descontos', 'Líquido']],
+        head: [['Data', 'CTE', 'Origem → Destino', 'Veículo', 'Frete Bruto', 'Comissão', 'Descontos', 'Líquido']],
         body: trips.map(t => [
             t.date,
+            t.cte?.trim() || '-',
             `${t.origin} → ${t.destination}`,
             t.vehicle,
             fmt(t.grossValue),
@@ -56,10 +57,19 @@ export const generateDriverPaymentReceipt = (params: {
             fmt(Math.max(0, t.net)),
         ]),
         startY: 60,
-        headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 8 },
+        headStyles: { fillColor: [37, 99, 235], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 7 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 58 }, 2: { cellWidth: 20 }, 3: { cellWidth: 22 }, 4: { cellWidth: 30 }, 5: { cellWidth: 20 }, 6: { cellWidth: 22 } },
+        columnStyles: {
+            0: { cellWidth: 16 },
+            1: { cellWidth: 22 },
+            2: { cellWidth: 44 },
+            3: { cellWidth: 18 },
+            4: { cellWidth: 22 },
+            5: { cellWidth: 26 },
+            6: { cellWidth: 18 },
+            7: { cellWidth: 16 },
+        },
         margin: { left: 14, right: 14 },
     });
 
