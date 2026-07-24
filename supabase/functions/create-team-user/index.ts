@@ -7,28 +7,17 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsJson, corsPreflight } from '../_shared/cors.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ANON_KEY         = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-const CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
 const ALLOWED_ROLES = ['admin', 'manager', 'operator', 'frentista'];
 
-function json(body: unknown, status = 200) {
-    return new Response(JSON.stringify(body), {
-        status,
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-    });
-}
-
 serve(async (req) => {
-    if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+    if (req.method === 'OPTIONS') return corsPreflight(req);
+    const json = (body: unknown, status = 200) => corsJson(req, body, status);
     if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
 
     // 1. Identificar quem está chamando (a partir do JWT enviado pelo navegador)

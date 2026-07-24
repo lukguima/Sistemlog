@@ -13,6 +13,42 @@ const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'sl_refresh';
 const COOKIE_SECURE = String(process.env.AUTH_COOKIE_SECURE || 'true').toLowerCase() !== 'false';
 const COOKIE_SAMESITE = process.env.AUTH_COOKIE_SAMESITE || 'Lax';
 const COOKIE_MAX_AGE = Number(process.env.AUTH_COOKIE_MAX_AGE || 60 * 60 * 24 * 7); // 7d
+const LOGIN_MAX_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS || 5);
+const LOGIN_WINDOW_MS = Number(process.env.AUTH_LOGIN_WINDOW_MS || 15 * 60 * 1000);
+
+/** Rate limit em memória: IP + e-mail (falhas). Adequado a 1 container Coolify. */
+const loginFailures = new Map();
+
+function clientIp(req) {
+    const xf = req.headers['x-forwarded-for'];
+    if (typeof xf === 'string' && xf.length) return xf.split(',')[0].trim();
+    return req.socket?.remoteAddress || 'unknown';
+}
+
+function loginKey(req, email) {
+    return `${clientIp(req)}|${String(email || '').trim().toLowerCase()}`;
+}
+
+function isLoginRateLimited(key) {
+    const now = Date.now();
+    const entry = loginFailures.get(key);
+    if (!entry || entry.resetAt <= now) return false;
+    return entry.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+function recordLoginFailure(key) {
+    const now = Date.now();
+    let entry = loginFailures.get(key);
+    if (!entry || entry.resetAt <= now) {
+        entry = { count: 0, resetAt: now + LOGIN_WINDOW_MS };
+    }
+    entry.count += 1;
+    loginFailures.set(key, entry);
+}
+
+function clearLoginFailures(key) {
+    loginFailures.delete(key);
+}
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[auth-bff] SUPABASE_URL e SUPABASE_ANON_KEY (ou VITE_*) são obrigatórios');
@@ -146,13 +182,21 @@ const server = createServer(async (req, res) => {
                 return;
             }
 
+            const rateKey = loginKey(req, email);
+            if (isLoginRateLimited(rateKey)) {
+                sendJson(res, 429, { error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.' }, cors);
+                return;
+            }
+
             const sb = supabaseAnon();
             const { data, error } = await sb.auth.signInWithPassword({ email, password });
             if (error || !data.session) {
+                recordLoginFailure(rateKey);
                 sendJson(res, 401, { error: 'E-mail ou senha inválidos.' }, cors);
                 return;
             }
 
+            clearLoginFailures(rateKey);
             setRefreshCookie(res, data.session.refresh_token);
             sendJson(res, 200, {
                 access_token: data.session.access_token,
