@@ -25,12 +25,28 @@ const EMPTY = {
     active: true,
 };
 
+function str(v: unknown) {
+    return v == null ? '' : String(v);
+}
+
+function normalizeClientForm(source: Record<string, unknown> | null | undefined) {
+    return {
+        name: str(source?.name),
+        document: str(source?.document),
+        phone: str(source?.phone),
+        email: str(source?.email),
+        default_destination: str(source?.default_destination),
+        notes: str(source?.notes),
+        active: source?.active !== false,
+    };
+}
+
 export default function ClientModal({ isOpen, onClose, onSave, client, defaultDestinationPrefill }: ClientModalProps) {
     const { user } = useAuth();
     const isEditing = !!client;
 
     const [formData, setFormDataState] = useState(() => {
-        if (isEditing) return { ...EMPTY, ...client };
+        if (isEditing) return normalizeClientForm(client);
         return { ...EMPTY, ...(loadDraft(DRAFT_KEY) || {}) };
     });
     const [loading, setLoading] = useState(false);
@@ -40,7 +56,7 @@ export default function ClientModal({ isOpen, onClose, onSave, client, defaultDe
         if (!isOpen) return;
         setErrorMsg('');
         if (isEditing && client) {
-            setFormDataState({ ...EMPTY, ...client, active: client.active !== false });
+            setFormDataState(normalizeClientForm(client));
         } else {
             const draft = loadDraft(DRAFT_KEY);
             setFormDataState({
@@ -71,7 +87,8 @@ export default function ClientModal({ isOpen, onClose, onSave, client, defaultDe
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (!formData.name.trim()) {
+        const name = str(formData.name).trim();
+        if (!name) {
             setErrorMsg('Informe o nome do cliente.');
             return;
         }
@@ -79,12 +96,12 @@ export default function ClientModal({ isOpen, onClose, onSave, client, defaultDe
             setLoading(true);
             setErrorMsg('');
             const payload = {
-                name: formData.name.trim(),
-                document: formData.document.trim() || null,
-                phone: formData.phone.trim() || null,
-                email: formData.email.trim() || null,
-                default_destination: formData.default_destination.trim() || null,
-                notes: formData.notes.trim() || null,
+                name,
+                document: str(formData.document).trim() || null,
+                phone: str(formData.phone).trim() || null,
+                email: str(formData.email).trim() || null,
+                default_destination: str(formData.default_destination).trim() || null,
+                notes: str(formData.notes).trim() || null,
                 active: formData.active !== false,
                 company_id: (user as any)?.company_id,
             };

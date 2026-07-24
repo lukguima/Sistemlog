@@ -445,7 +445,9 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             <option value="">— Sem cliente (opcional) —</option>
                             {clients.map((c: any) => (
                                 <option key={c.id} value={c.id}>
-                                    {c.name}{c.default_destination ? ` · ${c.default_destination}` : ''}
+                                    {c.name}
+                                    {c.document ? ` — ${c.document}` : ''}
+                                    {c.default_destination ? ` · ${c.default_destination}` : ''}
                                 </option>
                             ))}
                         </select>
