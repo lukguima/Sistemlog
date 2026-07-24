@@ -32,7 +32,8 @@ ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check
 CHECK (role IN ('admin','manager','operator','driver','master','frentista'));
 
--- 3. Trigger de novo usuário — versão blindada
+-- 3. Trigger de novo usuário — blindado + sem confiar em user_metadata
+--    (mesma lógica de FIX_SIGNUP_METADATA.sql)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, extensions AS $$
@@ -41,37 +42,51 @@ DECLARE
   v_company_name text;
   v_role         text;
   v_permissions  jsonb;
+  v_from_admin   boolean;
+  v_allowed      text[] := ARRAY['admin','manager','operator','driver','frentista'];
 BEGIN
-  v_company_id := COALESCE(
-    NULLIF((NEW.raw_user_meta_data->>'company_id'), ''),
-    NULLIF((NEW.raw_app_meta_data->>'company_id'), ''),
-    gen_random_uuid()::text
-  )::uuid;
+  -- app_metadata só service role / dashboard grava → caminho equipe
+  v_from_admin := (
+    NULLIF(NEW.raw_app_meta_data->>'company_id', '') IS NOT NULL
+    AND NULLIF(NEW.raw_app_meta_data->>'role', '') IS NOT NULL
+  );
+
+  IF v_from_admin THEN
+    v_company_id := (NEW.raw_app_meta_data->>'company_id')::uuid;
+    v_role := lower(trim(NEW.raw_app_meta_data->>'role'));
+    IF NOT (v_role = ANY (v_allowed)) THEN
+      v_role := 'operator';
+    END IF;
+    v_permissions := COALESCE(NEW.raw_app_meta_data->'permissions', '[]'::jsonb);
+    IF jsonb_typeof(v_permissions) <> 'array' THEN
+      v_permissions := '[]'::jsonb;
+    END IF;
+  ELSE
+    -- Cadastro público: SEMPRE empresa nova + admin (ignora spoofing)
+    v_company_id := gen_random_uuid();
+    v_role := 'admin';
+    v_permissions := '[]'::jsonb;
+  END IF;
 
   v_company_name := COALESCE(
     NULLIF(NEW.raw_user_meta_data->>'company_name', ''),
     'Empresa de ' || COALESCE(NEW.raw_user_meta_data->>'nome', split_part(NEW.email, '@', 1))
   );
 
-  v_role := COALESCE(
-    NULLIF((NEW.raw_user_meta_data->>'role'), ''),
-    NULLIF((NEW.raw_app_meta_data->>'role'), ''),
-    'admin'
-  );
-
-  BEGIN
-    SELECT permissions INTO v_permissions FROM public.profiles WHERE email = NEW.email LIMIT 1;
-  EXCEPTION WHEN OTHERS THEN
-    v_permissions := '[]'::jsonb;
-  END;
-  v_permissions := COALESCE(v_permissions, '[]'::jsonb);
+  IF v_permissions = '[]'::jsonb THEN
+    BEGIN
+      SELECT permissions INTO v_permissions FROM public.profiles WHERE email = NEW.email LIMIT 1;
+    EXCEPTION WHEN OTHERS THEN
+      v_permissions := '[]'::jsonb;
+    END;
+    v_permissions := COALESCE(v_permissions, '[]'::jsonb);
+  END IF;
 
   INSERT INTO public.companies (id, name, created_at)
   VALUES (v_company_id, v_company_name, now())
   ON CONFLICT (id) DO NOTHING;
 
-  -- Remove convite órfão com o mesmo e-mail (id diferente) para não
-  -- violar a unicidade de email em profiles
+  -- Remove convite órfão com o mesmo e-mail (id diferente)
   DELETE FROM public.profiles WHERE email = NEW.email AND id <> NEW.id;
 
   INSERT INTO public.profiles (id, company_id, role, email, permissions)
@@ -93,7 +108,6 @@ BEGIN
 
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
-  -- Nunca bloqueia a criação do usuário; loga o problema
   RAISE WARNING 'handle_new_user falhou: %', SQLERRM;
   RETURN NEW;
 END;

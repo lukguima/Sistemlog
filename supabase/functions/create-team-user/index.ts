@@ -96,8 +96,9 @@ serve(async (req) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { nome: full_name, company_id, role },
-        app_metadata:  { company_id, role },
+        // company_id/role/permissions só em app_metadata (trigger ignora user_metadata)
+        user_metadata: { nome: full_name },
+        app_metadata:  { company_id, role, permissions },
     });
 
     if (createErr || !created?.user) {

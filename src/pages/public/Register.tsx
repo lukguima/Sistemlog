@@ -24,8 +24,8 @@ export default function Register() {
         setLoading(true);
 
         try {
-            const companyId = crypto.randomUUID();
-
+            // Não envia role/company_id — o trigger no Supabase define admin + empresa nova.
+            // (user_metadata é manipulável; não pode decidir permissões)
             const { data, error: signUpError } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
@@ -33,8 +33,6 @@ export default function Register() {
                     data: {
                         nome: formData.full_name,
                         company_name: formData.company_name,
-                        company_id: companyId,
-                        role: 'admin',
                         phone: formData.phone,
                         fleet_size: formData.fleet_size
                     }
