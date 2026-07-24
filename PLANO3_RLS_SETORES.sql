@@ -7,13 +7,13 @@
 -- >>> APLIQUE SOMENTE APÓS rodar PLANO3_SUBUSUARIOS.sql <<<
 -- >>> e depois de testar o login de um funcionário.       <<<
 --
--- DESIGN FAIL-SAFE (não tranca ninguém para fora):
+-- DESIGN FAIL-CLOSED:
 --   • role admin/master  → sempre liberado
---   • token sem o claim permissions (legado) → liberado
+--   • frentista → setor frota
+--   • permissions NULL/[] → SEM acesso a setores
 --   • funcionário com permissions SEM o setor → bloqueado
--- Como são políticas RESTRICTIVE, elas apenas ADICIONAM uma
--- condição às políticas existentes (company_id), nunca abrem
--- acesso novo.
+-- Preferir FIX_SECTOR_FAIL_CLOSED.sql / PERMISSOES_POR_ABA.sql
+-- (versão com abas individuais).
 -- Idempotente.
 -- ============================================================
 
@@ -24,7 +24,6 @@ LANGUAGE sql STABLE
 AS $$
     SELECT
         COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '') IN ('admin', 'master')
-        OR (auth.jwt() -> 'app_metadata' -> 'permissions') IS NULL
         OR (auth.jwt() -> 'app_metadata' -> 'permissions') ? sector
         -- Frentista lança abastecimento (setor frota), mas segue bloqueado
         -- do financeiro/operacional/análises.

@@ -1,17 +1,25 @@
 -- ============================================================
--- PERMISSÕES POR ABA — atualização da trava de setor no banco
+-- FIX: permissões de setor fail-closed (sem liberar tudo)
 -- ------------------------------------------------------------
--- O convite agora grava abas individuais (ex.: 'trips', 'dre').
--- Esta versão do jwt_has_sector aceita:
---   • chaves de setor antigas ('financeiro')  → pacote inteiro
---   • chaves de aba novas ('trips', 'fleet')  → conta para o setor da aba
---   • frentista → setor frota (posto)
--- Idempotente. OBRIGATÓRIO rodar junto com o deploy desta versão.
+-- Antes: se app_metadata.permissions era NULL, jwt_has_sector
+-- liberava TODOS os setores (fail-open).
+--
+-- Agora:
+--   • admin / master → acesso total
+--   • frentista → só frota
+--   • demais → precisa ter o setor ou aba na lista
+--   • permissions NULL ou [] → SEM acesso a setores
+--
+-- Se algum funcionário antigo ficar sem menus, o admin deve
+-- editar a equipe e marcar as abas de novo.
+-- Idempotente. Rode no SQL Editor do Supabase.
 -- ============================================================
 
--- Fail-closed: permissions NULL/ausente NÃO libera tudo (só admin/master).
 CREATE OR REPLACE FUNCTION public.jwt_has_sector(sector text)
-RETURNS boolean LANGUAGE sql STABLE AS $$
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
     SELECT
         COALESCE(auth.jwt() -> 'app_metadata' ->> 'role', '') IN ('admin', 'master')
         OR (
@@ -42,4 +50,4 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
         );
 $$;
 
-SELECT 'PERMISSOES POR ABA APLICADAS' AS resultado;
+SELECT 'FIX_SECTOR_FAIL_CLOSED aplicado' AS resultado;
