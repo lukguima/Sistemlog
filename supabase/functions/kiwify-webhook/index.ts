@@ -46,14 +46,22 @@ serve(async (req) => {
         return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // Verificar token no header ou query string
+    // Token OBRIGATÓRIO — sem secret configurado o webhook fica desligado (fail-closed)
+    if (!WEBHOOK_TOKEN) {
+        console.error('KIWIFY_WEBHOOK_TOKEN ausente — recusando webhook.');
+        return new Response(JSON.stringify({ error: 'Webhook misconfigured' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
     const url = new URL(req.url);
     const tokenHeader = req.headers.get('x-webhook-token') ?? req.headers.get('token') ?? '';
     const tokenQuery  = url.searchParams.get('token') ?? '';
     const token       = tokenHeader || tokenQuery;
 
-    if (WEBHOOK_TOKEN && token !== WEBHOOK_TOKEN) {
-        console.error('Webhook token inválido.');
+    if (!token || token !== WEBHOOK_TOKEN) {
+        console.error('Webhook token inválido ou ausente.');
         return new Response('Unauthorized', { status: 401 });
     }
 
