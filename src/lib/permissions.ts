@@ -61,14 +61,18 @@ export const PAGES: PageDef[] = [
     { key: 'accounting',            label: 'Contabilidade',    route: '/admin/accounting',            sector: 'financeiro' },
     // Análises & IA
     { key: 'executive',             label: 'Painel Executivo', route: '/admin/executive',             sector: 'analises' },
-    { key: 'clients-analysis',      label: 'Clientes',         route: '/admin/clients-analysis',      sector: 'analises' },
+    { key: 'clients',               label: 'Clientes — Cadastro', route: '/admin/clients-analysis',    sector: 'analises' },
+    { key: 'clients-analysis',      label: 'Clientes — Análise',  route: '/admin/clients-analysis',    sector: 'analises' },
     { key: 'ai-manager',            label: 'Gestor IA',        route: '/admin/ai-manager',            sector: 'analises' },
     { key: 'ai-memory',             label: 'Memória IA',       route: '/admin/ai-memory',             sector: 'analises' },
     { key: 'risks',                 label: 'Riscos',           route: '/admin/risks',                 sector: 'analises' },
     { key: 'reports',               label: 'Relatórios',       route: '/admin/reports',               sector: 'analises' },
 ];
 
-const PAGE_BY_ROUTE: Record<string, PageDef> = Object.fromEntries(PAGES.map(p => [p.route, p]));
+/** Todas as páginas que apontam para a mesma rota (ex.: Clientes Cadastro + Análise). */
+export function pagesForRoute(path: string): PageDef[] {
+    return PAGES.filter(p => p.route === path);
+}
 
 /** Páginas de um setor (chaves) */
 export const pagesOfSector = (sector: SectorKey): string[] =>
@@ -103,7 +107,30 @@ export function expandPermissions(permissions: string[] | undefined): string[] {
             out.add(p);
         }
     }
+    // Legado: só "clients-analysis" = página inteira → marca Cadastro + Análise no modal
+    if (out.has('clients-analysis') && !out.has('clients')) {
+        out.add('clients');
+    }
     return Array.from(out);
+}
+
+/**
+ * Acesso a uma chave de página específica (aba/recurso).
+ */
+export function hasPageAccess(
+    role: string | undefined,
+    permissions: string[] | undefined,
+    pageKey: string
+): boolean {
+    if (role && FULL_ACCESS_ROLES.includes(role)) return true;
+    if (!Array.isArray(permissions)) return false;
+    const page = PAGES.find(p => p.key === pageKey);
+    if (!page) return permissions.includes(pageKey);
+    if (permissions.includes(page.sector)) return true;
+    if (permissions.includes(pageKey)) return true;
+    // Legado Clientes: chave antiga sozinha liberava cadastro também
+    if (pageKey === 'clients' && permissions.includes('clients-analysis')) return true;
+    return false;
 }
 
 /**
@@ -124,6 +151,7 @@ export function hasSectorAccess(
 /**
  * Acesso a uma ROTA admin (menu + guard).
  * Rotas sem mapeamento em PAGES/ROUTE_SECTOR são liberadas.
+ * Rota com várias páginas (Clientes): basta uma das chaves ou o setor.
  */
 export function canAccessRoute(
     role: string | undefined,
@@ -131,10 +159,11 @@ export function canAccessRoute(
     path: string
 ): boolean {
     if (role && FULL_ACCESS_ROLES.includes(role)) return true;
-    const page = PAGE_BY_ROUTE[path];
-    if (page) {
-        return Array.isArray(permissions)
-            && (permissions.includes(page.key) || permissions.includes(page.sector));
+    const forRoute = pagesForRoute(path);
+    if (forRoute.length > 0) {
+        if (!Array.isArray(permissions)) return false;
+        if (permissions.includes(forRoute[0].sector)) return true;
+        return forRoute.some(p => permissions.includes(p.key));
     }
     const sector = ROUTE_SECTOR[path];
     if (!sector) return true;

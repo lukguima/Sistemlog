@@ -33,7 +33,7 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
                             WHEN 'operacional' THEN ARRAY['trips','settlement','agregados']
                             WHEN 'frota'       THEN ARRAY['fleet','documents','maintenance','fuel','tyre-check','suppliers']
                             WHEN 'financeiro'  THEN ARRAY['financial','cash-flow','dre','vehicle-profitability','financings','simulator','accounting']
-                            WHEN 'analises'    THEN ARRAY['executive','clients-analysis','ai-manager','ai-memory','risks','reports']
+                            WHEN 'analises'    THEN ARRAY['executive','clients','clients-analysis','ai-manager','ai-memory','risks','reports']
                             ELSE ARRAY[]::text[]
                         END
                     )

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { clientService } from '../../lib/services';
 import ClientModal from '../../components/admin/ClientModal';
+import { hasPageAccess } from '../../lib/permissions';
 import {
     Users, TrendingUp, TrendingDown, BarChart3, MapPin, Search,
     ChevronUp, ChevronDown, Plus, Edit2, Trash2, Phone, Mail, UserPlus
@@ -39,6 +40,11 @@ const PERIOD_OPTIONS = [
 export default function ClientsAnalysis() {
     const { user, isSubscriptionBlocked } = useAuth();
     const companyId = user?.company_id ?? '';
+    const role = (user as any)?.role as string | undefined;
+    const permissions = (user as any)?.permissions as string[] | undefined;
+
+    const canCadastro = hasPageAccess(role, permissions, 'clients');
+    const canAnalise = hasPageAccess(role, permissions, 'clients-analysis');
 
     const [tab, setTab] = useState<TabId>('cadastro');
     const [stats, setStats] = useState<ClientStats[]>([]);
@@ -55,8 +61,15 @@ export default function ClientsAnalysis() {
     const [prefillDestination, setPrefillDestination] = useState<string | undefined>();
     const [tableMissing, setTableMissing] = useState(false);
 
+    useEffect(() => {
+        if (tab === 'analise' && !canAnalise && canCadastro) setTab('cadastro');
+        else if (tab === 'cadastro' && !canCadastro && canAnalise) setTab('analise');
+        else if (!canCadastro && canAnalise) setTab('analise');
+        else if (canCadastro && !canAnalise) setTab('cadastro');
+    }, [canCadastro, canAnalise]);
+
     const loadRegistry = useCallback(async () => {
-        if (!companyId) return;
+        if (!companyId || !canCadastro) return;
         setLoadingRegistry(true);
         try {
             const data = await clientService.getClients(companyId);
@@ -72,10 +85,14 @@ export default function ClientsAnalysis() {
         } finally {
             setLoadingRegistry(false);
         }
-    }, [companyId]);
+    }, [companyId, canCadastro]);
 
     const loadAnalysis = useCallback(async () => {
-        if (!companyId) return;
+        if (!companyId || !canAnalise) {
+            setLoading(false);
+            setStats([]);
+            return;
+        }
         setLoading(true);
         try {
             const since = new Date();
@@ -144,7 +161,7 @@ export default function ClientsAnalysis() {
         } finally {
             setLoading(false);
         }
-    }, [companyId, period]);
+    }, [companyId, period, canAnalise]);
 
     useEffect(() => { loadRegistry(); }, [loadRegistry]);
     useEffect(() => { loadAnalysis(); }, [loadAnalysis]);
@@ -211,12 +228,12 @@ export default function ClientsAnalysis() {
                         <p className="text-xs text-slate-500">Cadastro e faturamento por cliente/destino</p>
                     </div>
                 </div>
-                {tab === 'analise' ? (
+                {tab === 'analise' && canAnalise ? (
                     <select value={period} onChange={e => setPeriod(Number(e.target.value))}
                         className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-200">
                         {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
-                ) : (
+                ) : canCadastro ? (
                     <button
                         type="button"
                         onClick={() => openNew()}
@@ -225,14 +242,14 @@ export default function ClientsAnalysis() {
                     >
                         <Plus size={18} /> Novo Cliente
                     </button>
-                )}
+                ) : null}
             </div>
 
             <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
                 {([
-                    { id: 'cadastro' as const, label: 'Cadastro' },
-                    { id: 'analise' as const, label: 'Análise' },
-                ]).map(t => (
+                    { id: 'cadastro' as const, label: 'Cadastro', show: canCadastro },
+                    { id: 'analise' as const, label: 'Análise', show: canAnalise },
+                ]).filter(t => t.show).map(t => (
                     <button
                         key={t.id}
                         type="button"
@@ -254,7 +271,7 @@ export default function ClientsAnalysis() {
                 </div>
             )}
 
-            {tab === 'cadastro' && (
+            {tab === 'cadastro' && canCadastro && (
                 <div className="space-y-4">
                     <div className="relative max-w-sm">
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -323,7 +340,7 @@ export default function ClientsAnalysis() {
                 </div>
             )}
 
-            {tab === 'analise' && (
+            {tab === 'analise' && canAnalise && (
                 <>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
