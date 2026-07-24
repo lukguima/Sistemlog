@@ -20,10 +20,30 @@ CREATE TABLE IF NOT EXISTS public.clients (
 CREATE INDEX IF NOT EXISTS idx_clients_company ON public.clients(company_id);
 CREATE INDEX IF NOT EXISTS idx_clients_company_name ON public.clients(company_id, name);
 
+-- company_id do JWT (mesma função usada em vehicles/fuel)
+CREATE OR REPLACE FUNCTION public.jwt_company_id()
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT auth.jwt() -> 'app_metadata' ->> 'company_id';
+$$;
+
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow all" ON public.clients;
-CREATE POLICY "Allow all" ON public.clients FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS clients_company_isolation ON public.clients;
+CREATE POLICY clients_company_isolation ON public.clients
+    FOR ALL
+    TO authenticated
+    USING (
+        company_id::text = public.jwt_company_id()
+        OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'master'
+    )
+    WITH CHECK (
+        company_id::text = public.jwt_company_id()
+        OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'master'
+    );
 
 COMMENT ON TABLE public.clients IS 'Clientes de frete da transportadora (não confundir com tenants SaaS)';
 COMMENT ON COLUMN public.clients.default_destination IS 'Destino padrão sugerido ao selecionar o cliente na viagem';

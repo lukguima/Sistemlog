@@ -4,26 +4,88 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const AI_ALLOWED_ROLES = new Set(['admin', 'master', 'manager', 'operator']);
+
+function json(body: unknown, status = 200) {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
+    if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
 
     try {
-        const { companyId, question, userId, sessionId, mode } = await req.json();
-        if (!companyId || !question) {
-            return new Response(JSON.stringify({ error: 'companyId e question são obrigatórios' }), {
-                status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
+        // 1) JWT obrigatório — sem confiar só no body
+        const authHeader = req.headers.get('Authorization') ?? '';
+        if (!authHeader.startsWith('Bearer ')) {
+            return json({ error: 'Não autenticado.' }, 401);
         }
 
+        const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user: caller }, error: callerErr } = await callerClient.auth.getUser();
+        if (callerErr || !caller) return json({ error: 'Sessão inválida.' }, 401);
+
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        const { data: callerProfile } = await supabase
+            .from('profiles')
+            .select('role, company_id')
+            .eq('id', caller.id)
+            .single();
+
+        const callerRole = String(
+            callerProfile?.role ?? (caller.app_metadata as Record<string, unknown>)?.role ?? ''
+        );
+        const callerCompany = String(
+            callerProfile?.company_id
+                ?? (caller.app_metadata as Record<string, unknown>)?.company_id
+                ?? ''
+        );
+
+        if (!AI_ALLOWED_ROLES.has(callerRole)) {
+            return json({ error: 'Sem permissão para o Gestor IA.' }, 403);
+        }
+
+        let body: Record<string, unknown>;
+        try {
+            body = await req.json();
+        } catch {
+            return json({ error: 'JSON inválido.' }, 400);
+        }
+
+        const question = String(body.question ?? '').trim();
+        const sessionId = body.sessionId as string | undefined;
+        const mode = body.mode as string | undefined;
+        const requestedCompany = String(body.companyId ?? '').trim();
+
+        // companyId do body só vale se for a empresa do usuário (master pode escolher outra)
+        const companyId = callerRole === 'master'
+            ? (requestedCompany || callerCompany)
+            : callerCompany;
+
+        if (!companyId || !question) {
+            return json({ error: 'companyId e question são obrigatórios' }, 400);
+        }
+        if (callerRole !== 'master' && requestedCompany && requestedCompany !== callerCompany) {
+            return json({ error: 'Empresa não autorizada.' }, 403);
+        }
+
+        // userId sempre do JWT — ignora spoofing no body
+        const userId = caller.id;
         const sid = sessionId ?? crypto.randomUUID();
         const today = new Date();
         const fmtDate = (d: Date) => d.toISOString().split('T')[0];
