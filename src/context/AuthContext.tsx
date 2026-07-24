@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { masterService } from '../lib/services';
 import { hasSectorAccess, type SectorKey } from '../lib/permissions';
+import { authApi } from '../lib/authApi';
+import { usesCookieAuth } from '../lib/authMode';
 import type { User } from '@supabase/supabase-js';
 
 export interface Subscription {
@@ -49,14 +51,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [subscription, setSubscription] = useState<Subscription | null>(null);
+    const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const applyCookieSession = async (payload: {
+        access_token: string;
+        refresh_token?: string;
+    }) => {
+        const { data, error } = await supabase.auth.setSession({
+            access_token: payload.access_token,
+            refresh_token: payload.refresh_token || 'cookie-managed',
+        });
+        if (error) throw error;
+        return data;
+    };
 
     const login = async (email: string, password: string) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        return { data, error };
+        if (!usesCookieAuth) {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            return { data, error };
+        }
+        try {
+            const session = await authApi.login(email, password);
+            const data = await applyCookieSession(session);
+            return { data, error: null };
+        } catch (err: any) {
+            return { data: null, error: { message: err?.message || 'E-mail ou senha inválidos.' } };
+        }
     };
 
     const logout = async () => {
-        await supabase.auth.signOut();
+        if (usesCookieAuth) {
+            await authApi.logout();
+        }
+        await supabase.auth.signOut({ scope: 'local' });
         setSubscription(null);
     };
 
@@ -138,16 +165,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        let cancelled = false;
+
+        const boot = async () => {
+            if (usesCookieAuth) {
+                try {
+                    // Memória vazia após F5 → restaura via cookie HttpOnly
+                    const { data: { session: mem } } = await supabase.auth.getSession();
+                    if (!mem) {
+                        const restored = await authApi.session();
+                        if (restored && !cancelled) {
+                            await applyCookieSession(restored);
+                        }
+                    }
+                } catch {
+                    /* sem cookie = não autenticado */
+                }
+            }
+
+            if (cancelled) return;
+            const { data: { session } } = await supabase.auth.getSession();
             fetchProfile(session?.user ?? null);
-        });
+        };
+
+        boot();
 
         const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
             fetchProfile(session?.user ?? null);
         });
 
-        return () => authSub.unsubscribe();
+        return () => {
+            cancelled = true;
+            authSub.unsubscribe();
+        };
     }, []);
+
+    // Refresh via BFF quando cookie auth está ativo (autoRefreshToken desligado)
+    useEffect(() => {
+        if (!usesCookieAuth) return;
+        if (refreshTimer.current) clearInterval(refreshTimer.current);
+
+        refreshTimer.current = setInterval(async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+                const next = await authApi.refresh();
+                await applyCookieSession(next);
+            } catch {
+                await supabase.auth.signOut({ scope: 'local' });
+                setUser(null);
+                setSubscription(null);
+            }
+        }, 10 * 60 * 1000); // 10 min
+
+        return () => {
+            if (refreshTimer.current) clearInterval(refreshTimer.current);
+        };
+    }, [user?.id]);
 
     // Real-time: atualiza subscription ao detectar mudança no Supabase
     useEffect(() => {

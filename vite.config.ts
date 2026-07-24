@@ -8,5 +8,12 @@ export default defineConfig({
   ],
   server: {
     host: true,
+    // Dev: proxy /auth → BFF local (npm run dev:auth). Produção: nginx faz o mesmo.
+    proxy: {
+      '/auth': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+    },
   },
 })
