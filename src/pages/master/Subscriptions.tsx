@@ -32,7 +32,7 @@ const PLAN_COLOR: Record<string, string> = {
 const PLAN_CONFIGS = [
     { id: 'basico',     name: 'Básico',     price: 197, vehicleLimit: '5 veículos',    accentBorder: 'border-sky-500/40',    accentBg: 'bg-sky-500/10',    accentText: 'text-sky-400' },
     { id: 'pro',        name: 'Pro',        price: 297, vehicleLimit: '10 veículos',   accentBorder: 'border-violet-500/40', accentBg: 'bg-violet-500/10', accentText: 'text-violet-400' },
-    { id: 'enterprise', name: 'Enterprise', price: 397, vehicleLimit: 'Ilimitado',     accentBorder: 'border-amber-500/40',  accentBg: 'bg-amber-500/10',  accentText: 'text-amber-400' },
+    { id: 'enterprise', name: 'Enterprise', price: 497, vehicleLimit: 'Ilimitado',     accentBorder: 'border-amber-500/40',  accentBg: 'bg-amber-500/10',  accentText: 'text-amber-400' },
 ];
 
 const STATUS_ORDER: Record<string, number> = {

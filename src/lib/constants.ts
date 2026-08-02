@@ -136,7 +136,7 @@ export const SUBSCRIPTION_PLANS = {
     enterprise: {
         id: 'enterprise',
         name: 'Enterprise',
-        price: 397,
+        price: 497,
         vehicleLimit: Infinity,
         description: 'Para grandes operações',
         features: [

@@ -460,7 +460,7 @@ export default function LandingPage() {
                                     </div>
                                     <div className="flex items-end gap-1 mb-2">
                                         <span className="text-slate-400 text-lg font-bold">R$</span>
-                                        <span className="text-5xl font-black text-white tracking-tight">397</span>
+                                        <span className="text-5xl font-black text-white tracking-tight">497</span>
                                         <span className="text-slate-500 font-bold mb-1">/mês</span>
                                     </div>
                                     <p className="text-sm text-slate-500 font-bold">Veículos ilimitados</p>

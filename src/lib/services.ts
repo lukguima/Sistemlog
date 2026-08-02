@@ -2535,7 +2535,7 @@ export const masterService = {
         const mrrMap: Record<string, number> = {
             basico: 197,
             pro: 297,
-            enterprise: 397,
+            enterprise: 497,
         };
         const { error } = await supabase
             .from('subscriptions')
