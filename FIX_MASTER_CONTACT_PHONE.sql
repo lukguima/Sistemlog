@@ -1,20 +1,19 @@
 -- ============================================================
--- FIX: cadastro não confia em user_metadata para role/empresa
--- (+ grava telefone/nome do cadastro em companies e profiles)
+-- Telefone de contato no painel Master (empresas / clientes SaaS)
 -- ------------------------------------------------------------
--- Regras:
--- 1) Cadastro público → SEMPRE empresa NOVA + role admin
--- 2) Equipe (service role) → só app_metadata
--- 3) role "master" NUNCA vem do cadastro automático
--- 4) phone/nome do formulário vão para companies + profiles
--- Idempotente. Rode no SQL Editor do Supabase.
+-- 1) Garante colunas phone em companies e profiles
+-- 2) Atualiza handle_new_user para gravar telefone do cadastro
+-- 3) Backfill a partir do user_metadata (auth.users)
+-- Rode no SQL Editor do Supabase.
 -- ============================================================
 
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS email text;
+
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name text;
 
+-- Persiste telefone (e nome) no signup público / criação de usuário
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -110,9 +109,33 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- Backfill: telefone do metadata → companies / profiles
+UPDATE public.companies c
+SET phone = COALESCE(NULLIF(trim(c.phone), ''), NULLIF(trim(u.raw_user_meta_data->>'phone'), ''))
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE p.company_id = c.id
+  AND (c.phone IS NULL OR trim(c.phone) = '')
+  AND NULLIF(trim(u.raw_user_meta_data->>'phone'), '') IS NOT NULL;
 
-SELECT 'FIX_SIGNUP_METADATA aplicado (com telefone)' AS resultado;
+UPDATE public.profiles p
+SET phone = COALESCE(NULLIF(trim(p.phone), ''), NULLIF(trim(u.raw_user_meta_data->>'phone'), ''))
+FROM auth.users u
+WHERE u.id = p.id
+  AND (p.phone IS NULL OR trim(p.phone) = '')
+  AND NULLIF(trim(u.raw_user_meta_data->>'phone'), '') IS NOT NULL;
+
+-- Também copia phone da empresa para o admin, se faltar
+UPDATE public.profiles p
+SET phone = c.phone
+FROM public.companies c
+WHERE p.company_id = c.id
+  AND p.role = 'admin'
+  AND (p.phone IS NULL OR trim(p.phone) = '')
+  AND c.phone IS NOT NULL
+  AND trim(c.phone) <> '';
+
+SELECT
+  COUNT(*) FILTER (WHERE phone IS NOT NULL AND trim(phone) <> '') AS empresas_com_telefone,
+  COUNT(*) AS total_empresas
+FROM public.companies;

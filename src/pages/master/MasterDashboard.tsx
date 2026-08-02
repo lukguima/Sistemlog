@@ -2,8 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Building2, TrendingUp, TrendingDown, Users, AlertCircle,
     DollarSign, Loader2, ShieldOff, ShieldCheck, Clock,
-    CalendarDays, RefreshCw, Ban, CheckCircle, ChevronDown, Link as LinkIcon
+    CalendarDays, RefreshCw, Ban, CheckCircle, ChevronDown, Link as LinkIcon, Phone
 } from 'lucide-react';
+
+function waLink(phone: string) {
+    const digits = phone.replace(/\D/g, '');
+    const withCountry = digits.length >= 10 && !digits.startsWith('55') ? `55${digits}` : digits;
+    return `https://wa.me/${withCountry}`;
+}
 import { masterService, KIWIFY_CHECKOUT_URLS } from '../../lib/services';
 import { SUBSCRIPTION_PLANS } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
@@ -221,6 +227,7 @@ export default function MasterDashboard() {
                                 <thead className="bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                     <tr>
                                         <th className="px-5 py-4">Empresa</th>
+                                        <th className="px-5 py-4">Telefone</th>
                                         <th className="px-5 py-4">Plano</th>
                                         <th className="px-5 py-4">Status</th>
                                         <th className="px-5 py-4">MRR</th>
@@ -231,20 +238,34 @@ export default function MasterDashboard() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                                     {filtered.length === 0 ? (
-                                        <tr><td colSpan={7} className="px-5 py-10 text-center text-slate-400">Nenhuma empresa encontrada.</td></tr>
+                                        <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">Nenhuma empresa encontrada.</td></tr>
                                     ) : filtered.map(company => {
                                         const sub    = company.subscription;
                                         const status = sub?.status ?? 'trial';
                                         const badge  = STATUS_LABEL[status] ?? STATUS_LABEL['trial'];
                                         const isProcessing = actionLoading === company.id;
+                                        const phone = company.contactPhone || company.adminPhone || company.phone || null;
 
                                         return (
                                             <tr key={company.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                                                 <td className="px-5 py-4">
                                                     <p className="font-bold text-slate-900 dark:text-white">{company.name}</p>
                                                     <p className="text-[10px] text-slate-400 mt-0.5">{sub?.kiwify_customer_email || company.adminEmail || 'email não vinculado'}</p>
-                                                    {company.adminPhone && (
-                                                        <p className="text-[10px] text-slate-500 mt-0.5">{company.adminPhone}</p>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    {phone ? (
+                                                        <a
+                                                            href={waLink(phone)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                                                            title="Abrir WhatsApp"
+                                                        >
+                                                            <Phone size={12} />
+                                                            {phone}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-xs text-slate-300">—</span>
                                                     )}
                                                 </td>
                                                 <td className="px-5 py-4">

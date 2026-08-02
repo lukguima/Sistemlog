@@ -137,7 +137,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (!error && profile) {
                     finalUser.company_id = finalUser.company_id || profile.company_id;
-                    finalUser.role       = finalUser.role       || profile.role;
+                    // Nunca elevar a master só pelo profiles (pode ser adulterado se RLS falhar).
+                    // Master válido vem de app_metadata (service role / sync_user_claims).
+                    if (!finalUser.role) {
+                        finalUser.role = profile.role === 'master' ? undefined : profile.role;
+                    }
                     if (finalUser.permissions === undefined) {
                         finalUser.permissions = Array.isArray((profile as any).permissions)
                             ? (profile as any).permissions

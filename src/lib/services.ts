@@ -2390,8 +2390,8 @@ export const masterService = {
         const { data, error } = await supabase
             .from('companies')
             .select(`
-                id, name, created_at,
-                admin:profiles(email, phone),
+                id, name, phone, email, created_at,
+                profiles(email, phone, role),
                 subscription:subscriptions(
                     id, plan, status, mrr, vehicle_limit,
                     trial_ends_at, current_period_start, current_period_end,
@@ -2406,12 +2406,17 @@ export const masterService = {
             throw error;
         }
         return (data || []).map((c: any) => {
-            const admins = Array.isArray(c.admin) ? c.admin : (c.admin ? [c.admin] : []);
-            const adminProfile = admins.find((p: any) => p.email) || admins[0] || null;
+            const profiles = Array.isArray(c.profiles) ? c.profiles : (c.profiles ? [c.profiles] : []);
+            const adminProfile =
+                profiles.find((p: any) => p.role === 'admin' && (p.email || p.phone))
+                || profiles.find((p: any) => p.email || p.phone)
+                || null;
+            const contactPhone = c.phone || adminProfile?.phone || null;
             return {
                 ...c,
                 adminEmail: adminProfile?.email || null,
-                adminPhone: adminProfile?.phone || null,
+                adminPhone: contactPhone,
+                contactPhone,
                 subscription: Array.isArray(c.subscription) ? c.subscription[0] : c.subscription
             };
         });

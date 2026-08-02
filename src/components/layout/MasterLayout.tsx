@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useState } from 'react';
 import {
@@ -17,6 +17,11 @@ export default function MasterLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    // Cinto de segurança: layout master nunca renderiza para não-master
+    if ((user as any)?.role !== 'master') {
+        return <Navigate to="/" replace />;
+    }
 
     const navigation = [
         { name: 'Master Dashboard', href: '/saas-master', icon: LayoutDashboard },

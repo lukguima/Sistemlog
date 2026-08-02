@@ -2,8 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import {
     Building2, Search, Loader2, ShieldOff, ShieldCheck,
     CalendarDays, RefreshCw, Ban, CheckCircle, Users,
-    Link as LinkIcon, ChevronDown, X
+    Link as LinkIcon, ChevronDown, X, Phone
 } from 'lucide-react';
+
+function waLink(phone: string) {
+    const digits = phone.replace(/\D/g, '');
+    const withCountry = digits.length >= 10 && !digits.startsWith('55') ? `55${digits}` : digits;
+    return `https://wa.me/${withCountry}`;
+}
 import { masterService, KIWIFY_CHECKOUT_URLS } from '../../lib/services';
 import { SUBSCRIPTION_PLANS } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
@@ -150,10 +156,13 @@ export default function Customers() {
         const sub = c.subscription;
         const matchesStatus = filterStatus === 'all' || sub?.status === filterStatus;
         const q = search.toLowerCase();
+        const phone = (c.contactPhone || c.adminPhone || c.phone || '').toLowerCase();
         const matchesSearch =
             !q ||
             c.name?.toLowerCase().includes(q) ||
-            sub?.kiwify_customer_email?.toLowerCase().includes(q);
+            sub?.kiwify_customer_email?.toLowerCase().includes(q) ||
+            c.adminEmail?.toLowerCase().includes(q) ||
+            phone.includes(q);
         return matchesStatus && matchesSearch;
     });
 
@@ -241,6 +250,7 @@ export default function Customers() {
                             <thead className="border-b border-white/10 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                 <tr>
                                     <th className="px-5 py-4">Empresa</th>
+                                    <th className="px-5 py-4">Telefone</th>
                                     <th className="px-5 py-4">Plano</th>
                                     <th className="px-5 py-4">Status</th>
                                     <th className="px-5 py-4">Veículos</th>
@@ -258,6 +268,7 @@ export default function Customers() {
                                     const planKey = sub?.plan ?? 'trial';
                                     const planBadge = PLAN_COLOR[planKey] ?? PLAN_COLOR['trial'];
                                     const isProcessing = actionLoading === company.id;
+                                    const phone = company.contactPhone || company.adminPhone || company.phone || null;
 
                                     return (
                                         <tr
@@ -269,10 +280,21 @@ export default function Customers() {
                                                 <p className="text-[11px] text-slate-500 mt-0.5">
                                                     {sub?.kiwify_customer_email || company.adminEmail || '—'}
                                                 </p>
-                                                {company.adminPhone && (
-                                                    <p className="text-[11px] text-slate-600 mt-0.5">
-                                                        {company.adminPhone}
-                                                    </p>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                {phone ? (
+                                                    <a
+                                                        href={waLink(phone)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400 hover:text-emerald-300"
+                                                        title="Abrir WhatsApp"
+                                                    >
+                                                        <Phone size={12} />
+                                                        {phone}
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-xs text-slate-600">—</span>
                                                 )}
                                             </td>
                                             <td className="px-5 py-4">

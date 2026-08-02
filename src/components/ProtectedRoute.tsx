@@ -29,27 +29,31 @@ export default function ProtectedRoute({ requiredRole }: ProtectedRouteProps) {
 
     const role = (user as any)?.role as string | undefined;
 
-    // Master tem acesso a tudo
+    // Área Master: SOMENTE role master (não basta estar logado)
+    if (requiredRole === 'master') {
+        if (role !== 'master') {
+            return <Navigate to="/" replace />;
+        }
+        return <Outlet />;
+    }
+
+    // Master autenticado pode entrar nas demais áreas protegidas
     if (role === 'master') {
         return <Outlet />;
     }
 
-    // A área administrativa aceita admin e também os funcionários por setor
-    // (manager/operator) — o controle fino por setor é feito dentro do AdminLayout.
+    // Admin logístico + funcionários por setor (filtro fino no AdminLayout)
     const allowed = requiredRole === 'admin'
         ? ['admin', 'manager', 'operator']
         : requiredRole ? [requiredRole] : null;
 
     if (allowed && !allowed.includes(role ?? '')) {
-        // Driver tentando acessar admin → redireciona para área do motorista
         if (role === 'driver') {
             return <Navigate to="/driver/home" replace />;
         }
-        // Frentista só acessa o módulo do posto
         if (role === 'frentista') {
             return <Navigate to="/posto" replace />;
         }
-        // Qualquer outro caso → página inicial
         return <Navigate to="/" replace />;
     }
 
