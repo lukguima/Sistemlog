@@ -36,7 +36,7 @@ export const fleetService = {
     },
     /**
      * Sobe o hodômetro oficial do veículo somente se o valor for maior que o atual.
-     * Usado por abastecimento, viagem e manutenção para não deixar current_km defasado/regredir.
+     * Preferir recalculateVehicleKm após editar/apagar lançamentos.
      */
     async bumpVehicleKm(vehicleId: string, km: number | string | null | undefined) {
         const n = Number(km);
@@ -55,6 +55,81 @@ export const fleetService = {
             .update({ current_km: n })
             .eq('id', vehicleId);
         if (error) throw error;
+    },
+    /**
+     * Recalcula vehicles.current_km = maior KM entre:
+     * initial_km, abastecimentos (odometer), viagens (start/end), manutenções (km).
+     * Corrige typo alto: editar/apagar o lançamento errado baixa o hodômetro oficial.
+     */
+    async recalculateVehicleKm(vehicleId: string) {
+        if (!vehicleId) return;
+        const { data: vehicle, error: vErr } = await supabase
+            .from('vehicles')
+            .select('initial_km')
+            .eq('id', vehicleId)
+            .maybeSingle();
+        if (vErr) throw vErr;
+        if (!vehicle) return;
+
+        const [fuelRes, tripStartRes, tripEndRes, maintRes] = await Promise.all([
+            supabase
+                .from('fuel_records')
+                .select('odometer')
+                .eq('vehicle_id', vehicleId)
+                .not('odometer', 'is', null)
+                .order('odometer', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+            supabase
+                .from('trips')
+                .select('start_km')
+                .eq('vehicle_id', vehicleId)
+                .not('start_km', 'is', null)
+                .order('start_km', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+            supabase
+                .from('trips')
+                .select('end_km')
+                .eq('vehicle_id', vehicleId)
+                .not('end_km', 'is', null)
+                .order('end_km', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+            supabase
+                .from('maintenance')
+                .select('km')
+                .eq('vehicle_id', vehicleId)
+                .not('km', 'is', null)
+                .order('km', { ascending: false })
+                .limit(1)
+                .maybeSingle(),
+        ]);
+
+        for (const r of [fuelRes, tripStartRes, tripEndRes, maintRes]) {
+            if (r.error) throw r.error;
+        }
+
+        const maxKm = Math.max(
+            Number(vehicle.initial_km) || 0,
+            Number(fuelRes.data?.odometer) || 0,
+            Number(tripStartRes.data?.start_km) || 0,
+            Number(tripEndRes.data?.end_km) || 0,
+            Number(maintRes.data?.km) || 0,
+        );
+
+        const { error } = await supabase
+            .from('vehicles')
+            .update({ current_km: maxKm })
+            .eq('id', vehicleId);
+        if (error) throw error;
+    },
+    /** Recalcula um ou mais veículos (ex.: troca de veículo no lançamento). */
+    async recalculateVehicleKmMany(vehicleIds: Array<string | null | undefined>) {
+        const unique = [...new Set(vehicleIds.filter((id): id is string => !!id))];
+        for (const id of unique) {
+            await this.recalculateVehicleKm(id);
+        }
     },
     async deleteVehicle(id: string) {
         const { error } = await supabase
@@ -266,9 +341,8 @@ export const tripService = {
             .select()
             .single();
         if (error) throw error;
-        const km = Number(tripData.end_km) || Number(tripData.start_km) || 0;
-        if (tripData.vehicle_id && km > 0) {
-            try { await fleetService.bumpVehicleKm(tripData.vehicle_id, km); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        if (tripData.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(tripData.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
         }
         return data;
     },
@@ -304,6 +378,11 @@ export const tripService = {
         return data;
     },
     async updateTrip(id: string, updates: any) {
+        const { data: before } = await supabase
+            .from('trips')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
         const { data, error } = await supabase
             .from('trips')
             .update(updates)
@@ -311,10 +390,10 @@ export const tripService = {
             .select()
             .single();
         if (error) throw error;
-        const vehicleId = updates.vehicle_id || data?.vehicle_id;
-        const km = Number(updates.end_km) || Number(updates.start_km) || Number(data?.end_km) || Number(data?.start_km) || 0;
-        if (vehicleId && km > 0) {
-            try { await fleetService.bumpVehicleKm(vehicleId, km); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        try {
+            await fleetService.recalculateVehicleKmMany([before?.vehicle_id, data?.vehicle_id, updates?.vehicle_id]);
+        } catch (e) {
+            console.warn('recalculateVehicleKm:', e);
         }
         return data;
     },
@@ -327,6 +406,12 @@ export const tripService = {
      * - por fim apaga a linha em trips
      */
     async deleteTrip(id: string) {
+        const { data: tripBefore } = await supabase
+            .from('trips')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
+
         // 1) Ajustar/remover fechamentos de acerto que referenciam esta viagem
         const { data: settlements, error: sErr } = await supabase
             .from('settlements')
@@ -396,6 +481,10 @@ export const tripService = {
             .delete()
             .eq('id', id);
         if (error) throw error;
+
+        if (tripBefore?.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(tripBefore.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
+        }
     }
 };
 
@@ -854,20 +943,22 @@ export const maintenanceService = {
             .single();
         if (error) throw error;
 
-        // Atualiza current_km do veículo se informado (só sobe)
+        // Atualiza hodômetro oficial a partir de todos os lançamentos
         const kmDone = Number(maintenance.km || maintenance.current_km) || 0;
-        if (kmDone > 0 && maintenance.vehicle_id) {
-            try { await fleetService.bumpVehicleKm(maintenance.vehicle_id, kmDone); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        if (maintenance.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(maintenance.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
 
             // Sincroniza campos de histórico do veículo para manter alertas corretos
             const vehicleUpdate: Record<string, any> = {};
-            if (maintenance.type === 'preventive') {
-                if (maintenance.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
-                if (maintenance.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
-                if (maintenance.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
+            if (kmDone > 0) {
+                if (maintenance.type === 'preventive') {
+                    if (maintenance.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
+                    if (maintenance.preventive_type === 'filtros') vehicleUpdate.last_filter_change_km = kmDone;
+                    if (maintenance.preventive_type === 'pneu') vehicleUpdate.last_tyre_change_km = kmDone;
+                }
+                if (maintenance.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
+                if (maintenance.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
             }
-            if (maintenance.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
-            if (maintenance.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
 
             if (Object.keys(vehicleUpdate).length > 0) {
                 await supabase
@@ -883,6 +974,11 @@ export const maintenanceService = {
         // Converte strings vazias em null para colunas de tipo date/integer
         if (cleanUpdates.next_maintenance_date === '') cleanUpdates.next_maintenance_date = null;
         if (cleanUpdates.maintenance_interval_months === '' || cleanUpdates.maintenance_interval_months === 0) cleanUpdates.maintenance_interval_months = null;
+        const { data: before } = await supabase
+            .from('maintenance')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
         const { data, error } = await supabase
             .from('maintenance')
             .update(cleanUpdates)
@@ -891,10 +987,14 @@ export const maintenanceService = {
             .single();
         if (error) throw error;
 
-        // Sincroniza campos do veículo se manutenção preventiva de óleo/filtro foi atualizada
-        const kmDone = Number(updates.km || updates.current_km) || 0;
-        if (kmDone > 0 && updates.vehicle_id) {
-            try { await fleetService.bumpVehicleKm(updates.vehicle_id, kmDone); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        const vehicleId = data?.vehicle_id || updates.vehicle_id || before?.vehicle_id;
+        const kmDone = Number(updates.km || updates.current_km || data?.km) || 0;
+        try {
+            await fleetService.recalculateVehicleKmMany([before?.vehicle_id, vehicleId]);
+        } catch (e) {
+            console.warn('recalculateVehicleKm:', e);
+        }
+        if (kmDone > 0 && vehicleId) {
             const vehicleUpdate: Record<string, any> = {};
             if (updates.type === 'preventive') {
                 if (updates.preventive_type === 'oleo') vehicleUpdate.last_oil_change_km = kmDone;
@@ -904,17 +1004,25 @@ export const maintenanceService = {
             if (updates.type === 'oil') vehicleUpdate.last_oil_change_km = kmDone;
             if (updates.type === 'tyres') vehicleUpdate.last_tyre_change_km = kmDone;
             if (Object.keys(vehicleUpdate).length > 0) {
-                await supabase.from('vehicles').update(vehicleUpdate).eq('id', updates.vehicle_id);
+                await supabase.from('vehicles').update(vehicleUpdate).eq('id', vehicleId);
             }
         }
         return data;
     },
     async deleteMaintenance(id: string) {
+        const { data: before } = await supabase
+            .from('maintenance')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
         const { error } = await supabase
             .from('maintenance')
             .delete()
             .eq('id', id);
         if (error) throw error;
+        if (before?.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(before.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
+        }
     }
 };
 
@@ -1028,8 +1136,8 @@ export const driverService = {
             }
             throw error;
         }
-        if (record.vehicle_id && record.odometer) {
-            try { await fleetService.bumpVehicleKm(record.vehicle_id, record.odometer); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        if (record.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(record.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
         }
         return data;
     },
@@ -1106,6 +1214,11 @@ export const driverService = {
         return data || [];
     },
     async updateFuelRecord(id: string, updates: any) {
+        const { data: before } = await supabase
+            .from('fuel_records')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
         const { data, error } = await supabase
             .from('fuel_records')
             .update(updates)
@@ -1113,19 +1226,27 @@ export const driverService = {
             .select()
             .single();
         if (error) throw error;
-        const vehicleId = updates.vehicle_id || data?.vehicle_id;
-        const odo = updates.odometer ?? data?.odometer;
-        if (vehicleId && odo) {
-            try { await fleetService.bumpVehicleKm(vehicleId, odo); } catch (e) { console.warn('bumpVehicleKm:', e); }
+        try {
+            await fleetService.recalculateVehicleKmMany([before?.vehicle_id, data?.vehicle_id, updates?.vehicle_id]);
+        } catch (e) {
+            console.warn('recalculateVehicleKm:', e);
         }
         return data;
     },
     async deleteFuelRecord(id: string) {
+        const { data: before } = await supabase
+            .from('fuel_records')
+            .select('vehicle_id')
+            .eq('id', id)
+            .maybeSingle();
         const { error } = await supabase
             .from('fuel_records')
             .delete()
             .eq('id', id);
         if (error) throw error;
+        if (before?.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(before.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
+        }
     }
 };
 
