@@ -5,6 +5,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/public/LandingPage';
 import Login from './pages/auth/Login';
 import Register from './pages/public/Register';
+import TermsOfUse from './pages/public/TermsOfUse';
+import PrivacyPolicy from './pages/public/PrivacyPolicy';
+import CookiePolicy from './pages/public/CookiePolicy';
+import CookieConsent from './components/legal/CookieConsent';
 
 // Admin (Logistics)
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -55,11 +59,15 @@ import HelpCenter from './pages/support/HelpCenter';
 function App() {
   return (
     <Router>
+      <CookieConsent />
       <Routes>
         {/* ── Público ── */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/termos" element={<TermsOfUse />} />
+        <Route path="/privacidade" element={<PrivacyPolicy />} />
+        <Route path="/cookies" element={<CookiePolicy />} />
         <Route path="/welcome" element={<Welcome />} />
         <Route path="/help-center" element={<HelpCenter />} />
 
