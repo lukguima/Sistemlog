@@ -1480,13 +1480,28 @@ export const profileService = {
     }
 };
 
-// URLs de checkout Kiwify por plano.
-// Configure aqui os links gerados no painel Kiwify (Produtos > Copiar link de compra).
+// URLs de checkout Kiwify por plano (fallback se RPC/master_settings falhar).
 export const KIWIFY_CHECKOUT_URLS: Record<string, string> = {
     basico:    'https://pay.kiwify.com.br/Xo5neXV',
     pro:       'https://pay.kiwify.com.br/9f3rjhC',
     enterprise:'https://pay.kiwify.com.br/itrSZqN',
 };
+
+/** Lê checkout_url_* de master_settings via RPC pública; fallback nas constantes. */
+export async function getCheckoutUrls(): Promise<Record<string, string>> {
+    try {
+        const { data, error } = await supabase.rpc('get_public_checkout_urls');
+        if (error) throw error;
+        const map = (data && typeof data === 'object' ? data : {}) as Record<string, string>;
+        return {
+            basico:     String(map.checkout_url_basico || map.basico || KIWIFY_CHECKOUT_URLS.basico),
+            pro:        String(map.checkout_url_pro || map.pro || KIWIFY_CHECKOUT_URLS.pro),
+            enterprise: String(map.checkout_url_enterprise || map.enterprise || KIWIFY_CHECKOUT_URLS.enterprise),
+        };
+    } catch {
+        return { ...KIWIFY_CHECKOUT_URLS };
+    }
+}
 
 export const subscriptionService = {
     async getSubscription(companyId: string) {
@@ -1498,9 +1513,10 @@ export const subscriptionService = {
         if (error) throw error;
         return data;
     },
-    createKiwifyCheckout(plan: string): string {
-        const url = KIWIFY_CHECKOUT_URLS[plan.toLowerCase()];
-        if (!url) throw new Error(`Plano "${plan}" não encontrado. Configure KIWIFY_CHECKOUT_URLS em services.ts.`);
+    async createKiwifyCheckout(plan: string): Promise<string> {
+        const urls = await getCheckoutUrls();
+        const url = urls[plan.toLowerCase()];
+        if (!url) throw new Error(`Plano "${plan}" não encontrado. Configure a URL no Master → Configurações Globais.`);
         return url;
     }
 };

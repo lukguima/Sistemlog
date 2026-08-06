@@ -30,6 +30,7 @@ export default function Register() {
                 email: formData.email,
                 password: formData.password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback`,
                     data: {
                         nome: formData.full_name,
                         company_name: formData.company_name,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 function roleHome(role?: string) {
@@ -10,14 +10,31 @@ function roleHome(role?: string) {
     return '/admin/dashboard';
 }
 
+function mapLoginError(err: any): string {
+    const msg = String(err?.message || '');
+    const lower = msg.toLowerCase();
+    if (lower.includes('email not confirmed') || lower.includes('confirme seu e-mail')) {
+        return 'Confirme seu e-mail antes de entrar. Verifique a caixa de entrada e o spam.';
+    }
+    if (lower.includes('invalid login') || msg === 'E-mail ou senha inválidos.') {
+        return 'E-mail ou senha incorretos.';
+    }
+    if (lower.includes('muitas tentativas')) {
+        return msg;
+    }
+    return msg || 'Erro ao fazer login. Tente novamente.';
+}
+
 export default function Login() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { login, user, loading: authLoading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [confirmedBanner] = useState(() => searchParams.get('confirmed') === '1');
 
     // Redireciona usuário já autenticado para a área correta
     useEffect(() => {
@@ -36,9 +53,7 @@ export default function Login() {
             if (error) throw error;
             // Redirecionamento via useEffect acima após user ser atualizado
         } catch (err: any) {
-            setError(err.message === 'Invalid login credentials'
-                ? 'E-mail ou senha incorretos.'
-                : 'Erro ao fazer login. Tente novamente.');
+            setError(mapLoginError(err));
         } finally {
             setLoading(false);
         }
@@ -88,6 +103,13 @@ export default function Login() {
                         <h2 className="text-4xl font-black tracking-tight">Bem-vindo de volta</h2>
                         <p className="text-slate-400 text-lg">Insira suas credenciais para acessar o painel administrativo.</p>
                     </div>
+
+                    {confirmedBanner && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-sm font-bold animate-in fade-in flex items-start gap-2">
+                            <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+                            E-mail confirmado! Faça login com sua senha para acessar o sistema.
+                        </div>
+                    )}
 
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-sm font-bold animate-in fade-in">

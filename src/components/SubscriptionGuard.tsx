@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { AlertTriangle, CreditCard, Clock, Ban, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { KIWIFY_CHECKOUT_URLS } from '../lib/services';
+import { getCheckoutUrls, KIWIFY_CHECKOUT_URLS } from '../lib/services';
 
 const STATUS_LABELS: Record<string, string> = {
     overdue:       'Pagamento em Atraso',
@@ -12,6 +13,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
     const { subscription, isSubscriptionBlocked, isSubscriptionWarning, user } = useAuth();
+    const [checkoutUrls, setCheckoutUrls] = useState(KIWIFY_CHECKOUT_URLS);
+
+    useEffect(() => {
+        getCheckoutUrls().then(setCheckoutUrls).catch(() => { /* fallback */ });
+    }, []);
 
     // Master nunca é bloqueado
     if ((user as any)?.role === 'master') return <>{children}</>;
@@ -21,9 +27,9 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
     const planKey = (subscription.plan || 'pro').toLowerCase();
     const checkoutUrl = subscription.checkout_url
-        || KIWIFY_CHECKOUT_URLS[planKey]
-        || KIWIFY_CHECKOUT_URLS['pro']
-        || 'https://pay.kiwify.com.br/9f3rjhC';
+        || checkoutUrls[planKey]
+        || checkoutUrls['pro']
+        || KIWIFY_CHECKOUT_URLS.pro;
 
     // ── Banner de restrição (sem bloqueio total — acesso somente leitura) ──
     if (isSubscriptionBlocked) {

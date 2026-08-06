@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Truck, Users, Plus, Search, MoreVertical, Edit2, Trash2, Calendar, Download, FileText, Loader2, AlertTriangle, X, Zap, Star, Building2, ArrowRightLeft, Container } from 'lucide-react';
-
-const KIWIFY_BASICO = 'https://pay.kiwify.com.br/Xo5neXV';
-const KIWIFY_PRO = 'https://pay.kiwify.com.br/9f3rjhC';
-const KIWIFY_ENTERPRISE = 'https://pay.kiwify.com.br/itrSZqN';
+import { exportToExcel, exportToPDF } from '../../lib/exports';
+import { useAuth } from '../../context/AuthContext';
+import { fleetService, tripService, maintenanceService, driverService, getCheckoutUrls, KIWIFY_CHECKOUT_URLS } from '../../lib/services';
+import { supabase } from '../../lib/supabase';
+import AddTruckModal from '../../components/admin/AddTruckModal';
+import AddImplementModal from '../../components/admin/AddImplementModal';
+import DriverModal from '../../components/admin/DriverModal';
+import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
+import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 
 const PLAN_LIMITS: Record<string, number | null> = {
     trial: 3,
@@ -22,15 +27,6 @@ function getVehicleLimit(subscription: any): number | null {
     const planLimit = PLAN_LIMITS[subscription.plan];
     return planLimit !== undefined ? planLimit : 3;
 }
-import { exportToExcel, exportToPDF } from '../../lib/exports';
-import { useAuth } from '../../context/AuthContext';
-import { fleetService, tripService, maintenanceService, driverService } from '../../lib/services';
-import { supabase } from '../../lib/supabase';
-import AddTruckModal from '../../components/admin/AddTruckModal';
-import AddImplementModal from '../../components/admin/AddImplementModal';
-import DriverModal from '../../components/admin/DriverModal';
-import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
-import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 
 export default function Fleet() {
     const { user, subscription, isSubscriptionBlocked } = useAuth();
@@ -50,6 +46,7 @@ export default function Fleet() {
     const [searchTerm, setSearchTerm] = useState('');
     const [swapVehicle, setSwapVehicle] = useState<any | null>(null);
     const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
+    const [checkoutUrls, setCheckoutUrls] = useState(KIWIFY_CHECKOUT_URLS);
 
     const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
 
@@ -60,6 +57,10 @@ export default function Fleet() {
     const vehicleLimit = getVehicleLimit(subscription);
     // O limite do plano conta apenas caminhões, não implementos
     const atVehicleLimit = vehicleLimit !== null && trucks.length >= vehicleLimit;
+
+    useEffect(() => {
+        getCheckoutUrls().then(setCheckoutUrls).catch(() => { /* fallback */ });
+    }, []);
 
     const fetchData = async () => {
         let targetCompanyId = companyId;
@@ -663,7 +664,7 @@ export default function Fleet() {
                             <p className="text-2xl font-extrabold text-blue-600">5</p>
                             <p className="text-xs text-slate-500">veículos</p>
                             {subscription?.plan !== 'basico' && (
-                                <a href={KIWIFY_BASICO} target="_blank" rel="noopener noreferrer"
+                                <a href={checkoutUrls.basico} target="_blank" rel="noopener noreferrer"
                                     className="mt-1 text-xs bg-blue-600 text-white rounded-lg py-1.5 font-semibold hover:bg-blue-700 transition-colors">
                                     Assinar
                                 </a>
@@ -679,7 +680,7 @@ export default function Fleet() {
                             <p className="text-2xl font-extrabold text-purple-600">20</p>
                             <p className="text-xs text-slate-500">veículos</p>
                             {subscription?.plan !== 'pro' && (
-                                <a href={KIWIFY_PRO} target="_blank" rel="noopener noreferrer"
+                                <a href={checkoutUrls.pro} target="_blank" rel="noopener noreferrer"
                                     className="mt-1 text-xs bg-purple-600 text-white rounded-lg py-1.5 font-semibold hover:bg-purple-700 transition-colors">
                                     Fazer Upgrade
                                 </a>
@@ -694,7 +695,7 @@ export default function Fleet() {
                             <p className="text-2xl font-extrabold text-slate-700">∞</p>
                             <p className="text-xs text-slate-500">ilimitado</p>
                             {subscription?.plan !== 'enterprise' && (
-                                <a href={KIWIFY_ENTERPRISE} target="_blank" rel="noopener noreferrer"
+                                <a href={checkoutUrls.enterprise} target="_blank" rel="noopener noreferrer"
                                     className="mt-1 text-xs bg-slate-800 text-white rounded-lg py-1.5 font-semibold hover:bg-slate-900 transition-colors">
                                     Fazer Upgrade
                                 </a>

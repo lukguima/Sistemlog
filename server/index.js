@@ -192,6 +192,13 @@ const server = createServer(async (req, res) => {
             const { data, error } = await sb.auth.signInWithPassword({ email, password });
             if (error || !data.session) {
                 recordLoginFailure(rateKey);
+                const raw = String(error?.message || '').toLowerCase();
+                if (raw.includes('email not confirmed')) {
+                    sendJson(res, 401, {
+                        error: 'Confirme seu e-mail antes de entrar. Verifique a caixa de entrada e o spam.',
+                    }, cors);
+                    return;
+                }
                 sendJson(res, 401, { error: 'E-mail ou senha inválidos.' }, cors);
                 return;
             }

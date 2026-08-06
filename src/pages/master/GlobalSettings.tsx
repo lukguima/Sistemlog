@@ -283,8 +283,8 @@ export default function GlobalSettings() {
                         <p className="text-xs text-slate-500">
                             Obtenha os links no painel Kiwify:{' '}
                             <span className="text-slate-400 font-medium">Produto → Copiar link de compra</span>.
-                            Os valores são salvos na tabela{' '}
-                            <code className="bg-slate-700 text-slate-300 px-1 py-0.5 rounded text-[11px]">master_settings</code>.
+                            Ao salvar, a landing e os botões de pagamento do sistema usam estas URLs automaticamente.
+                            O produto precisa estar ativo na Kiwify.
                         </p>
                     </div>
                 </section>

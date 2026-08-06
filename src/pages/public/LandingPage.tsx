@@ -1,15 +1,22 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Truck, BarChart3, ArrowRight, Zap, Globe, Cpu,
     Wrench, Fuel, DollarSign, Users, Shield, CheckCircle,
     Star, ChevronRight, TrendingUp, Clock, MessageCircle
 } from 'lucide-react';
-
-const KIWIFY_BASICO = 'https://pay.kiwify.com.br/Xo5neXV';
-const KIWIFY_PRO = 'https://pay.kiwify.com.br/9f3rjhC';
-const KIWIFY_ENTERPRISE = 'https://pay.kiwify.com.br/itrSZqN';
+import { getCheckoutUrls, KIWIFY_CHECKOUT_URLS } from '../../lib/services';
 
 export default function LandingPage() {
+    const [checkoutUrls, setCheckoutUrls] = useState(KIWIFY_CHECKOUT_URLS);
+
+    useEffect(() => {
+        getCheckoutUrls().then(setCheckoutUrls).catch(() => { /* fallback já no state */ });
+    }, []);
+
+    const KIWIFY_BASICO = checkoutUrls.basico;
+    const KIWIFY_PRO = checkoutUrls.pro;
+    const KIWIFY_ENTERPRISE = checkoutUrls.enterprise;
     return (
         <div className="min-h-screen bg-[#0B0F17] text-white flex flex-col font-display overflow-x-hidden">
 

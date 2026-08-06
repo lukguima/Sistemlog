@@ -247,9 +247,9 @@ export default function Settings() {
         }
     };
 
-    const handleRenewSubscription = (plan: string) => {
+    const handleRenewSubscription = async (plan: string) => {
         try {
-            const url = subscriptionService.createKiwifyCheckout(plan);
+            const url = await subscriptionService.createKiwifyCheckout(plan);
             window.open(url, '_blank');
         } catch (error: any) {
             console.error('Erro ao abrir checkout Kiwify:', error);

@@ -545,7 +545,7 @@ export default function Subscriptions() {
                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 flex items-start gap-2.5">
                             <AlertCircle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
                             <p className="text-xs text-amber-300 leading-relaxed">
-                                Após salvar, atualize <code className="font-mono bg-amber-500/20 px-1 rounded">KIWIFY_CHECKOUT_URLS</code> em <code className="font-mono bg-amber-500/20 px-1 rounded">services.ts</code> para sincronizar com o código local.
+                                Ao salvar, a URL passa a valer na página de vendas e nos botões de pagamento do sistema (landing, frota, renovação). O produto precisa estar ativo na Kiwify.
                             </p>
                         </div>
 
