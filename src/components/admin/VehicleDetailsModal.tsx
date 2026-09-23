@@ -77,9 +77,11 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
 
     const efficiencyData = (() => {
         if (!data?.history?.fuels?.length) return [];
-        const sorted = [...data.history.fuels].sort((a: any, b: any) =>
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
+        const sorted = [...data.history.fuels]
+            .filter((f: any) => Number(f.liters) > 0)
+            .sort((a: any, b: any) =>
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
         return sorted.map((f: any, i: number) => {
             const prev = i > 0 ? sorted[i - 1] : null;
             const kmDelta = prev && Number(f.odometer) > Number(prev.odometer)

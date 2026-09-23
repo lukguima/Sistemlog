@@ -130,9 +130,40 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const dieselL = parseFloat(formData.liters);
+        const dieselP = parseFloat(formData.price_per_liter);
+        const arlaL = parseFloat(formData.arla_liters);
+        const arlaP = parseFloat(formData.arla_price_per_liter);
+        const hasDiesel = Number.isFinite(dieselL) && dieselL > 0;
+        const hasArla = Number.isFinite(arlaL) && arlaL > 0;
+
+        if (!hasDiesel && !hasArla) {
+            alert('Informe diesel ou ARLA para salvar.');
+            return;
+        }
+        if (hasDiesel && !(Number.isFinite(dieselP) && dieselP > 0)) {
+            alert('Informe o preço por litro do diesel.');
+            return;
+        }
+        if (hasArla && !(Number.isFinite(arlaP) && arlaP > 0)) {
+            alert('Informe o preço por litro do ARLA.');
+            return;
+        }
+
         setLoading(true);
         try {
-            onSave(formData);
+            const payload = { ...formData };
+            if (!hasDiesel) {
+                payload.liters = '';
+                payload.price_per_liter = '';
+                payload.total_value = '';
+            }
+            if (!hasArla) {
+                payload.arla_liters = '';
+                payload.arla_price_per_liter = '';
+                payload.arla_value = '';
+            }
+            onSave(payload);
             clearDraftStore(DRAFT_KEY);
             setFormDataState(makeEmpty());
             onClose();
@@ -248,7 +279,6 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         <div className="space-y-1">
                             <label className={labelStyle}>Litros Diesel</label>
                             <input
-                                required
                                 type="number"
                                 step="0.01"
                                 className={inputStyle}
@@ -262,7 +292,6 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         <div className="space-y-1">
                             <label className={labelStyle}>Preço/Litro Diesel (R$)</label>
                             <input
-                                required
                                 type="number"
                                 step="0.001"
                                 className={inputStyle}
@@ -276,7 +305,6 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         <div className="space-y-1">
                             <label className={labelStyle}>Valor Total Diesel (R$)</label>
                             <input
-                                required
                                 type="number"
                                 step="0.01"
                                 className={`${inputStyle} bg-slate-50 font-bold border-blue-100 text-blue-600 cursor-not-allowed`}
@@ -290,7 +318,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     {/* ARLA 32 */}
                     <div className="bg-teal-50/60 border border-teal-100 rounded-2xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">ARLA 32 (Opcional)</p>
+                            <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">ARLA 32</p>
                             {arlaLitersSuggestion && (
                                 <button
                                     type="button"
@@ -341,7 +369,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             </div>
                         </div>
                         <p className="text-[10px] text-teal-500 ml-1">
-                            Consumo médio: ~5% do diesel. Para {formData.liters ? `${formData.liters} L de diesel → ~${arlaLitersSuggestion} L de ARLA` : '100 L de diesel → ~5 L de ARLA'}.
+                            Pode lançar só ARLA, sem diesel. Consumo médio: ~5% do diesel. Para {formData.liters ? `${formData.liters} L de diesel → ~${arlaLitersSuggestion} L de ARLA` : '100 L de diesel → ~5 L de ARLA'}.
                         </p>
                     </div>
 

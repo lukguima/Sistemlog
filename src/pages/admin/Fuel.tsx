@@ -66,10 +66,11 @@ export default function Fuel() {
                 if (a.vehicle_id !== b.vehicle_id) return String(a.vehicle_id).localeCompare(String(b.vehicle_id));
                 return (Number(a.odometer) || 0) - (Number(b.odometer) || 0);
             });
+            const dieselSorted = sorted.filter((r: any) => Number(r.liters) > 0);
             const prevById: Record<string, number | null> = {};
-            for (let i = 0; i < sorted.length; i++) {
-                const r = sorted[i];
-                const prev = i > 0 && sorted[i - 1].vehicle_id === r.vehicle_id ? sorted[i - 1] : null;
+            for (let i = 0; i < dieselSorted.length; i++) {
+                const r = dieselSorted[i];
+                const prev = i > 0 && dieselSorted[i - 1].vehicle_id === r.vehicle_id ? dieselSorted[i - 1] : null;
                 prevById[r.id] = prev ? Number(prev.odometer) : null;
             }
             const kmMap: Record<string, number | null> = {};

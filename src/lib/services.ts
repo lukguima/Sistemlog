@@ -1109,14 +1109,17 @@ export function isFuelDupOdometerError(e: unknown): e is FuelDupOdometerError {
 
 export const driverService = {
     async addFuelRecord(record: any) {
-        // Impede duplicata: mesmo veículo + mesmo odômetro + mesma empresa
-        if (record.vehicle_id && record.odometer && record.company_id) {
+        // Duplicata de diesel: mesmo veículo + mesmo odômetro.
+        // ARLA puro (sem litros de diesel) pode repetir o hodômetro.
+        const dieselLiters = Number(record.liters) || 0;
+        if (dieselLiters > 0 && record.vehicle_id && record.odometer && record.company_id) {
             const { data: dup } = await supabase
                 .from('fuel_records')
                 .select('id, created_at, odometer, liters, total_value, vehicle_id, vehicle:vehicles(plate)')
                 .eq('vehicle_id', record.vehicle_id)
                 .eq('odometer', record.odometer)
                 .eq('company_id', record.company_id)
+                .gt('liters', 0)
                 .limit(1)
                 .maybeSingle();
             if (dup) throw new FuelDupOdometerError(dup as FuelDupOdometerError['existing']);
@@ -1128,7 +1131,7 @@ export const driverService = {
             .single();
         if (error) {
             // Fallback: constraint UNIQUE no banco
-            if (error.code === '23505' && record.vehicle_id && record.odometer && record.company_id) {
+            if (error.code === '23505' && dieselLiters > 0 && record.vehicle_id && record.odometer && record.company_id) {
                 const existing = await this.getFuelRecordByVehicleOdometer(
                     record.company_id, record.vehicle_id, record.odometer
                 );
@@ -1157,6 +1160,7 @@ export const driverService = {
             .eq('company_id', companyId)
             .eq('vehicle_id', vehicleId)
             .eq('odometer', odometer)
+            .gt('liters', 0)
             .limit(1)
             .maybeSingle();
         if (error) throw error;
@@ -1202,10 +1206,10 @@ export const driverService = {
     },
     /** Odômetros leves por veículo (para KM/L sem baixar histórico completo com joins). */
     async getFuelOdometersForVehicles(companyId: string, vehicleIds: string[]) {
-        if (!vehicleIds.length) return [] as { id: string; vehicle_id: string; odometer: number }[];
+        if (!vehicleIds.length) return [] as { id: string; vehicle_id: string; odometer: number; liters: number | null }[];
         const { data, error } = await supabase
             .from('fuel_records')
-            .select('id, vehicle_id, odometer')
+            .select('id, vehicle_id, odometer, liters')
             .eq('company_id', companyId)
             .in('vehicle_id', vehicleIds)
             .not('odometer', 'is', null)
@@ -1808,7 +1812,9 @@ export const dashboardService = {
         // KM/L: média das leituras consecutivas válidas (evita distorções por leituras extremas)
         let avgKmPerLiter = 0;
         if (fuels && fuels.length > 1) {
-            const sorted = [...fuels].sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
+            const sorted = [...fuels]
+                .filter((a: any) => Number(a.liters) > 0)
+                .sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
             const readings: number[] = [];
             for (let i = 1; i < sorted.length; i++) {
                 const kmDelta = Number(sorted[i].odometer) - Number(sorted[i - 1].odometer);
@@ -2179,8 +2185,10 @@ export const dashboardService = {
             let totalKm = 0;
             let previousKm = 0;
             records.forEach(r => {
+                const liters = Number(r.liters) || 0;
+                if (liters <= 0) return;
                 const currentKm = Number(r.odometer);
-                totalLiters += Number(r.liters) || 0;
+                totalLiters += liters;
                 if (previousKm > 0) {
                     const diff = currentKm - previousKm;
                     if (diff > 0 && diff < 15000) totalKm += diff;
@@ -2279,9 +2287,11 @@ export const dashboardService = {
 
             let totalArlaCost = 0;
             records.forEach(r => {
-                totalLiters += Number(r.liters) || 0;
+                const liters = Number(r.liters) || 0;
+                totalLiters += liters;
                 totalCost += Number(r.total_value) || 0;
                 totalArlaCost += Number(r.arla_value) || 0;
+                if (liters <= 0) return;
                 const currentKm = Number(r.odometer);
                 if (previousKm > 0) {
                     const diff = currentKm - previousKm;
