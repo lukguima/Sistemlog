@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { calcTripCommission, normalizeCommissionBase } from './commission';
-import { saoPauloRange } from './format';
+import { utcCalendarRange } from './format';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -766,12 +766,12 @@ export const financeService = {
             .eq('company_id', companyId);
 
         if (startDate && endDate) {
-            const maint = saoPauloRange(startDate, endDate);
+            const maint = utcCalendarRange(startDate, endDate);
             maintenanceQuery = maintenanceQuery.gte('date', maint.gte).lt('date', maint.lt);
         } else if (startDate) {
-            maintenanceQuery = maintenanceQuery.gte('date', saoPauloRange(startDate, startDate).gte);
+            maintenanceQuery = maintenanceQuery.gte('date', utcCalendarRange(startDate, startDate).gte);
         } else if (endDate) {
-            maintenanceQuery = maintenanceQuery.lt('date', saoPauloRange(endDate, endDate).lt);
+            maintenanceQuery = maintenanceQuery.lt('date', utcCalendarRange(endDate, endDate).lt);
         }
 
         if (startDate) {
@@ -933,12 +933,12 @@ export const maintenanceService = {
             .order('date', { ascending: false });
 
         if (startDate && endDate) {
-            const range = saoPauloRange(startDate, endDate);
+            const range = utcCalendarRange(startDate, endDate);
             query = query.gte('date', range.gte).lt('date', range.lt);
         } else if (startDate) {
-            query = query.gte('date', saoPauloRange(startDate, startDate).gte);
+            query = query.gte('date', utcCalendarRange(startDate, startDate).gte);
         } else if (endDate) {
-            query = query.lt('date', saoPauloRange(endDate, endDate).lt);
+            query = query.lt('date', utcCalendarRange(endDate, endDate).lt);
         }
 
         const { data, error } = await query;

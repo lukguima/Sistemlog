@@ -2,9 +2,14 @@ import { Wrench, Clock, CheckCircle2, AlertTriangle, Loader2, Edit2, Trash2, Sea
 import { useState, useEffect } from 'react';
 import { maintenanceService, fleetService, supplierService } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import MaintenanceModal from '../../components/admin/MaintenanceModal';
+
+function fmtMaintDate(value: string | null | undefined) {
+    const day = String(value || '').slice(0, 10);
+    const [y, m, d] = day.split('-');
+    if (!y || !m || !d) return '—';
+    return `${d}/${m}/${y}`;
+}
 
 export default function Maintenance() {
     const { user, isSubscriptionBlocked } = useAuth();
@@ -259,7 +264,7 @@ export default function Maintenance() {
                                         <td className="px-8 py-6 font-black text-slate-900">{m.vehicle?.plate || 'N/A'}</td>
                                         <td className="px-8 py-6 font-bold text-slate-700">{Number(m.km).toLocaleString('pt-BR')} km</td>
                                         <td className="px-8 py-6 text-slate-500 text-sm">
-                                            {format(new Date(m.date), "dd/MM/yyyy", { locale: ptBR })}
+                                            {fmtMaintDate(m.date)}
                                         </td>
                                         <td className="px-8 py-6">
                                             <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-primary-500/10 text-primary-500`}>

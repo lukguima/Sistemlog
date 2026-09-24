@@ -21,18 +21,18 @@ export const localIsoDate = (d: Date): string => {
 };
 
 /**
- * Intervalo inclusivo de dias civis em America/Sao_Paulo (UTC−3).
- * gte = início do primeiro dia; lt = início do dia seguinte ao último.
+ * Dia gravado em timestamptz à meia-noite UTC (o dia escolhido no formulário).
+ * gte = início desse dia UTC; lt = início do dia UTC seguinte ao último.
  */
-export const saoPauloRange = (startDate: string, endDate: string) => {
+export const utcCalendarRange = (startDate: string, endDate: string) => {
     const [y, m, d] = endDate.split('-').map(Number);
     const next = new Date(Date.UTC(y, m - 1, d + 1));
     const ny = next.getUTCFullYear();
     const nm = String(next.getUTCMonth() + 1).padStart(2, '0');
     const nd = String(next.getUTCDate()).padStart(2, '0');
     return {
-        gte: `${startDate}T00:00:00-03:00`,
-        lt: `${ny}-${nm}-${nd}T00:00:00-03:00`,
+        gte: `${startDate}T00:00:00.000Z`,
+        lt: `${ny}-${nm}-${nd}T00:00:00.000Z`,
     };
 };
 
