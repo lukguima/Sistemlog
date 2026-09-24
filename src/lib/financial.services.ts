@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { saoPauloStart, saoPauloEndExclusive } from './format';
 
 // ─── Categorias ───────────────────────────────────────────────────────────────
 
@@ -229,7 +230,7 @@ export const cashFlowService = {
             supabase.from('fuel_records')
                 .select('total_value, created_at')
                 .eq('company_id', companyId)
-                .gte('created_at', `${start}T00:00:00`).lte('created_at', `${end}T23:59:59`),
+                .gte('created_at', saoPauloStart(start)).lt('created_at', saoPauloEndExclusive(end)),
             supabase.from('maintenance')
                 .select('cost, date')
                 .eq('company_id', companyId)
@@ -237,8 +238,8 @@ export const cashFlowService = {
             supabase.from('trips')
                 .select('gross_value, created_at, status')
                 .eq('company_id', companyId)
-                .gte('created_at', `${start}T00:00:00`)
-                .lte('created_at', `${end}T23:59:59`)
+                .gte('created_at', saoPauloStart(start))
+                .lt('created_at', saoPauloEndExclusive(end))
                 .in('status', ['completed', 'paid'])
         ]);
 
@@ -287,12 +288,12 @@ export const dreService = {
         const [tripsRes, fuelRes, maintRes, txRes, advRes] = await Promise.all([
             supabase.from('trips').select('gross_value, status, tolls_value, insurance_value, icms_value, tax_rate, loading_cost, unloading_cost')
                 .eq('company_id', companyId)
-                .gte('created_at', `${startDate}T00:00:00`)
-                .lte('created_at', `${endDate}T23:59:59`)
+                .gte('created_at', saoPauloStart(startDate))
+                .lt('created_at', saoPauloEndExclusive(endDate))
                 .in('status', ['completed', 'paid']),
             supabase.from('fuel_records').select('total_value')
                 .eq('company_id', companyId)
-                .gte('created_at', `${startDate}T00:00:00`).lte('created_at', `${endDate}T23:59:59`),
+                .gte('created_at', saoPauloStart(startDate)).lt('created_at', saoPauloEndExclusive(endDate)),
             supabase.from('maintenance').select('cost')
                 .eq('company_id', companyId)
                 .gte('date', startDate).lte('date', endDate),
@@ -302,8 +303,8 @@ export const dreService = {
                 .gte('competence_date', startDate).lte('competence_date', endDate),
             supabase.from('driver_advances').select('amount')
                 .eq('company_id', companyId)
-                .gte('created_at', `${startDate}T00:00:00`)
-                .lte('created_at', `${endDate}T23:59:59`)
+                .gte('created_at', saoPauloStart(startDate))
+                .lt('created_at', saoPauloEndExclusive(endDate))
         ]);
 
         const receitaFretes = (tripsRes.data ?? []).reduce((s: number, t: any) => s + (Number(t.gross_value) || 0), 0);
@@ -437,12 +438,12 @@ export const vehicleProfitabilityService = {
             supabase.from('vehicles').select('id, plate, model, brand, category').eq('company_id', companyId).eq('status', 'active'),
             supabase.from('trips').select('vehicle_id, gross_value, status')
                 .eq('company_id', companyId)
-                .gte('created_at', `${startDate}T00:00:00`)
-                .lte('created_at', `${endDate}T23:59:59`)
+                .gte('created_at', saoPauloStart(startDate))
+                .lt('created_at', saoPauloEndExclusive(endDate))
                 .in('status', ['completed', 'paid']),
             supabase.from('fuel_records').select('vehicle_id, total_value, liters, odometer')
                 .eq('company_id', companyId)
-                .gte('created_at', `${startDate}T00:00:00`).lte('created_at', `${endDate}T23:59:59`),
+                .gte('created_at', saoPauloStart(startDate)).lt('created_at', saoPauloEndExclusive(endDate)),
             supabase.from('maintenance').select('vehicle_id, cost')
                 .eq('company_id', companyId)
                 .gte('date', startDate).lte('date', endDate),

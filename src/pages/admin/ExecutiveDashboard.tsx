@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { dreService, accountsPayableService, accountsReceivableService, financingService, vehicleProfitabilityService } from '../../lib/financial.services';
 import { aiInsightService, type AiInsight } from '../../lib/ai.services';
 import { supabase } from '../../lib/supabase';
+import { localIsoDate, saoPauloStart, saoPauloEndExclusive } from '../../lib/format';
 import { Link } from 'react-router-dom';
 import {
     LayoutDashboard, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
@@ -17,7 +18,7 @@ const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
 const today = () => new Date();
 const isoDate = (d: Date) => d.toISOString().split('T')[0];
 const firstDayOfMonth = () => { const d = today(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; };
-const lastDayOfMonth = () => { const d = today(); return isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+const lastDayOfMonth = () => { const d = today(); return localIsoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
 const daysFromNow = (days: number) => { const d = today(); d.setDate(d.getDate() + days); return isoDate(d); };
 
 function HealthBadge({ score }: { score: number }) {
@@ -117,8 +118,8 @@ export default function ExecutiveDashboard() {
                 aiInsightService.getAll(companyId),
                 supabase.from('trips').select('id', { count: 'exact', head: true })
                     .eq('company_id', companyId)
-                    .gte('created_at', `${start}T00:00:00`)
-                    .lte('created_at', `${end}T23:59:59`),
+                    .gte('created_at', saoPauloStart(start))
+                    .lt('created_at', saoPauloEndExclusive(end)),
             ]);
 
             setDre(dreData);

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { calcTripCommission, normalizeCommissionBase } from './commission';
-import { utcCalendarRange } from './format';
+import { utcCalendarRange, saoPauloStart, saoPauloEndExclusive } from './format';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -211,8 +211,8 @@ export const tripService = {
     async getTrips(companyId: string, startDate?: string, endDate?: string): Promise<any[]> {
         const applyFilters = (q: any) => {
             q = q.eq('company_id', companyId).order('created_at', { ascending: false });
-            if (startDate) q = q.gte('created_at', startDate);
-            if (endDate)   q = q.lte('created_at', `${endDate}T23:59:59.999Z`);
+            if (startDate) q = q.gte('created_at', saoPauloStart(startDate));
+            if (endDate)   q = q.lt('created_at', saoPauloEndExclusive(endDate));
             return q;
         };
 
@@ -236,8 +236,8 @@ export const tripService = {
             .eq('company_id', companyId)
             .order('created_at', { ascending: false })
             .limit(limit);
-        if (startDate) q = q.gte('created_at', startDate);
-        if (endDate) q = q.lte('created_at', `${endDate}T23:59:59.999Z`);
+        if (startDate) q = q.gte('created_at', saoPauloStart(startDate));
+        if (endDate) q = q.lt('created_at', saoPauloEndExclusive(endDate));
         const { data, error } = await q;
         if (error) throw error;
         return (data as any[]) ?? [];
@@ -775,12 +775,12 @@ export const financeService = {
         }
 
         if (startDate) {
-            tripQuery = tripQuery.gte('created_at', startDate);
-            fuelQuery = fuelQuery.gte('created_at', startDate);
+            tripQuery = tripQuery.gte('created_at', saoPauloStart(startDate));
+            fuelQuery = fuelQuery.gte('created_at', saoPauloStart(startDate));
         }
         if (endDate) {
-            tripQuery = tripQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
-            fuelQuery = fuelQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
+            tripQuery = tripQuery.lt('created_at', saoPauloEndExclusive(endDate));
+            fuelQuery = fuelQuery.lt('created_at', saoPauloEndExclusive(endDate));
         }
 
         const [
@@ -1223,8 +1223,8 @@ export const driverService = {
             .eq('company_id', companyId)
             .order('created_at', { ascending: false });
 
-        if (startDate) query = query.gte('created_at', startDate);
-        if (endDate) query = query.lte('created_at', `${endDate}T23:59:59.999Z`);
+        if (startDate) query = query.gte('created_at', saoPauloStart(startDate));
+        if (endDate) query = query.lt('created_at', saoPauloEndExclusive(endDate));
 
         const { data, error } = await query;
         if (error) throw error;
@@ -1682,7 +1682,7 @@ export const leadService = {
 
 export const dashboardService = {
     async getTruckProfitability(companyId: string, startDate?: string, endDate?: string) {
-        const endDateFull = endDate ? `${endDate}T23:59:59.999Z` : undefined;
+        const endExclusive = endDate ? saoPauloEndExclusive(endDate) : undefined;
 
         let tripQuery = supabase
             .from('trips')
@@ -1700,13 +1700,13 @@ export const dashboardService = {
             .eq('company_id', companyId);
 
         if (startDate) {
-            tripQuery = tripQuery.gte('created_at', startDate);
-            fuelQuery = fuelQuery.gte('created_at', startDate);
+            tripQuery = tripQuery.gte('created_at', saoPauloStart(startDate));
+            fuelQuery = fuelQuery.gte('created_at', saoPauloStart(startDate));
             maintQuery = maintQuery.gte('date', startDate);
         }
-        if (endDateFull) {
-            tripQuery = tripQuery.lte('created_at', endDateFull);
-            fuelQuery = fuelQuery.lte('created_at', endDateFull);
+        if (endExclusive) {
+            tripQuery = tripQuery.lt('created_at', endExclusive);
+            fuelQuery = fuelQuery.lt('created_at', endExclusive);
         }
         if (endDate) {
             maintQuery = maintQuery.lte('date', endDate);
@@ -1775,20 +1775,20 @@ export const dashboardService = {
 
     async getVehicleAnalytics(companyId: string, vehicleId: string, startDate?: string, endDate?: string) {
         if (!companyId || !vehicleId) throw new Error("ID da empresa ou do veículo não informado.");
-        const endDateFull = endDate ? `${endDate}T23:59:59.999Z` : undefined;
+        const endExclusive = endDate ? saoPauloEndExclusive(endDate) : undefined;
 
         let tripsQuery = supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('created_at', { ascending: false });
         let fuelsQuery = supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('odometer', { ascending: true });
         let maintQuery = supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).eq('company_id', companyId).order('date', { ascending: false });
 
         if (startDate) {
-            tripsQuery = tripsQuery.gte('created_at', startDate);
-            fuelsQuery = fuelsQuery.gte('created_at', startDate);
+            tripsQuery = tripsQuery.gte('created_at', saoPauloStart(startDate));
+            fuelsQuery = fuelsQuery.gte('created_at', saoPauloStart(startDate));
             maintQuery = maintQuery.gte('date', startDate);
         }
-        if (endDateFull) {
-            tripsQuery = tripsQuery.lte('created_at', endDateFull);
-            fuelsQuery = fuelsQuery.lte('created_at', endDateFull);
+        if (endExclusive) {
+            tripsQuery = tripsQuery.lt('created_at', endExclusive);
+            fuelsQuery = fuelsQuery.lt('created_at', endExclusive);
         }
         if (endDate) {
             maintQuery = maintQuery.lte('date', endDate);
@@ -1898,8 +1898,8 @@ export const dashboardService = {
             .eq('company_id', companyId)
             .order('odometer', { ascending: true });
 
-        if (startDate) query = query.gte('created_at', startDate);
-        if (endDate) query = query.lte('created_at', endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+        if (startDate) query = query.gte('created_at', saoPauloStart(startDate));
+        if (endDate) query = query.lt('created_at', endDate.includes('T') ? endDate : saoPauloEndExclusive(endDate));
 
         const { data: fuels, error } = await query;
         if (error) throw error;
@@ -1916,7 +1916,7 @@ export const dashboardService = {
                 .select('vehicle_id, odometer')
                 .eq('company_id', companyId)
                 .in('vehicle_id', vehicleIds)
-                .lt('created_at', startDate)
+                .lt('created_at', saoPauloStart(startDate))
                 .order('odometer', { ascending: false });
             
             baselines?.forEach(b => {
@@ -2194,12 +2194,12 @@ export const dashboardService = {
             .order('odometer', { ascending: true });
 
         if (startDate) {
-            tripQuery = tripQuery.gte('created_at', startDate);
-            fuelQuery = fuelQuery.gte('created_at', startDate);
+            tripQuery = tripQuery.gte('created_at', saoPauloStart(startDate));
+            fuelQuery = fuelQuery.gte('created_at', saoPauloStart(startDate));
         }
         if (endDate) {
-            tripQuery = tripQuery.lte('created_at', endDate);
-            fuelQuery = fuelQuery.lte('created_at', endDate);
+            tripQuery = tripQuery.lt('created_at', saoPauloEndExclusive(endDate));
+            fuelQuery = fuelQuery.lt('created_at', saoPauloEndExclusive(endDate));
         }
 
         const [{ data: trips, error: tError }, { data: fuels, error: fError }] = await Promise.all([tripQuery, fuelQuery]);
@@ -2273,12 +2273,12 @@ export const dashboardService = {
             .eq('company_id', companyId);
 
         if (startDate) {
-            fuelQuery = fuelQuery.gte('created_at', startDate);
-            tripQuery = tripQuery.gte('created_at', startDate);
+            fuelQuery = fuelQuery.gte('created_at', saoPauloStart(startDate));
+            tripQuery = tripQuery.gte('created_at', saoPauloStart(startDate));
         }
         if (endDate) {
-            fuelQuery = fuelQuery.lte('created_at', endDate);
-            tripQuery = tripQuery.lte('created_at', endDate);
+            fuelQuery = fuelQuery.lt('created_at', saoPauloEndExclusive(endDate));
+            tripQuery = tripQuery.lt('created_at', saoPauloEndExclusive(endDate));
         }
 
         const [{ data: fuels, error: fError }, { data: trips, error: tError }] = await Promise.all([fuelQuery, tripQuery]);
@@ -2294,7 +2294,7 @@ export const dashboardService = {
                 .select('vehicle_id, odometer')
                 .eq('company_id', companyId)
                 .in('vehicle_id', vehicleIds)
-                .lt('created_at', startDate)
+                .lt('created_at', saoPauloStart(startDate))
                 .order('odometer', { ascending: false });
             baselines?.forEach(b => {
                 if (b.vehicle_id && !vehicleKmBaseline[b.vehicle_id]) {
@@ -2386,16 +2386,16 @@ export const dashboardService = {
            .in('status', ['completed', 'paid']);
 
         if (startDate) {
-            fuelQuery = fuelQuery.gte('created_at', startDate);
+            fuelQuery = fuelQuery.gte('created_at', saoPauloStart(startDate));
             maintenanceQuery = maintenanceQuery.gte('date', startDate);
-            advancesQuery = advancesQuery.gte('created_at', startDate);
-            tripsQuery = tripsQuery.gte('created_at', startDate);
+            advancesQuery = advancesQuery.gte('created_at', saoPauloStart(startDate));
+            tripsQuery = tripsQuery.gte('created_at', saoPauloStart(startDate));
         }
         if (endDate) {
-            fuelQuery = fuelQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
+            fuelQuery = fuelQuery.lt('created_at', saoPauloEndExclusive(endDate));
             maintenanceQuery = maintenanceQuery.lte('date', endDate);
-            advancesQuery = advancesQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
-            tripsQuery = tripsQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
+            advancesQuery = advancesQuery.lt('created_at', saoPauloEndExclusive(endDate));
+            tripsQuery = tripsQuery.lt('created_at', saoPauloEndExclusive(endDate));
         }
 
         const [

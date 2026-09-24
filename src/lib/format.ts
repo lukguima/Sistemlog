@@ -24,17 +24,23 @@ export const localIsoDate = (d: Date): string => {
  * Dia gravado em timestamptz à meia-noite UTC (o dia escolhido no formulário).
  * gte = início desse dia UTC; lt = início do dia UTC seguinte ao último.
  */
-export const utcCalendarRange = (startDate: string, endDate: string) => {
-    const [y, m, d] = endDate.split('-').map(Number);
+const nextCivilDay = (isoDate: string) => {
+    const [y, m, d] = isoDate.split('-').map(Number);
     const next = new Date(Date.UTC(y, m - 1, d + 1));
     const ny = next.getUTCFullYear();
     const nm = String(next.getUTCMonth() + 1).padStart(2, '0');
     const nd = String(next.getUTCDate()).padStart(2, '0');
-    return {
-        gte: `${startDate}T00:00:00.000Z`,
-        lt: `${ny}-${nm}-${nd}T00:00:00.000Z`,
-    };
+    return `${ny}-${nm}-${nd}`;
 };
+
+export const utcCalendarRange = (startDate: string, endDate: string) => ({
+    gte: `${startDate}T00:00:00.000Z`,
+    lt: `${nextCivilDay(endDate)}T00:00:00.000Z`,
+});
+
+/** created_at no calendário de Brasília (UTC−3, sem horário de verão). */
+export const saoPauloStart = (isoDate: string) => `${isoDate.slice(0, 10)}T00:00:00.000-03:00`;
+export const saoPauloEndExclusive = (isoDate: string) => `${nextCivilDay(isoDate.slice(0, 10))}T00:00:00.000-03:00`;
 
 /** Formata KM/L com 2 casas decimais: 2.45 → 2,45 */
 export const fmtKmL = (value: number | string | null | undefined): string => {
