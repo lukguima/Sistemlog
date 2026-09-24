@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { calcTripCommission, normalizeCommissionBase } from './commission';
+import { saoPauloRange } from './format';
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -764,15 +765,22 @@ export const financeService = {
             .select('insurance_value')
             .eq('company_id', companyId);
 
+        if (startDate && endDate) {
+            const maint = saoPauloRange(startDate, endDate);
+            maintenanceQuery = maintenanceQuery.gte('date', maint.gte).lt('date', maint.lt);
+        } else if (startDate) {
+            maintenanceQuery = maintenanceQuery.gte('date', saoPauloRange(startDate, startDate).gte);
+        } else if (endDate) {
+            maintenanceQuery = maintenanceQuery.lt('date', saoPauloRange(endDate, endDate).lt);
+        }
+
         if (startDate) {
             tripQuery = tripQuery.gte('created_at', startDate);
             fuelQuery = fuelQuery.gte('created_at', startDate);
-            maintenanceQuery = maintenanceQuery.gte('date', startDate);
         }
         if (endDate) {
             tripQuery = tripQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
             fuelQuery = fuelQuery.lte('created_at', `${endDate}T23:59:59.999Z`);
-            maintenanceQuery = maintenanceQuery.lte('date', `${endDate}T23:59:59.999Z`);
         }
 
         const [
@@ -924,8 +932,14 @@ export const maintenanceService = {
             .eq('company_id', companyId)
             .order('date', { ascending: false });
 
-        if (startDate) query = query.gte('date', startDate);
-        if (endDate) query = query.lte('date', `${endDate}T23:59:59.999Z`);
+        if (startDate && endDate) {
+            const range = saoPauloRange(startDate, endDate);
+            query = query.gte('date', range.gte).lt('date', range.lt);
+        } else if (startDate) {
+            query = query.gte('date', saoPauloRange(startDate, startDate).gte);
+        } else if (endDate) {
+            query = query.lt('date', saoPauloRange(endDate, endDate).lt);
+        }
 
         const { data, error } = await query;
         if (error) throw error;
@@ -1107,6 +1121,18 @@ export function isFuelDupOdometerError(e: unknown): e is FuelDupOdometerError {
     return !!e && typeof e === 'object' && (e as any).code === 'FUEL_DUP_ODOMETER';
 }
 
+const FUEL_DUP_ODOMETER_MSG =
+    'Já existe um abastecimento deste veículo com este hodômetro. Abra o lançamento anterior para editar, ou informe outro KM.';
+
+function throwIfFuelOdometerDup(
+    error: { code?: string } | null,
+    existing: FuelDupOdometerError['existing'] | null
+) {
+    if (error?.code !== '23505') return;
+    if (existing) throw new FuelDupOdometerError(existing);
+    throw new Error(FUEL_DUP_ODOMETER_MSG);
+}
+
 export const driverService = {
     async addFuelRecord(record: any) {
         // Duplicata de diesel: mesmo veículo + mesmo odômetro.
@@ -1130,13 +1156,13 @@ export const driverService = {
             .select('*, vehicle:vehicles(plate)')
             .single();
         if (error) {
-            // Fallback: constraint UNIQUE no banco
-            if (error.code === '23505' && dieselLiters > 0 && record.vehicle_id && record.odometer && record.company_id) {
-                const existing = await this.getFuelRecordByVehicleOdometer(
+            let existing: FuelDupOdometerError['existing'] | null = null;
+            if (error.code === '23505' && record.vehicle_id && record.odometer && record.company_id) {
+                existing = await this.getFuelRecordByVehicleOdometer(
                     record.company_id, record.vehicle_id, record.odometer
                 );
-                if (existing) throw new FuelDupOdometerError(existing);
             }
+            throwIfFuelOdometerDup(error, existing);
             throw error;
         }
         if (record.vehicle_id) {
@@ -1229,7 +1255,17 @@ export const driverService = {
             .eq('id', id)
             .select()
             .single();
-        if (error) throw error;
+        if (error) {
+            const vehicleId = updates?.vehicle_id || before?.vehicle_id;
+            const odometer = updates?.odometer;
+            const companyId = updates?.company_id;
+            let existing: FuelDupOdometerError['existing'] | null = null;
+            if (error.code === '23505' && vehicleId && odometer && companyId) {
+                existing = await this.getFuelRecordByVehicleOdometer(companyId, vehicleId, odometer);
+            }
+            throwIfFuelOdometerDup(error, existing);
+            throw error;
+        }
         try {
             await fleetService.recalculateVehicleKmMany([before?.vehicle_id, data?.vehicle_id, updates?.vehicle_id]);
         } catch (e) {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { dreService } from '../../lib/financial.services';
+import { localIsoDate } from '../../lib/format';
 import { FileText, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -50,7 +51,7 @@ export default function DRE() {
 
     const periodLabel = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    const endDate = localIsoDate(new Date(year, month, 0));
 
     const load = async () => {
         if (!companyId) return;

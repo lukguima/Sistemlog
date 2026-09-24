@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { vehicleProfitabilityService } from '../../lib/financial.services';
+import { localIsoDate } from '../../lib/format';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, AlertTriangle, Truck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -38,7 +39,7 @@ export default function VehicleProfitability() {
     };
 
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    const endDate = localIsoDate(new Date(year, month, 0));
     const periodLabel = new Date(year, month - 1, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
     const load = async () => {

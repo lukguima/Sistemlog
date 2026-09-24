@@ -8,6 +8,15 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import FreightSimulatorModal from '../../components/admin/FreightSimulatorModal';
 import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
 import { useNavigate } from 'react-router-dom';
+import { localIsoDate } from '../../lib/format';
+
+function periodRange(currentDate: Date, mode: 'month' | 'year') {
+    const y = currentDate.getFullYear();
+    if (mode === 'year') return { startDate: `${y}-01-01`, endDate: `${y}-12-31` };
+    const start = new Date(y, currentDate.getMonth(), 1);
+    const end = new Date(y, currentDate.getMonth() + 1, 0);
+    return { startDate: localIsoDate(start), endDate: localIsoDate(end) };
+}
 
 export default function AdminDashboard() {
     const { user, hasAccess } = useAuth();
@@ -53,19 +62,7 @@ export default function AdminDashboard() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                // Calcula range de datas
-                const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
-                
-                if (dateViewMode === 'year') {
-                    start.setMonth(0);
-                    start.setDate(1);
-                    end.setFullYear(currentDate.getFullYear());
-                    end.setMonth(11);
-                    end.setDate(31);
-                }
-                const startDate = start.toISOString().split('T')[0];
-                const endDate = end.toISOString().split('T')[0];
+                const { startDate, endDate } = periodRange(currentDate, dateViewMode);
 
                 // Limpa settlements órfãos em background (não bloqueia o paint do Dashboard)
                 try {
@@ -150,18 +147,7 @@ export default function AdminDashboard() {
         }
         try {
             setIsExporting(true);
-            const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
-            
-            if (dateViewMode === 'year') {
-                start.setMonth(0);
-                start.setDate(1);
-                end.setFullYear(currentDate.getFullYear());
-                end.setMonth(11);
-                end.setDate(31);
-            }
-            const startDate = start.toISOString().split('T')[0];
-            const endDate = end.toISOString().split('T')[0];
+            const { startDate, endDate } = periodRange(currentDate, dateViewMode);
 
             // Busca dados completos para o relatório (sem limites de slice)
             const [tripsFull, fuelFull, maintenanceFull] = await Promise.all([

@@ -9,6 +9,7 @@ ALTER TABLE public.fuel_records
     DROP CONSTRAINT IF EXISTS fuel_records_vehicle_odometer_unique;
 
 DROP INDEX IF EXISTS public.fuel_records_vehicle_odometer_unique;
+DROP INDEX IF EXISTS public.idx_fuel_vehicle_odometer;
 DROP INDEX IF EXISTS public.fuel_records_vehicle_odometer_diesel_unique;
 
 CREATE UNIQUE INDEX fuel_records_vehicle_odometer_diesel_unique
