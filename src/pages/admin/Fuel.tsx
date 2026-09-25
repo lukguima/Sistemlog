@@ -2,7 +2,7 @@ import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Dr
 import { useState, useEffect, useMemo } from 'react';
 import { driverService, fleetService, supplierService, isFuelDupOdometerError } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
-import { exportToPDF } from '../../lib/exports';
+import { exportToExcel, exportToPDF } from '../../lib/exports';
 
 import FuelModal from '../../components/admin/FuelModal.tsx';
 
@@ -114,6 +114,57 @@ export default function Fuel() {
             return plate.includes(plateQ) && driver.includes(driverQ);
         });
     }, [records, filterPlate, filterDriver]);
+
+    const dieselBySupplier = useMemo(() => {
+        const map = new Map<string, { key: string; name: string; liters: number; value: number; count: number }>();
+        for (const r of records) {
+            const id = r.supplier_id || '';
+            const key = id || '__none__';
+            const name = !id
+                ? 'Sem fornecedor'
+                : (suppliers.find(s => s.id === id)?.name || 'Fornecedor removido');
+            const cur = map.get(key) || { key, name, liters: 0, value: 0, count: 0 };
+            cur.liters += Number(r.liters) || 0;
+            cur.value += Number(r.total_value) || 0;
+            cur.count += 1;
+            map.set(key, cur);
+        }
+        return [...map.values()].sort((a, b) => b.liters - a.liters);
+    }, [records, suppliers]);
+
+    const handleExportSupplier = (format: 'pdf' | 'excel') => {
+        if (dieselBySupplier.length === 0) {
+            alert('Nenhum abastecimento no período.');
+            return;
+        }
+        const fmtMoney = (v: number) =>
+            new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+        const fileName = `diesel_por_fornecedor_${startDate}_${endDate}`;
+        if (format === 'excel') {
+            exportToExcel(dieselBySupplier.map(row => ({
+                Fornecedor: row.name,
+                'Litros diesel': row.liters,
+                'Valor diesel': row.value,
+                Lançamentos: row.count,
+            })), fileName);
+            return;
+        }
+        const headers = [['Fornecedor', 'Litros diesel', 'Valor diesel', 'Lançamentos']];
+        let totL = 0, totV = 0, totC = 0;
+        const rows = dieselBySupplier.map(row => {
+            totL += row.liters;
+            totV += row.value;
+            totC += row.count;
+            return [
+                row.name,
+                row.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+                fmtMoney(row.value),
+                String(row.count),
+            ];
+        });
+        rows.push(['TOTAL', totL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }), fmtMoney(totV), String(totC)]);
+        exportToPDF(`Diesel por fornecedor — ${fmtDateBr(startDate)} a ${fmtDateBr(endDate)}`, headers, rows, fileName);
+    };
 
     const handleExportPDF = () => {
         if (filteredRecords.length === 0) {
@@ -298,6 +349,61 @@ export default function Fuel() {
                     <span className="text-xl font-black text-slate-900">{fmt(stats.totalValue + stats.totalArlaValue)}</span>
                 </div>
             )}
+
+            <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">Diesel por fornecedor</h3>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">
+                            {fmtDateBr(startDate)} a {fmtDateBr(endDate)}
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => handleExportSupplier('pdf')}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase hover:bg-slate-50"
+                        >
+                            <FileDown size={16} className="text-rose-500" /> PDF
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleExportSupplier('excel')}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase hover:bg-slate-50"
+                        >
+                            <FileDown size={16} className="text-emerald-600" /> Excel
+                        </button>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <th className="px-6 py-3">Fornecedor</th>
+                                <th className="px-6 py-3">Litros diesel</th>
+                                <th className="px-6 py-3">Valor diesel</th>
+                                <th className="px-6 py-3">Lançamentos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {dieselBySupplier.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                                        Nenhum abastecimento no período
+                                    </td>
+                                </tr>
+                            ) : dieselBySupplier.map(row => (
+                                <tr key={row.key} className="border-t border-slate-100">
+                                    <td className="px-6 py-4 font-bold text-slate-900">{row.name}</td>
+                                    <td className="px-6 py-4 font-bold text-slate-700">{row.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
+                                    <td className="px-6 py-4 font-bold text-slate-700">{fmt(row.value)}</td>
+                                    <td className="px-6 py-4 font-bold text-slate-700">{row.count}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-xl">
                 <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-white">

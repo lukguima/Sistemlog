@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, TrendingUp, DollarSign, Fuel, Wrench, Calendar, Truck, Activity, ArrowRightLeft } from 'lucide-react';
+import { X, TrendingUp, DollarSign, Fuel, Wrench, Calendar, Truck, Activity, ArrowRightLeft, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { dashboardService, conjuntoHistoryService } from '../../lib/services';
+import { exportVehicleYearExcel, exportVehicleYearPdf, type VehicleYearReport } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
@@ -23,6 +24,8 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
     const [startDate, setStartDate] = useState(defaultStart);
     const [endDate, setEndDate] = useState(defaultEnd);
     const [period, setPeriod] = useState<'month' | 'quarter' | 'year' | 'all' | 'custom'>('month');
+    const [reportYear, setReportYear] = useState(now.getFullYear());
+    const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
 
     function applyPreset(preset: 'month' | 'quarter' | 'year' | 'all') {
         const d = new Date();
@@ -63,6 +66,21 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
             console.error('Erro ao buscar análise do veículo:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const downloadYearReport = async (format: 'pdf' | 'excel') => {
+        if (!companyId || !vehicleId || exporting) return;
+        try {
+            setExporting(format);
+            const report = await dashboardService.getVehicleYearReport(companyId, vehicleId, reportYear) as VehicleYearReport;
+            if (format === 'pdf') exportVehicleYearPdf(report);
+            else exportVehicleYearExcel(report);
+        } catch (error) {
+            console.error(error);
+            alert('Não foi possível gerar o relatório anual deste caminhão.');
+        } finally {
+            setExporting(null);
         }
     };
 
@@ -148,6 +166,37 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
                             />
                         </div>
                         {period === 'all' && <span className="text-[10px] text-slate-400 italic">histórico completo</span>}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Relatório anual</span>
+                        <select
+                            value={reportYear}
+                            onChange={e => setReportYear(Number(e.target.value))}
+                            className="text-[10px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700"
+                        >
+                            {Array.from({ length: 6 }, (_, i) => now.getFullYear() - i).map(y => (
+                                <option key={y} value={y}>{y}</option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            onClick={() => downloadYearReport('pdf')}
+                            disabled={!!exporting}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                        >
+                            {exporting === 'pdf' ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                            PDF
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => downloadYearReport('excel')}
+                            disabled={!!exporting}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                        >
+                            {exporting === 'excel' ? <Loader2 size={12} className="animate-spin" /> : <FileSpreadsheet size={12} />}
+                            Excel
+                        </button>
                     </div>
                 </div>
 

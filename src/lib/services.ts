@@ -1891,6 +1891,95 @@ export const dashboardService = {
         };
     },
 
+    /** Ano civil completo do veículo: totais e listas sem corte. */
+    async getVehicleYearReport(companyId: string, vehicleId: string, year: number) {
+        if (!companyId || !vehicleId) throw new Error('ID da empresa ou do veículo não informado.');
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+        const maint = utcCalendarRange(startDate, endDate);
+
+        const [
+            { data: vehicle, error: vError },
+            { data: trips, error: tError },
+            { data: fuels, error: fError },
+            { data: maintenances, error: mError },
+            company,
+        ] = await Promise.all([
+            supabase.from('vehicles').select('*').eq('id', vehicleId).eq('company_id', companyId).single(),
+            supabase.from('trips').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId)
+                .gte('created_at', saoPauloStart(startDate)).lt('created_at', saoPauloEndExclusive(endDate))
+                .order('created_at', { ascending: true }),
+            supabase.from('fuel_records').select('*, driver:drivers(name)').eq('vehicle_id', vehicleId).eq('company_id', companyId)
+                .gte('created_at', saoPauloStart(startDate)).lt('created_at', saoPauloEndExclusive(endDate))
+                .order('created_at', { ascending: true }),
+            supabase.from('maintenance').select('*').eq('vehicle_id', vehicleId).eq('company_id', companyId)
+                .gte('date', maint.gte).lt('date', maint.lt)
+                .order('date', { ascending: true }),
+            settingsService.getCompanyProfile(companyId).catch(() => ({ company_name: '' })),
+        ]);
+
+        if (vError || tError || fError || mError) throw vError || tError || fError || mError;
+
+        const tripRows = trips || [];
+        const fuelRows = fuels || [];
+        const maintRows = maintenances || [];
+
+        const totalGross = tripRows.reduce((acc, t) => acc + (Number(t.gross_value) || 0), 0);
+        const totalFuel = fuelRows.reduce((acc, f) => acc + (Number(f.total_value) || 0), 0);
+        const totalArla = fuelRows.reduce((acc, f) => acc + (Number((f as any).arla_value) || 0), 0);
+        const totalMaint = maintRows.reduce((acc, m) => acc + (Number((m as any).cost) || 0), 0);
+        const totalTolls = tripRows.reduce((acc, t) => acc + (Number((t as any).tolls_value) || 0), 0);
+        const totalIcms = tripRows.reduce((acc, t) => acc + (Number((t as any).icms_value) || 0), 0);
+        const totalInsurance = tripRows.reduce((acc, t) => acc + (Number((t as any).insurance_value) || 0), 0);
+        const totalLoading = tripRows.reduce((acc, t) => acc + (Number((t as any).loading_cost) || 0), 0);
+        const totalUnloading = tripRows.reduce((acc, t) => acc + (Number((t as any).unloading_cost) || 0), 0);
+
+        let commissionBase = normalizeCommissionBase('net_tax');
+        try {
+            const s = await settingsService.getSettings(companyId);
+            commissionBase = normalizeCommissionBase(s?.commission_base);
+        } catch { /* default */ }
+
+        const totalCommission = tripRows.reduce((acc, t) => acc + calcTripCommission(t, commissionBase).commission, 0);
+        const totalTax = tripRows.reduce((acc, t) => {
+            const rate = Number((t as any).tax_rate) || 0;
+            return acc + (Number(t.gross_value) || 0) * rate / 100;
+        }, 0);
+        const totalExpenses = totalFuel + totalArla + totalMaint + totalTolls + totalIcms + totalInsurance + totalLoading + totalUnloading + totalCommission + totalTax;
+        const netProfit = totalGross - totalExpenses;
+
+        let avgKmPerLiter = 0;
+        if (fuelRows.length > 1) {
+            const sorted = [...fuelRows]
+                .filter((a: any) => Number(a.liters) > 0)
+                .sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
+            const readings: number[] = [];
+            for (let i = 1; i < sorted.length; i++) {
+                const kmDelta = Number(sorted[i].odometer) - Number(sorted[i - 1].odometer);
+                const liters = Number(sorted[i].liters) || 0;
+                if (kmDelta > 0 && liters > 0 && kmDelta < 5000) readings.push(kmDelta / liters);
+            }
+            if (readings.length > 0) avgKmPerLiter = readings.reduce((a, b) => a + b, 0) / readings.length;
+        }
+
+        return {
+            year,
+            companyName: (company as any)?.name || (company as any)?.company_name || '',
+            vehicle,
+            stats: {
+                totalGross, totalFuel, totalArla, totalMaint, totalTolls, totalIcms, totalInsurance,
+                totalLoading, totalUnloading, totalCommission, totalTax, totalExpenses, netProfit,             avgKmPerLiter,
+                tripCount: tripRows.length,
+                fuelCount: fuelRows.length,
+                maintCount: maintRows.length,
+            },
+            commissionBase,
+            trips: tripRows,
+            fuels: fuelRows,
+            maintenances: maintRows,
+        };
+    },
+
     async getDriverAverages(companyId: string, startDate?: string, endDate?: string) {
         let query = supabase
             .from('fuel_records')
