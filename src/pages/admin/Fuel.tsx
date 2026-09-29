@@ -236,16 +236,20 @@ export default function Fuel() {
         try {
             const { date, km_reading, arla_price_per_liter: _arlaPpl, ...rest } = data;
             const toUuid = (v: any) => (v === '' || v == null) ? null : v;
-            const toNum  = (v: any) => (v === '' || v == null) ? null : Number(v) || null;
+            const toNum = (v: any) => {
+                if (v === '' || v == null) return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? n : null;
+            };
             const payload = {
                 ...rest,
                 vehicle_id:      toUuid(rest.vehicle_id),
                 driver_id:       toUuid(rest.driver_id),
                 supplier_id:     toUuid(rest.supplier_id),
                 odometer:        km_reading ? Number(km_reading) : null,
-                liters:          toNum(rest.liters),
-                price_per_liter: toNum(rest.price_per_liter),
-                total_value:     toNum(rest.total_value),
+                liters:          toNum(rest.liters) ?? 0,
+                price_per_liter: toNum(rest.price_per_liter) ?? 0,
+                total_value:     toNum(rest.total_value) ?? 0,
                 arla_liters:     toNum(rest.arla_liters),
                 arla_value:      toNum(rest.arla_value),
                 created_at:      date ? `${date}T12:00:00.000Z` : new Date().toISOString()
