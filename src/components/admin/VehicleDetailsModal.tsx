@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, TrendingUp, DollarSign, Fuel, Wrench, Calendar, Truck, Activity, ArrowRightLeft, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { dashboardService, conjuntoHistoryService } from '../../lib/services';
+import { dashboardService, conjuntoHistoryService, isDieselFuel } from '../../lib/services';
 import { exportVehicleYearExcel, exportVehicleYearPdf, type VehicleYearReport } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -96,7 +96,7 @@ export default function VehicleDetailsModal({ isOpen, onClose, vehicleId }: Vehi
     const efficiencyData = (() => {
         if (!data?.history?.fuels?.length) return [];
         const sorted = [...data.history.fuels]
-            .filter((f: any) => Number(f.liters) > 0)
+            .filter((f: any) => isDieselFuel(f.fuel_type) && Number(f.liters) > 0)
             .sort((a: any, b: any) =>
                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
             );

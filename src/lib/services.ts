@@ -4,6 +4,26 @@ import { utcCalendarRange, saoPauloStart, saoPauloEndExclusive } from './format'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+export type FuelKind = 'diesel' | 'gasolina' | 'etanol';
+
+export function normalizeFuelType(fuelType: string | null | undefined): FuelKind {
+    const t = String(fuelType || 'diesel').trim().toLowerCase();
+    if (t === 'gasolina' || t === 'etanol') return t;
+    return 'diesel';
+}
+
+/** diesel, vazio ou valor antigo "Diesel". Gasolina e etanol ficam de fora do KM/L. */
+export function isDieselFuel(fuelType: string | null | undefined) {
+    return normalizeFuelType(fuelType) === 'diesel';
+}
+
+export function fuelTypeLabel(fuelType: string | null | undefined) {
+    const t = normalizeFuelType(fuelType);
+    if (t === 'gasolina') return 'Gasolina';
+    if (t === 'etanol') return 'Etanol';
+    return 'Diesel';
+}
+
 export const fleetService = {
     async getVehicles(companyId: string) {
         if (!companyId) return [];
@@ -1235,7 +1255,7 @@ export const driverService = {
         if (!vehicleIds.length) return [] as { id: string; vehicle_id: string; odometer: number; liters: number | null }[];
         const { data, error } = await supabase
             .from('fuel_records')
-            .select('id, vehicle_id, odometer, liters')
+            .select('id, vehicle_id, odometer, liters, fuel_type')
             .eq('company_id', companyId)
             .in('vehicle_id', vehicleIds)
             .not('odometer', 'is', null)
@@ -1849,7 +1869,7 @@ export const dashboardService = {
         let avgKmPerLiter = 0;
         if (fuels && fuels.length > 1) {
             const sorted = [...fuels]
-                .filter((a: any) => Number(a.liters) > 0)
+                .filter((a: any) => isDieselFuel(a.fuel_type) && Number(a.liters) > 0)
                 .sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
             const readings: number[] = [];
             for (let i = 1; i < sorted.length; i++) {
@@ -1951,7 +1971,7 @@ export const dashboardService = {
         let avgKmPerLiter = 0;
         if (fuelRows.length > 1) {
             const sorted = [...fuelRows]
-                .filter((a: any) => Number(a.liters) > 0)
+                .filter((a: any) => isDieselFuel(a.fuel_type) && Number(a.liters) > 0)
                 .sort((a: any, b: any) => Number(a.odometer) - Number(b.odometer));
             const readings: number[] = [];
             for (let i = 1; i < sorted.length; i++) {
@@ -1983,7 +2003,7 @@ export const dashboardService = {
     async getDriverAverages(companyId: string, startDate?: string, endDate?: string) {
         let query = supabase
             .from('fuel_records')
-            .select('driver_id, vehicle_id, odometer, liters, created_at, driver:drivers(name)')
+            .select('driver_id, vehicle_id, odometer, liters, fuel_type, created_at, driver:drivers(name)')
             .eq('company_id', companyId)
             .order('odometer', { ascending: true });
 
@@ -2016,7 +2036,7 @@ export const dashboardService = {
         }
 
         fuels?.forEach(f => {
-            if (!f.driver_id || !f.vehicle_id) return;
+            if (!f.driver_id || !f.vehicle_id || !isDieselFuel(f.fuel_type)) return;
             
             const dId = f.driver_id;
             const vId = f.vehicle_id;
@@ -2278,7 +2298,7 @@ export const dashboardService = {
         // Busca abastecimentos agrupados por veículo para calcular KM/L do veículo
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('vehicle_id, liters, odometer, created_at')
+            .select('vehicle_id, liters, odometer, fuel_type, created_at')
             .eq('company_id', companyId)
             .order('odometer', { ascending: true });
 
@@ -2311,7 +2331,7 @@ export const dashboardService = {
             let previousKm = 0;
             records.forEach(r => {
                 const liters = Number(r.liters) || 0;
-                if (liters <= 0) return;
+                if (!isDieselFuel(r.fuel_type) || liters <= 0) return;
                 const currentKm = Number(r.odometer);
                 totalLiters += liters;
                 if (previousKm > 0) {
@@ -2352,7 +2372,7 @@ export const dashboardService = {
     async getVehicleEfficiency(companyId: string, startDate?: string, endDate?: string) {
         let fuelQuery = supabase
             .from('fuel_records')
-            .select('vehicle_id, total_value, arla_value, liters, created_at, odometer, vehicle:vehicles(plate, model)')
+            .select('vehicle_id, total_value, arla_value, liters, fuel_type, created_at, odometer, vehicle:vehicles(plate, model)')
             .eq('company_id', companyId)
             .order('odometer', { ascending: true });
 
@@ -2413,10 +2433,10 @@ export const dashboardService = {
             let totalArlaCost = 0;
             records.forEach(r => {
                 const liters = Number(r.liters) || 0;
-                totalLiters += liters;
                 totalCost += Number(r.total_value) || 0;
                 totalArlaCost += Number(r.arla_value) || 0;
-                if (liters <= 0) return;
+                if (!isDieselFuel(r.fuel_type) || liters <= 0) return;
+                totalLiters += liters;
                 const currentKm = Number(r.odometer);
                 if (previousKm > 0) {
                     const diff = currentKm - previousKm;

@@ -1,12 +1,12 @@
 import { X } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
-import { driverService } from '../../lib/services';
+import { driverService, normalizeFuelType, fuelTypeLabel } from '../../lib/services';
 
 const DRAFT_KEY = 'fuel';
 const makeEmpty = () => ({
     vehicle_id: '', driver_id: '', supplier_id: '', km_reading: '',
-    liters: '', price_per_liter: '', total_value: '', fuel_type: 'Diesel',
+    liters: '', price_per_liter: '', total_value: '', fuel_type: 'diesel',
     location: '', date: new Date().toISOString().split('T')[0],
     arla_liters: '', arla_price_per_liter: '', arla_value: ''
 });
@@ -37,7 +37,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 liters: initialData?.liters?.toString() || '',
                 price_per_liter: initialData?.price_per_liter?.toString() || '',
                 total_value: initialData?.total_value?.toString() || '',
-                fuel_type: initialData?.fuel_type || 'Diesel',
+                fuel_type: normalizeFuelType(initialData?.fuel_type),
                 location: initialData?.location || '',
                 date: initialData?.created_at ? initialData.created_at.slice(0, 10) : new Date().toISOString().split('T')[0],
                 arla_liters: initialData?.arla_liters?.toString() || '',
@@ -45,7 +45,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 arla_value: initialData?.arla_value?.toString() || '',
             };
         }
-        return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
+        const draft = loadDraft(DRAFT_KEY);
+        return { ...makeEmpty(), ...(draft || {}), fuel_type: normalizeFuelType(draft?.fuel_type) };
     });
     const [loading, setLoading] = useState(false);
     const [prevKm, setPrevKm] = useState<number | null>(null);
@@ -73,7 +74,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 liters: initialData?.liters?.toString() || '',
                 price_per_liter: initialData?.price_per_liter?.toString() || '',
                 total_value: initialData?.total_value?.toString() || '',
-                fuel_type: initialData?.fuel_type || 'Diesel',
+                fuel_type: normalizeFuelType(initialData?.fuel_type),
                 location: initialData?.location || '',
                 date: initialData?.created_at ? initialData.created_at.slice(0, 10) : new Date().toISOString().split('T')[0],
                 arla_liters: initialData?.arla_liters?.toString() || '',
@@ -81,7 +82,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
             });
         } else if (!isEditing) {
             const draft = loadDraft(DRAFT_KEY);
-            setFormDataState({ ...makeEmpty(), ...(draft || {}) });
+            setFormDataState({ ...makeEmpty(), ...(draft || {}), fuel_type: normalizeFuelType(draft?.fuel_type) });
         }
     }, [isOpen, initialData?.id]);
 
@@ -130,19 +131,21 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        const isDiesel = formData.fuel_type === 'diesel';
         const dieselL = parseFloat(formData.liters);
         const dieselP = parseFloat(formData.price_per_liter);
         const arlaL = parseFloat(formData.arla_liters);
         const arlaP = parseFloat(formData.arla_price_per_liter);
-        const hasDiesel = Number.isFinite(dieselL) && dieselL > 0;
-        const hasArla = Number.isFinite(arlaL) && arlaL > 0;
+        const hasFuel = Number.isFinite(dieselL) && dieselL > 0;
+        const hasArla = isDiesel && Number.isFinite(arlaL) && arlaL > 0;
+        const fuelName = fuelTypeLabel(formData.fuel_type).toLowerCase();
 
-        if (!hasDiesel && !hasArla) {
-            alert('Informe diesel ou ARLA para salvar.');
+        if (!hasFuel && !hasArla) {
+            alert(isDiesel ? 'Informe diesel ou ARLA para salvar.' : `Informe os litros de ${fuelName}.`);
             return;
         }
-        if (hasDiesel && !(Number.isFinite(dieselP) && dieselP > 0)) {
-            alert('Informe o preço por litro do diesel.');
+        if (hasFuel && !(Number.isFinite(dieselP) && dieselP > 0)) {
+            alert(`Informe o preço por litro ${formData.fuel_type === 'gasolina' ? 'da gasolina' : formData.fuel_type === 'etanol' ? 'do etanol' : 'do diesel'}.`);
             return;
         }
         if (hasArla && !(Number.isFinite(arlaP) && arlaP > 0)) {
@@ -152,8 +155,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
         setLoading(true);
         try {
-            const payload = { ...formData };
-            if (!hasDiesel) {
+            const payload = { ...formData, fuel_type: formData.fuel_type };
+            if (!hasFuel) {
                 payload.liters = '';
                 payload.price_per_liter = '';
                 payload.total_value = '';
@@ -187,6 +190,26 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div className="space-y-1">
+                        <label className={labelStyle}>Combustível</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(['diesel', 'gasolina', 'etanol'] as const).map(kind => (
+                                <button
+                                    key={kind}
+                                    type="button"
+                                    onClick={() => setFormData(kind === 'diesel' ? { fuel_type: kind } : {
+                                        fuel_type: kind,
+                                        arla_liters: '',
+                                        arla_price_per_liter: '',
+                                        arla_value: '',
+                                    })}
+                                    className={`py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${formData.fuel_type === kind ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    {fuelTypeLabel(kind)}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className={labelStyle}>Veículo</label>
@@ -277,7 +300,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                     {/* Diesel */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1">
-                            <label className={labelStyle}>Litros Diesel</label>
+                            <label className={labelStyle}>Litros {fuelTypeLabel(formData.fuel_type)}</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -290,7 +313,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Preço/Litro Diesel (R$)</label>
+                            <label className={labelStyle}>Preço/Litro {fuelTypeLabel(formData.fuel_type)} (R$)</label>
                             <input
                                 type="number"
                                 step="0.001"
@@ -303,7 +326,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Valor Total Diesel (R$)</label>
+                            <label className={labelStyle}>Valor Total {fuelTypeLabel(formData.fuel_type)} (R$)</label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -315,7 +338,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         </div>
                     </div>
 
-                    {/* ARLA 32 */}
+                    {formData.fuel_type === 'diesel' && (
                     <div className="bg-teal-50/60 border border-teal-100 rounded-2xl p-4 space-y-3">
                         <div className="flex items-center justify-between">
                             <p className="text-[10px] font-black text-teal-700 uppercase tracking-widest">ARLA 32</p>
@@ -372,6 +395,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             Pode lançar só ARLA, sem diesel. Consumo médio: ~5% do diesel. Para {formData.liters ? `${formData.liters} L de diesel → ~${arlaLitersSuggestion} L de ARLA` : '100 L de diesel → ~5 L de ARLA'}.
                         </p>
                     </div>
+                    )}
 
                     {/* Resumo de totais + KM/L */}
                     {(() => {
@@ -381,9 +405,17 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         const kmAtual = parseFloat(formData.km_reading)  || 0;
                         const liters  = parseFloat(formData.liters)      || 0;
                         const kmRod   = prevKm !== null && kmAtual > prevKm ? kmAtual - prevKm : null;
-                        const kmL     = kmRod !== null && liters > 0 ? kmRod / liters : null;
+                        const kmL     = formData.fuel_type === 'diesel' && kmRod !== null && liters > 0 ? kmRod / liters : null;
                         if (total === 0 && kmL === null) return null;
                         const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        if (formData.fuel_type !== 'diesel') {
+                            return (
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total {fuelTypeLabel(formData.fuel_type)}</p>
+                                    <p className="text-lg font-black text-blue-700">{fmt(diesel)}</p>
+                                </div>
+                            );
+                        }
                         return (
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="bg-slate-100 rounded-xl px-4 py-3">

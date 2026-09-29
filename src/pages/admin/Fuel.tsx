@@ -1,6 +1,6 @@
 import { Fuel as FuelIcon, Clock, CheckCircle2, Loader2, Edit2, Trash2, Plus, Droplets, Search, FileDown } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { driverService, fleetService, supplierService, isFuelDupOdometerError } from '../../lib/services';
+import { driverService, fleetService, supplierService, isFuelDupOdometerError, isDieselFuel, fuelTypeLabel, normalizeFuelType } from '../../lib/services';
 import { useAuth } from '../../context/AuthContext';
 import { exportToExcel, exportToPDF } from '../../lib/exports';
 
@@ -15,7 +15,7 @@ export default function Fuel() {
     const { user, isSubscriptionBlocked } = useAuth();
     const [loading, setLoading] = useState(true);
     const [records, setRecords] = useState<any[]>([]);
-    const [stats, setStats] = useState({ totalLiters: 0, totalValue: 0, count: 0, totalArlaLiters: 0, totalArlaValue: 0 });
+    const [stats, setStats] = useState({ totalLiters: 0, totalValue: 0, count: 0, totalArlaLiters: 0, totalArlaValue: 0, gasLiters: 0, gasValue: 0, ethanolLiters: 0, ethanolValue: 0 });
     const [vehicles, setVehicles] = useState<any[]>([]);
     const [drivers, setDrivers] = useState<any[]>([]);
     const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -66,7 +66,7 @@ export default function Fuel() {
                 if (a.vehicle_id !== b.vehicle_id) return String(a.vehicle_id).localeCompare(String(b.vehicle_id));
                 return (Number(a.odometer) || 0) - (Number(b.odometer) || 0);
             });
-            const dieselSorted = sorted.filter((r: any) => Number(r.liters) > 0);
+            const dieselSorted = sorted.filter((r: any) => isDieselFuel(r.fuel_type) && Number(r.liters) > 0);
             const prevById: Record<string, number | null> = {};
             for (let i = 0; i < dieselSorted.length; i++) {
                 const r = dieselSorted[i];
@@ -88,12 +88,26 @@ export default function Fuel() {
             setDrivers(driversData || []);
             setSuppliers((suppliersData || []).filter((s: any) => s.category === 'Combustível'));
 
-            const totalLiters = period.reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0);
-            const totalValue = period.reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
-            const totalArlaLiters = period.reduce((acc: number, r: any) => acc + (Number(r.arla_liters) || 0), 0);
-            const totalArlaValue = period.reduce((acc: number, r: any) => acc + (Number(r.arla_value) || 0), 0);
+            const dieselRows = period.filter((r: any) => isDieselFuel(r.fuel_type));
+            const totalLiters = dieselRows.reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0);
+            const totalValue = dieselRows.reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0);
+            const totalArlaLiters = dieselRows.reduce((acc: number, r: any) => acc + (Number(r.arla_liters) || 0), 0);
+            const totalArlaValue = dieselRows.reduce((acc: number, r: any) => acc + (Number(r.arla_value) || 0), 0);
+            const sumKind = (kind: 'gasolina' | 'etanol') => period.filter((r: any) => normalizeFuelType(r.fuel_type) === kind);
+            const gas = sumKind('gasolina');
+            const ethanol = sumKind('etanol');
 
-            setStats({ totalLiters, totalValue, count: period.length, totalArlaLiters, totalArlaValue });
+            setStats({
+                totalLiters,
+                totalValue,
+                count: period.length,
+                totalArlaLiters,
+                totalArlaValue,
+                gasLiters: gas.reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0),
+                gasValue: gas.reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0),
+                ethanolLiters: ethanol.reduce((acc: number, r: any) => acc + (Number(r.liters) || 0), 0),
+                ethanolValue: ethanol.reduce((acc: number, r: any) => acc + (Number(r.total_value) || 0), 0),
+            });
         } catch (error) {
             console.error('Erro ao carregar abastecimentos:', error);
         } finally {
@@ -118,6 +132,7 @@ export default function Fuel() {
     const dieselBySupplier = useMemo(() => {
         const map = new Map<string, { key: string; name: string; liters: number; value: number; count: number }>();
         for (const r of records) {
+            if (!isDieselFuel(r.fuel_type)) continue;
             const id = r.supplier_id || '';
             const key = id || '__none__';
             const name = !id
@@ -173,13 +188,14 @@ export default function Fuel() {
         }
         const fmtMoney = (v: number) =>
             new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-        const headers = [['Data', 'Veículo', 'Hodômetro', 'Motorista', 'Diesel (L)', 'Valor Diesel', 'ARLA (L)', 'Valor ARLA', 'Total']];
+        const headers = [['Data', 'Veículo', 'Hodômetro', 'Motorista', 'Tipo', 'Litros', 'Valor', 'ARLA (L)', 'Valor ARLA', 'Total']];
         let totDieselL = 0, totDieselV = 0, totArlaL = 0, totArlaV = 0, totAll = 0;
         const rows = filteredRecords.map((r: any) => {
+            const kind = normalizeFuelType(r.fuel_type);
             const dieselL = Number(r.liters) || 0;
             const dieselV = Number(r.total_value) || 0;
-            const arlaL = Number(r.arla_liters) || 0;
-            const arlaV = Number(r.arla_value) || 0;
+            const arlaL = kind === 'diesel' ? (Number(r.arla_liters) || 0) : 0;
+            const arlaV = kind === 'diesel' ? (Number(r.arla_value) || 0) : 0;
             const total = dieselV + arlaV;
             totDieselL += dieselL;
             totDieselV += dieselV;
@@ -191,6 +207,7 @@ export default function Fuel() {
                 r.vehicle?.plate || '---',
                 r.odometer != null ? Number(r.odometer).toLocaleString('pt-BR') : '—',
                 r.driver?.name || '---',
+                fuelTypeLabel(r.fuel_type),
                 dieselL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
                 fmtMoney(dieselV),
                 arlaL ? arlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—',
@@ -200,6 +217,7 @@ export default function Fuel() {
         });
         rows.push([
             'TOTAL',
+            '',
             '',
             '',
             '',
@@ -333,6 +351,22 @@ export default function Fuel() {
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Custo ARLA</p>
                     <h3 className="text-base font-black text-slate-900 truncate">{fmt(stats.totalArlaValue)}</h3>
                 </div>
+                <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-600"><FuelIcon size={18} /></div>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Gasolina</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{stats.gasLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</h3>
+                    <p className="text-xs font-bold text-slate-500 mt-1">{fmt(stats.gasValue)}</p>
+                </div>
+                <div className="bg-white p-5 rounded-3xl border border-lime-200 shadow-sm min-w-0">
+                    <div className="flex justify-between items-start mb-3">
+                        <div className="p-2.5 bg-lime-50 rounded-2xl text-lime-700"><FuelIcon size={18} /></div>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Etanol</p>
+                    <h3 className="text-xl font-black text-slate-900 truncate">{stats.ethanolLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</h3>
+                    <p className="text-xs font-bold text-slate-500 mt-1">{fmt(stats.ethanolValue)}</p>
+                </div>
                 <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm min-w-0">
                     <div className="flex justify-between items-start mb-3">
                         <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-600"><Clock size={18} /></div>
@@ -343,10 +377,10 @@ export default function Fuel() {
             </div>
 
             {/* Custo total combustível */}
-            {(stats.totalValue + stats.totalArlaValue) > 0 && (
+            {(stats.totalValue + stats.totalArlaValue + stats.gasValue + stats.ethanolValue) > 0 && (
                 <div className="bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-600">Custo Total Combustível (Diesel + ARLA)</span>
-                    <span className="text-xl font-black text-slate-900">{fmt(stats.totalValue + stats.totalArlaValue)}</span>
+                    <span className="text-sm font-bold text-slate-600">Custo Total Combustível</span>
+                    <span className="text-xl font-black text-slate-900">{fmt(stats.totalValue + stats.totalArlaValue + stats.gasValue + stats.ethanolValue)}</span>
                 </div>
             )}
 
@@ -455,18 +489,19 @@ export default function Fuel() {
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Veículo</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hodômetro</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Motorista</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Diesel (L)</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor Diesel</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Litros</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">ARLA (L)</th>
                                 <th className="px-6 py-4 text-[10px] font-black text-teal-400 uppercase tracking-widest">Valor ARLA</th>
-                                <th className="px-6 py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Total Diesel+ARLA</th>
+                                <th className="px-6 py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Total</th>
                                 <th className="px-6 py-4 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {filteredRecords.length === 0 ? (
                                 <tr>
-                                    <td colSpan={10} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
+                                    <td colSpan={11} className="px-8 py-12 text-center text-slate-500 font-bold uppercase text-xs tracking-widest">
                                         Nenhum abastecimento encontrado
                                     </td>
                                 </tr>
@@ -483,12 +518,14 @@ export default function Fuel() {
                                             <span className="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 uppercase font-mono text-sm w-fit">
                                                 {r.vehicle?.plate || '---'}
                                             </span>
-                                            {kmPerLiterMap[r.id] !== null && kmPerLiterMap[r.id] !== undefined ? (
-                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-                                                    {kmPerLiterMap[r.id]!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
+                                            {isDieselFuel(r.fuel_type) && (
+                                                kmPerLiterMap[r.id] != null ? (
+                                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-md w-fit ${kmPerLiterMap[r.id]! >= 2.5 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                                                        {kmPerLiterMap[r.id]!.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km/L
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-300 ml-1">— km/L</span>
+                                                )
                                             )}
                                         </div>
                                     </td>
@@ -498,24 +535,27 @@ export default function Fuel() {
                                             : <span className="text-slate-300">—</span>}
                                     </td>
                                     <td className="px-6 py-5 font-bold text-slate-700 text-sm">{r.driver?.name || '---'}</td>
-                                    <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
+                                    <td className="px-6 py-5 text-sm">
+                                        <span className="font-black uppercase text-[10px] tracking-widest text-slate-600">{fuelTypeLabel(r.fuel_type)}</span>
+                                    </td>
+                                    <td className="px-6 py-5 font-bold text-slate-900 text-sm">{Number(r.liters || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</td>
                                     <td className="px-6 py-5 font-bold text-primary-600 text-sm">{fmt(Number(r.total_value) || 0)}</td>
                                     <td className="px-6 py-5 text-sm">
-                                        {r.arla_liters ? (
+                                        {isDieselFuel(r.fuel_type) && r.arla_liters ? (
                                             <span className="font-bold text-teal-700">{Number(r.arla_liters).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
                                         ) : (
                                             <span className="text-slate-300">—</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-5 text-sm">
-                                        {r.arla_value ? (
+                                        {isDieselFuel(r.fuel_type) && r.arla_value ? (
                                             <span className="font-bold text-teal-600">{fmt(Number(r.arla_value))}</span>
                                         ) : (
                                             <span className="text-slate-300">—</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-5 text-sm">
-                                        <span className="font-black text-slate-900">{fmt((Number(r.total_value) || 0) + (Number(r.arla_value) || 0))}</span>
+                                        <span className="font-black text-slate-900">{fmt((Number(r.total_value) || 0) + (isDieselFuel(r.fuel_type) ? (Number(r.arla_value) || 0) : 0))}</span>
                                     </td>
                                     <td className="px-6 py-5 text-right">
                                         <div className="flex justify-end gap-2">
