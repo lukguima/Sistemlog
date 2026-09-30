@@ -536,8 +536,8 @@ export default function Settings() {
                                     </div>
                                     <div className="mt-6 space-y-3 relative z-10">
                                         <div className="flex items-center justify-between">
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${usr.role === 'admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
-                                                {usr.role === 'admin' ? 'Acesso Total' : 'Funcionário'}
+                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${usr.role === 'admin' ? 'bg-blue-100 text-blue-700 border border-blue-200' : usr.role === 'frentista' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                                                {usr.role === 'admin' ? 'Acesso Total' : usr.role === 'frentista' ? 'Frentista' : 'Funcionário'}
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <div className={`w-2 h-2 rounded-full ${usr.active ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-300'}`}></div>
@@ -920,7 +920,12 @@ export default function Settings() {
                         if (selectedUser) {
                             const { password: _pw, ...updateData } = data;
                             await profileService.updateUser(selectedUser.id, updateData);
-                            setStatusMessage({ type: 'success', text: 'Usuário atualizado com sucesso!' });
+                            setStatusMessage({
+                                type: 'success',
+                                text: updateData.role === 'frentista'
+                                    ? 'Nível alterado para frentista. Peça para essa pessoa sair e entrar de novo. O posto abre em sistemlog.com.br/posto.'
+                                    : 'Usuário atualizado com sucesso!',
+                            });
                         } else {
                             // Cria login real via Edge Function (auth user + perfil + permissões)
                             const { data: result, error: fnError } = await supabase.functions.invoke('create-team-user', {

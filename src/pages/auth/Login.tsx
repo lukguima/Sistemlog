@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 function roleHome(role?: string) {
     if (role === 'master') return '/saas-master';
@@ -33,8 +34,11 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [resetLoading, setResetLoading] = useState(false);
     const [error, setError] = useState('');
+    const [info, setInfo] = useState('');
     const [confirmedBanner] = useState(() => searchParams.get('confirmed') === '1');
+    const [resetBanner] = useState(() => searchParams.get('reset') === '1');
 
     // Redireciona usuário já autenticado para a área correta
     useEffect(() => {
@@ -46,6 +50,7 @@ export default function Login() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setInfo('');
         setLoading(true);
 
         try {
@@ -56,6 +61,28 @@ export default function Login() {
             setError(mapLoginError(err));
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        setError('');
+        setInfo('');
+        const target = email.trim().toLowerCase();
+        if (!target) {
+            setError('Digite o e-mail no campo acima e clique em Esqueceu a senha?.');
+            return;
+        }
+        setResetLoading(true);
+        try {
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(target, {
+                redirectTo: `${window.location.origin}/auth/reset-password`,
+            });
+            if (resetError) throw resetError;
+            setInfo('Se este e-mail estiver cadastrado, enviamos um link para criar uma nova senha. Confira a caixa de entrada e o spam.');
+        } catch (err: any) {
+            setError(err?.message || 'Não foi possível enviar o e-mail de recuperação.');
+        } finally {
+            setResetLoading(false);
         }
     };
 
@@ -111,6 +138,19 @@ export default function Login() {
                         </div>
                     )}
 
+                    {resetBanner && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-sm font-bold animate-in fade-in flex items-start gap-2">
+                            <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+                            Senha atualizada! Entre com a nova senha.
+                        </div>
+                    )}
+
+                    {info && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-4 rounded-xl text-sm font-bold animate-in fade-in">
+                            {info}
+                        </div>
+                    )}
+
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-sm font-bold animate-in fade-in">
                             {error}
@@ -141,7 +181,14 @@ export default function Login() {
                                     <label className="block text-sm font-bold text-slate-400 group-focus-within:text-primary-500 transition-colors uppercase tracking-wider">
                                         Senha
                                     </label>
-                                    <a href="#" className="text-xs font-bold text-primary-500 hover:text-primary-400 uppercase tracking-widest">Esqueceu a senha?</a>
+                                    <button
+                                        type="button"
+                                        onClick={handleForgotPassword}
+                                        disabled={resetLoading}
+                                        className="text-xs font-bold text-primary-500 hover:text-primary-400 uppercase tracking-widest disabled:opacity-50"
+                                    >
+                                        {resetLoading ? 'Enviando…' : 'Esqueceu a senha?'}
+                                    </button>
                                 </div>
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary-500 transition-colors" size={20} />

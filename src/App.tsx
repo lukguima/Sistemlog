@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/public/LandingPage';
 import Login from './pages/auth/Login';
 import AuthCallback from './pages/auth/AuthCallback';
+import ResetPassword from './pages/auth/ResetPassword';
 import Register from './pages/public/Register';
 import TermsOfUse from './pages/public/TermsOfUse';
 import PrivacyPolicy from './pages/public/PrivacyPolicy';
@@ -66,6 +67,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/auth/reset-password" element={<ResetPassword />} />
         <Route path="/register" element={<Register />} />
         <Route path="/termos" element={<TermsOfUse />} />
         <Route path="/privacidade" element={<PrivacyPolicy />} />

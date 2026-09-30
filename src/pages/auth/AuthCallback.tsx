@@ -36,6 +36,7 @@ export default function AuthCallback() {
                     const params = new URLSearchParams(hash);
                     const access_token = params.get('access_token');
                     const refresh_token = params.get('refresh_token');
+                    const type = params.get('type');
                     if (access_token && refresh_token) {
                         const { error } = await supabase.auth.setSession({ access_token, refresh_token });
                         if (error) throw error;
@@ -55,6 +56,12 @@ export default function AuthCallback() {
                             } catch {
                                 /* login manual ainda funciona após confirmação */
                             }
+                        }
+
+                        if (type === 'recovery') {
+                            window.history.replaceState({}, document.title, '/auth/reset-password');
+                            if (!cancelled) navigate('/auth/reset-password', { replace: true });
+                            return;
                         }
                     }
                 }
