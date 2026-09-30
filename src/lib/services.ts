@@ -2697,42 +2697,39 @@ export const masterService = {
             console.error('[masterService] getAllCompaniesWithSubscriptions:', error.message, error.code, error.hint);
             throw error;
         }
-        return (data || []).map((c: any) => {
-            const profiles = Array.isArray(c.profiles) ? c.profiles : (c.profiles ? [c.profiles] : []);
-            const adminProfile =
-                profiles.find((p: any) => p.role === 'admin' && (p.email || p.phone))
-                || profiles.find((p: any) => p.email || p.phone)
-                || null;
-            const contactPhone = c.phone || adminProfile?.phone || null;
-            return {
-                ...c,
-                adminEmail: adminProfile?.email || null,
-                adminPhone: contactPhone,
-                contactPhone,
-                subscription: Array.isArray(c.subscription) ? c.subscription[0] : c.subscription
-            };
-        });
+        // Só empresas-cliente (pelo menos um admin). Ignora fantasma de frentista/equipe.
+        return (data || [])
+            .map((c: any) => {
+                const profiles = Array.isArray(c.profiles) ? c.profiles : (c.profiles ? [c.profiles] : []);
+                const adminProfile =
+                    profiles.find((p: any) => p.role === 'admin' && (p.email || p.phone))
+                    || profiles.find((p: any) => p.role === 'admin')
+                    || null;
+                const contactPhone = c.phone || adminProfile?.phone || null;
+                return {
+                    ...c,
+                    profiles,
+                    hasAdmin: profiles.some((p: any) => p.role === 'admin'),
+                    adminEmail: adminProfile?.email || null,
+                    adminPhone: contactPhone,
+                    contactPhone,
+                    subscription: Array.isArray(c.subscription) ? c.subscription[0] : c.subscription
+                };
+            })
+            .filter((c: any) => c.hasAdmin);
     },
 
-    /** Busca KPIs do master: MRR total, counts por status */
+    /** Busca KPIs do master: MRR total, counts por status (só empresas com admin). */
     async getMasterKpis() {
-        const { data, error } = await supabase
-            .from('subscriptions')
-            .select('status, mrr, plan');
+        const companies = await this.getAllCompaniesWithSubscriptions();
+        const subs = companies.map((c: any) => c.subscription).filter(Boolean);
+        const active   = subs.filter((s: any) => s.status === 'active');
+        const overdue  = subs.filter((s: any) => s.status === 'overdue');
+        const trial    = subs.filter((s: any) => s.status === 'trial');
+        const canceled = subs.filter((s: any) => s.status === 'canceled' || s.status === 'blocked');
 
-        if (error) {
-            console.error('[masterService] getMasterKpis:', error.message, error.code, error.hint);
-            throw error;
-        }
-
-        const subs = data || [];
-        const active   = subs.filter(s => s.status === 'active');
-        const overdue  = subs.filter(s => s.status === 'overdue');
-        const trial    = subs.filter(s => s.status === 'trial');
-        const canceled = subs.filter(s => s.status === 'canceled' || s.status === 'blocked');
-
-        const totalMRR     = active.reduce((sum, s) => sum + (Number(s.mrr) || 0), 0);
-        const overdueValue = overdue.reduce((sum, s) => sum + (Number(s.mrr) || 0), 0);
+        const totalMRR     = active.reduce((sum: number, s: any) => sum + (Number(s.mrr) || 0), 0);
+        const overdueValue = overdue.reduce((sum: number, s: any) => sum + (Number(s.mrr) || 0), 0);
 
         return {
             totalMRR,
@@ -2741,7 +2738,7 @@ export const masterService = {
             overdueCount:  overdue.length,
             trialCount:    trial.length,
             canceledCount: canceled.length,
-            totalCount:    subs.length,
+            totalCount:    companies.length,
         };
     },
 

@@ -120,5 +120,27 @@ serve(async (req) => {
         return json({ error: `Usuário criado mas falha ao aplicar permissões: ${updErr.message}` }, 500);
     }
 
+    // Remove empresa fantasma criada por gatilho antigo (mesmo e-mail, sem admin).
+    // Não toca na company_id real do usuário.
+    try {
+        const { data: ghosts } = await admin
+            .from('companies')
+            .select('id')
+            .eq('email', email)
+            .neq('id', company_id);
+        for (const g of ghosts ?? []) {
+            const { count } = await admin
+                .from('profiles')
+                .select('id', { count: 'exact', head: true })
+                .eq('company_id', g.id)
+                .eq('role', 'admin');
+            if ((count ?? 0) > 0) continue;
+            await admin.from('subscriptions').delete().eq('company_id', g.id);
+            await admin.from('companies').delete().eq('id', g.id);
+        }
+    } catch {
+        /* limpeza best-effort; usuário já está na empresa correta */
+    }
+
     return json({ ok: true, user_id: newId });
 });
