@@ -181,54 +181,99 @@ export default function Fuel() {
         exportToPDF(`Diesel por fornecedor — ${fmtDateBr(startDate)} a ${fmtDateBr(endDate)}`, headers, rows, fileName);
     };
 
-    const handleExportPDF = () => {
+    const handleExportHistory = (format: 'pdf' | 'excel') => {
         if (filteredRecords.length === 0) {
             alert('Nenhum abastecimento no filtro.');
             return;
         }
         const fmtMoney = (v: number) =>
             new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-        const headers = [['Data', 'Veículo', 'Hodômetro', 'Motorista', 'Tipo', 'Litros', 'Valor', 'ARLA (L)', 'Valor ARLA', 'Total']];
-        let totDieselL = 0, totDieselV = 0, totArlaL = 0, totArlaV = 0, totAll = 0;
-        const rows = filteredRecords.map((r: any) => {
+        const fileName = `abastecimentos_${startDate}_${endDate}`;
+        let totLiters = 0, totFuelV = 0, totArlaL = 0, totArlaV = 0, totAll = 0;
+
+        const mapped = filteredRecords.map((r: any) => {
             const kind = normalizeFuelType(r.fuel_type);
-            const dieselL = Number(r.liters) || 0;
-            const dieselV = Number(r.total_value) || 0;
+            const liters = Number(r.liters) || 0;
+            const fuelV = Number(r.total_value) || 0;
             const arlaL = kind === 'diesel' ? (Number(r.arla_liters) || 0) : 0;
             const arlaV = kind === 'diesel' ? (Number(r.arla_value) || 0) : 0;
-            const total = dieselV + arlaV;
-            totDieselL += dieselL;
-            totDieselV += dieselV;
+            const total = fuelV + arlaV;
+            totLiters += liters;
+            totFuelV += fuelV;
             totArlaL += arlaL;
             totArlaV += arlaV;
             totAll += total;
-            return [
-                fmtDateBr(r.created_at),
-                r.vehicle?.plate || '---',
-                r.odometer != null ? Number(r.odometer).toLocaleString('pt-BR') : '—',
-                r.driver?.name || '---',
-                fuelTypeLabel(r.fuel_type),
-                dieselL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
-                fmtMoney(dieselV),
-                arlaL ? arlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—',
-                arlaV ? fmtMoney(arlaV) : '—',
-                fmtMoney(total),
-            ];
+            return {
+                date: fmtDateBr(r.created_at),
+                plate: r.vehicle?.plate || '---',
+                odometer: r.odometer != null ? Number(r.odometer) : null,
+                driver: r.driver?.name || '---',
+                type: fuelTypeLabel(r.fuel_type),
+                liters,
+                fuelV,
+                arlaL,
+                arlaV,
+                total,
+            };
         });
+
+        if (format === 'excel') {
+            exportToExcel([
+                ...mapped.map(r => ({
+                    Data: r.date,
+                    Veículo: r.plate,
+                    Hodômetro: r.odometer ?? '—',
+                    Motorista: r.driver,
+                    Tipo: r.type,
+                    Litros: r.liters,
+                    Valor: r.fuelV,
+                    'ARLA (L)': r.arlaL || '—',
+                    'Valor ARLA': r.arlaV || '—',
+                    Total: r.total,
+                })),
+                {
+                    Data: 'TOTAL',
+                    Veículo: '',
+                    Hodômetro: '',
+                    Motorista: '',
+                    Tipo: '',
+                    Litros: totLiters,
+                    Valor: totFuelV,
+                    'ARLA (L)': totArlaL,
+                    'Valor ARLA': totArlaV,
+                    Total: totAll,
+                },
+            ], fileName);
+            return;
+        }
+
+        const headers = [['Data', 'Veículo', 'Hodômetro', 'Motorista', 'Tipo', 'Litros', 'Valor', 'ARLA (L)', 'Valor ARLA', 'Total']];
+        const rows = mapped.map(r => [
+            r.date,
+            r.plate,
+            r.odometer != null ? r.odometer.toLocaleString('pt-BR') : '—',
+            r.driver,
+            r.type,
+            r.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+            fmtMoney(r.fuelV),
+            r.arlaL ? r.arlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—',
+            r.arlaV ? fmtMoney(r.arlaV) : '—',
+            fmtMoney(r.total),
+        ]);
         rows.push([
             'TOTAL',
             '',
             '',
             '',
             '',
-            totDieselL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
-            fmtMoney(totDieselV),
+            totLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
+            fmtMoney(totFuelV),
             totArlaL.toLocaleString('pt-BR', { maximumFractionDigits: 1 }),
             fmtMoney(totArlaV),
             fmtMoney(totAll),
         ]);
         const title = `Abastecimentos — ${fmtDateBr(startDate)} a ${fmtDateBr(endDate)}`;
-        exportToPDF(title, headers, rows, `abastecimentos_${startDate}_${endDate}`);
+        exportToPDF(title, headers, rows, fileName);
     };
 
     const handleSave = async (data: any) => {
@@ -309,10 +354,16 @@ export default function Fuel() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
-                        onClick={handleExportPDF}
+                        onClick={() => handleExportHistory('pdf')}
                         className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase hover:bg-slate-50 transition-colors"
                     >
                         <FileDown size={18} className="text-rose-500" /> PDF
+                    </button>
+                    <button
+                        onClick={() => handleExportHistory('excel')}
+                        className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase hover:bg-slate-50 transition-colors"
+                    >
+                        <FileDown size={18} className="text-emerald-600" /> Excel
                     </button>
                     <button
                         onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
@@ -483,6 +534,20 @@ export default function Fuel() {
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
                         />
+                        <button
+                            type="button"
+                            onClick={() => handleExportHistory('pdf')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase hover:bg-slate-50 transition-colors"
+                        >
+                            <FileDown size={14} className="text-rose-500" /> PDF
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleExportHistory('excel')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black uppercase hover:bg-slate-50 transition-colors"
+                        >
+                            <FileDown size={14} className="text-emerald-600" /> Excel
+                        </button>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
