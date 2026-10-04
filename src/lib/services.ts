@@ -24,6 +24,35 @@ export function fuelTypeLabel(fuelType: string | null | undefined) {
     return 'Diesel';
 }
 
+const AGREGADO_BRAND_PREFIX = 'agregado:';
+
+function agregadoMirrorId(v: any): string | null {
+    if (v?.agregado_id) return String(v.agregado_id);
+    const brand = String(v?.brand || '');
+    if (brand.startsWith(AGREGADO_BRAND_PREFIX)) return brand.slice(AGREGADO_BRAND_PREFIX.length);
+    return null;
+}
+
+function isAgregadoMirror(v: any) {
+    return !!agregadoMirrorId(v);
+}
+
+async function insertVehicleRow(row: Record<string, unknown>) {
+    let payload = { ...row };
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const { error } = await supabase.from('vehicles').insert([payload]);
+        if (!error) return null;
+        const msg = error.message || '';
+        const missing = msg.match(/'([a-z_]+)' column/i)?.[1] || msg.match(/column "([a-z_]+)"/i)?.[1];
+        if (missing && missing in payload) {
+            delete payload[missing];
+            continue;
+        }
+        return msg;
+    }
+    return 'Não foi possível criar o veículo do agregado.';
+}
+
 export const fleetService = {
     async getVehicles(companyId: string) {
         if (!companyId) return [];
@@ -33,7 +62,7 @@ export const fleetService = {
             .eq('company_id', companyId);
         if (error) throw error;
         // Espelho de agregado não entra na frota, viagens, manutenção etc.
-        return (data || []).filter((v: any) => !v.agregado_id);
+        return (data || []).filter((v: any) => !isAgregadoMirror(v));
     },
 
     /** Cria/atualiza um veículo só para abastecer a placa do agregado. */
@@ -42,41 +71,55 @@ export const fleetService = {
         try {
             const { data: agregados, error: agErr } = await supabase
                 .from('agregados')
-                .select('id, vehicle_plate, vehicle_model, status')
+                .select('id, name, vehicle_plate, vehicle_model, status')
                 .eq('company_id', companyId);
             if (agErr) throw agErr;
             const active = (agregados || []).filter((a: any) =>
-                a.status !== 'inactive' && String(a.vehicle_plate || '').trim()
+                a.status !== 'inactive' && (String(a.vehicle_plate || '').trim() || String(a.name || '').trim())
             );
             if (active.length === 0) return;
 
-            const { data: existing, error: vErr } = await supabase
+            let existing: any[] = [];
+            const linked = await supabase
                 .from('vehicles')
-                .select('id, plate, model, agregado_id')
-                .eq('company_id', companyId)
-                .not('agregado_id', 'is', null);
-            if (vErr) throw vErr;
-            const byAgregado = new Map((existing || []).map((v: any) => [v.agregado_id, v]));
+                .select('id, plate, model, brand, agregado_id')
+                .eq('company_id', companyId);
+            if (linked.error) {
+                const plain = await supabase
+                    .from('vehicles')
+                    .select('id, plate, model, brand')
+                    .eq('company_id', companyId);
+                if (plain.error) throw plain.error;
+                existing = plain.data || [];
+            } else {
+                existing = linked.data || [];
+            }
 
             for (const a of active) {
-                const plate = String(a.vehicle_plate).trim().toUpperCase();
-                const model = a.vehicle_model || 'Agregado';
-                const mirror = byAgregado.get(a.id);
+                const plate = (String(a.vehicle_plate || '').trim() || String(a.name || '').trim()).toUpperCase();
+                const model = a.vehicle_model || a.name || 'Agregado';
+                const marker = `${AGREGADO_BRAND_PREFIX}${a.id}`;
+                const mirror = existing.find((v: any) => agregadoMirrorId(v) === String(a.id));
+                const ownSamePlate = existing.find((v: any) =>
+                    !isAgregadoMirror(v) && String(v.plate || '').trim().toUpperCase() === plate
+                );
+                if (ownSamePlate) continue;
                 if (mirror) {
-                    if (mirror.plate !== plate || (mirror.model || '') !== model) {
-                        await supabase.from('vehicles').update({ plate, model }).eq('id', mirror.id);
+                    if (mirror.plate !== plate || (mirror.model || '') !== model || mirror.brand !== marker) {
+                        await supabase.from('vehicles').update({ plate, model, brand: marker }).eq('id', mirror.id);
                     }
-                } else {
-                    const { error: insErr } = await supabase.from('vehicles').insert([{
-                        company_id: companyId,
-                        plate,
-                        model,
-                        category: 'truck',
-                        status: 'active',
-                        agregado_id: a.id,
-                    }]);
-                    if (insErr) console.warn('ensureAgregadoVehicles:', insErr.message);
+                    continue;
                 }
+                const fail = await insertVehicleRow({
+                    company_id: companyId,
+                    plate,
+                    model,
+                    brand: marker,
+                    category: 'truck',
+                    status: 'active',
+                    agregado_id: a.id,
+                });
+                if (fail) console.warn('ensureAgregadoVehicles:', fail);
             }
         } catch (e) {
             console.warn('ensureAgregadoVehicles:', e);
@@ -87,19 +130,23 @@ export const fleetService = {
     async getVehiclesForFuel(companyId: string) {
         if (!companyId) return [];
         await this.ensureAgregadoVehicles(companyId);
-        const [{ data, error }, { data: agregados }] = await Promise.all([
+        const [{ data, error }, { data: agregados, error: agErr }] = await Promise.all([
             supabase.from('vehicles').select('*').eq('company_id', companyId),
-            supabase.from('agregados').select('id, status, vehicle_plate').eq('company_id', companyId),
+            supabase.from('agregados').select('id, name, status, vehicle_plate').eq('company_id', companyId),
         ]);
         if (error) throw error;
+        if (agErr) console.warn('getVehiclesForFuel agregados:', agErr.message);
         const activeIds = new Set(
             (agregados || [])
-                .filter((a: any) => a.status !== 'inactive' && String(a.vehicle_plate || '').trim())
-                .map((a: any) => a.id)
+                .filter((a: any) => a.status !== 'inactive' && (String(a.vehicle_plate || '').trim() || String(a.name || '').trim()))
+                .map((a: any) => String(a.id))
         );
-        return (data || []).filter((v: any) =>
-            v.category !== 'implemento' && (!v.agregado_id || activeIds.has(v.agregado_id))
-        );
+        return (data || []).filter((v: any) => {
+            if (v.category === 'implemento') return false;
+            const mirrorId = agregadoMirrorId(v);
+            if (!mirrorId) return true;
+            return activeIds.has(mirrorId);
+        });
     },
     async addVehicle(vehicle: any) {
         if (!vehicle.company_id) throw new Error("ID da empresa não informado.");

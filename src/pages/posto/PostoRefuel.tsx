@@ -354,7 +354,7 @@ export default function PostoRefuel() {
                                     <p className="font-black text-lg text-slate-900 font-mono">{v.plate}</p>
                                     <p className="text-xs text-slate-400 truncate">
                                         {v.model || 'Veículo'}
-                                        {v.agregado_id ? ' · Agregado' : ''}
+                                        {(v.agregado_id || String(v.brand || '').startsWith('agregado:')) ? ' · Agregado' : ''}
                                     </p>
                                 </div>
                             </button>
@@ -375,7 +375,7 @@ export default function PostoRefuel() {
                                 <p className="font-black text-xl text-slate-900 font-mono">{selectedVehicle.plate}</p>
                                 <p className="text-xs text-slate-400">
                                     Último: {lastKm.toLocaleString('pt-BR')} km
-                                    {selectedVehicle.agregado_id ? ' · Agregado' : ''}
+                                    {(selectedVehicle.agregado_id || String(selectedVehicle.brand || '').startsWith('agregado:')) ? ' · Agregado' : ''}
                                 </p>
                             </div>
                         </div>
