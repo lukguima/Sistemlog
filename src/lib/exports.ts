@@ -11,10 +11,10 @@ export const generateDriverPaymentReceipt = (params: {
     trips: Array<{
         date: string; cte?: string; origin: string; destination: string; vehicle: string;
         grossValue: number; commissionRate: number; commissionValue: number;
-        advance: number; net: number;
+        advance: number; taxAmount?: number; net: number;
     }>;
     advances?: Array<{ description?: string; amount: number }>;
-    summary: { totalGross: number; totalCommission: number; totalAdvances: number; totalNet: number };
+    summary: { totalGross: number; totalCommission: number; totalAdvances: number; totalTax?: number; totalNet: number };
 }) => {
     const doc = new jsPDF();
     const { companyName, driverName, driverCpf, period, trips, advances, summary } = params;
@@ -46,17 +46,20 @@ export const generateDriverPaymentReceipt = (params: {
 
     // Trips table
     autoTable(doc, {
-        head: [['Data', 'CTE', 'Origem → Destino', 'Veículo', 'Frete Bruto', 'Comissão', 'Descontos', 'Líquido']],
-        body: trips.map(t => [
+        head: [['Data', 'CTE', 'Origem → Destino', 'Veículo', 'Frete Bruto', 'Resultado', 'Descontos', 'Líquido']],
+        body: trips.map(t => {
+            const descontos = (Number(t.advance) || 0) + (Number(t.taxAmount) || 0);
+            return [
             t.date,
             t.cte?.trim() || '-',
             `${t.origin} → ${t.destination}`,
             t.vehicle,
             fmt(t.grossValue),
             `${fmt(t.commissionValue)} (${t.commissionRate}%)`,
-            t.advance > 0 ? fmt(t.advance) : '-',
+            descontos > 0 ? fmt(descontos) : '-',
             fmt(Math.max(0, t.net)),
-        ]),
+            ];
+        }),
         startY: 60,
         headStyles: { fillColor: [37, 99, 235], fontSize: 7, fontStyle: 'bold' },
         bodyStyles: { fontSize: 7 },
@@ -86,14 +89,14 @@ export const generateDriverPaymentReceipt = (params: {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.text('Frete Bruto Total:', 20, finalY + 9);
-    doc.text('Comissão Bruta:', 20, finalY + 17);
-    doc.text('(-) Descontos/Vales:', 20, finalY + 25);
+    doc.text('Resultado:', 20, finalY + 17);
+    doc.text('(-) Descontos:', 20, finalY + 25);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
     doc.text(fmt(summary.totalGross), 118, finalY + 9, { align: 'right' });
     doc.text(fmt(summary.totalCommission), 118, finalY + 17, { align: 'right' });
     doc.setTextColor(220, 38, 38);
-    doc.text(`- ${fmt(summary.totalAdvances)}`, 118, finalY + 25, { align: 'right' });
+    doc.text(`- ${fmt((summary.totalAdvances || 0) + (summary.totalTax || 0))}`, 118, finalY + 25, { align: 'right' });
 
     // Net highlight
     doc.setFillColor(22, 163, 74);

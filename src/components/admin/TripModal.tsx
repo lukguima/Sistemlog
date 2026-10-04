@@ -191,7 +191,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                 r.origin.toLowerCase().trim() === formData.origin.toLowerCase().trim() && 
                 r.destination.toLowerCase().trim() === formData.destination.toLowerCase().trim()
             );
-            if (match) {
+            if (match && match.freight_value != null && Number(match.freight_value) > 0) {
                 setFormData({ value: match.freight_value, freight_total: '' });
             }
         }
@@ -201,12 +201,6 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const tarifa = parseFloat(formData.value) || 0;
-        const freteTotal = parseFloat(formData.freight_total) || 0;
-        if (tarifa <= 0 && freteTotal <= 0) {
-            alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
-            return;
-        }
         setLoading(true);
         try {
             await onSave(formData);
@@ -541,7 +535,7 @@ export default function TripModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Peso (KG)</label>
+                            <label className={labelStyle}>Peso / Volume (KG)</label>
                             <input
                                 required
                                 type="number"

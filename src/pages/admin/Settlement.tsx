@@ -4,7 +4,7 @@ import { exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
 import { tripService, fleetService, settlementService, agregadoService, settingsService } from '../../lib/services';
 import { DEFAULT_COMMISSION_RATE } from '../../lib/constants';
-import { calcTripCommission, normalizeCommissionBase, type CommissionBase } from '../../lib/commission';
+import { calcTripCommission, normalizeCommissionBase, tripExpenseBreakdown, type CommissionBase } from '../../lib/commission';
 import AddAdvanceModal from '../../components/admin/AddAdvanceModal';
 import TripModal from '../../components/admin/TripModal';
 import DriverReport from './DriverReport';
@@ -373,10 +373,6 @@ export default function Settlement() {
             const weight = toNum(rest.weight);
             const tarifa = toNum(value);
             const freteTotal = toNum(freight_total);
-            if (tarifa <= 0 && freteTotal <= 0) {
-                alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
-                return;
-            }
             const gross_value = freteTotal > 0
                 ? freteTotal
                 : (weight > 0 && tarifa > 0 ? weight * tarifa : tarifa);
@@ -472,6 +468,8 @@ export default function Settlement() {
         
         // Vales individuais de cada viagem
         const tripAdvancesAmount = selected.reduce((sum, item) => sum + (Number(item.advance_value) || 0), 0);
+        // Imposto % já entra na base da comissão — aqui só aparece, não abate de novo.
+        const tripTaxAmount = round2(selected.reduce((sum, item) => sum + tripExpenseBreakdown(item).taxAmount, 0));
         // Vales extras (driver_advances)
         const driverAdvancesAmount = advancesForSelected.reduce((sum, adv) => sum + (Number(adv.amount) || 0), 0);
         
@@ -487,6 +485,7 @@ export default function Settlement() {
             baseSomaBruta, 
             totalVales, 
             tripAdvancesAmount,
+            tripTaxAmount,
             driverAdvancesAmount,
             comissaoBrutaTotal,
             comissaoPagar, 
@@ -839,9 +838,20 @@ export default function Settlement() {
                                         <span className="font-bold">R$ {settlementCalc.comissaoBrutaTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                     </div>
 
-                                    <div className="flex justify-between items-center text-sm text-rose-500">
-                                        <span>Descontos (Vales de Viagem)</span>
-                                        <span className="font-bold">- R$ {settlementCalc.tripAdvancesAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <div className="space-y-1 text-sm text-rose-500">
+                                        <div className="flex justify-between items-center">
+                                            <span>Descontos</span>
+                                            <span className="font-bold">- R$ {(settlementCalc.tripAdvancesAmount + settlementCalc.tripTaxAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs text-slate-500">
+                                            <span>Imposto (já na comissão)</span>
+                                            <span>- R$ {settlementCalc.tripTaxAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span>Vales de viagem</span>
+                                            <span>- R$ {settlementCalc.tripAdvancesAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400">O líquido abate só os vales. O imposto já saiu na comissão.</p>
                                     </div>
 
                                     <div className="border-t border-slate-100 dark:border-slate-800 my-4 pt-4">

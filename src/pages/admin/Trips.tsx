@@ -139,10 +139,6 @@ export default function Trips() {
             const weight = toNum(rest.weight);
             const tarifa = toNum(value);
             const freteTotal = toNum(freight_total);
-            if (tarifa <= 0 && freteTotal <= 0) {
-                alert('Informe a Tarifa (R$/kg) ou o Frete total (R$).');
-                return;
-            }
             const gross_value = freteTotal > 0
                 ? freteTotal
                 : (weight > 0 && tarifa > 0 ? weight * tarifa : tarifa);

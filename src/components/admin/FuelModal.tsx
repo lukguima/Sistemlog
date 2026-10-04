@@ -225,7 +225,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             >
                                 <option value="">Selecionar Veículo</option>
                                 {vehicles.map(v => (
-                                    <option key={v.id} value={v.id}>{v.plate} - {v.model}</option>
+                                    <option key={v.id} value={v.id}>{v.plate} - {v.model}{v.agregado_id ? ' · Agregado' : ''}</option>
                                 ))}
                             </select>
                         </div>

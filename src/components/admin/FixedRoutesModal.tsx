@@ -49,7 +49,7 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
         setFormData({
             origin: route.origin,
             destination: route.destination,
-            freight_value: String(route.freight_value),
+            freight_value: route.freight_value != null && route.freight_value !== '' ? String(route.freight_value) : '',
             distance_km: route.distance_km ? String(route.distance_km) : '',
             company_id: companyId
         });
@@ -66,7 +66,7 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
             const payload = {
                 origin: formData.origin,
                 destination: formData.destination,
-                freight_value: parseFloat(formData.freight_value.toString()),
+                freight_value: formData.freight_value === '' ? null : parseFloat(formData.freight_value.toString()),
                 distance_km: formData.distance_km ? parseFloat(formData.distance_km.toString()) : null,
                 company_id: companyId
             };
@@ -154,9 +154,8 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <label className={labelStyle}>Valor do Frete (R$)</label>
+                                    <label className={labelStyle}>Valor do Frete (R$) — opcional</label>
                                     <input
-                                        required
                                         type="number"
                                         step="0.01"
                                         className={inputStyle}
@@ -213,7 +212,9 @@ export default function FixedRoutesModal({ isOpen, onClose }: FixedRoutesModalPr
                                                 </div>
                                                 <div className="flex items-center gap-3 mt-1">
                                                     <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                                                        R$ {Number(route.freight_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        {route.freight_value != null && route.freight_value !== ''
+                                                            ? `R$ ${Number(route.freight_value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                                                            : 'Sem valor'}
                                                     </span>
                                                     {route.distance_km && (
                                                         <span className="text-[10px] font-medium text-slate-400">

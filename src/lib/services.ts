@@ -32,7 +32,74 @@ export const fleetService = {
             .select('*')
             .eq('company_id', companyId);
         if (error) throw error;
-        return data;
+        // Espelho de agregado não entra na frota, viagens, manutenção etc.
+        return (data || []).filter((v: any) => !v.agregado_id);
+    },
+
+    /** Cria/atualiza um veículo só para abastecer a placa do agregado. */
+    async ensureAgregadoVehicles(companyId: string) {
+        if (!companyId) return;
+        try {
+            const { data: agregados, error: agErr } = await supabase
+                .from('agregados')
+                .select('id, vehicle_plate, vehicle_model, status')
+                .eq('company_id', companyId);
+            if (agErr) throw agErr;
+            const active = (agregados || []).filter((a: any) =>
+                a.status !== 'inactive' && String(a.vehicle_plate || '').trim()
+            );
+            if (active.length === 0) return;
+
+            const { data: existing, error: vErr } = await supabase
+                .from('vehicles')
+                .select('id, plate, model, agregado_id')
+                .eq('company_id', companyId)
+                .not('agregado_id', 'is', null);
+            if (vErr) throw vErr;
+            const byAgregado = new Map((existing || []).map((v: any) => [v.agregado_id, v]));
+
+            for (const a of active) {
+                const plate = String(a.vehicle_plate).trim().toUpperCase();
+                const model = a.vehicle_model || 'Agregado';
+                const mirror = byAgregado.get(a.id);
+                if (mirror) {
+                    if (mirror.plate !== plate || (mirror.model || '') !== model) {
+                        await supabase.from('vehicles').update({ plate, model }).eq('id', mirror.id);
+                    }
+                } else {
+                    const { error: insErr } = await supabase.from('vehicles').insert([{
+                        company_id: companyId,
+                        plate,
+                        model,
+                        category: 'truck',
+                        status: 'active',
+                        agregado_id: a.id,
+                    }]);
+                    if (insErr) console.warn('ensureAgregadoVehicles:', insErr.message);
+                }
+            }
+        } catch (e) {
+            console.warn('ensureAgregadoVehicles:', e);
+        }
+    },
+
+    /** Frota própria (não implemento) + placas de agregados ativos. */
+    async getVehiclesForFuel(companyId: string) {
+        if (!companyId) return [];
+        await this.ensureAgregadoVehicles(companyId);
+        const [{ data, error }, { data: agregados }] = await Promise.all([
+            supabase.from('vehicles').select('*').eq('company_id', companyId),
+            supabase.from('agregados').select('id, status, vehicle_plate').eq('company_id', companyId),
+        ]);
+        if (error) throw error;
+        const activeIds = new Set(
+            (agregados || [])
+                .filter((a: any) => a.status !== 'inactive' && String(a.vehicle_plate || '').trim())
+                .map((a: any) => a.id)
+        );
+        return (data || []).filter((v: any) =>
+            v.category !== 'implemento' && (!v.agregado_id || activeIds.has(v.agregado_id))
+        );
     },
     async addVehicle(vehicle: any) {
         if (!vehicle.company_id) throw new Error("ID da empresa não informado.");
@@ -1190,6 +1257,29 @@ export const driverService = {
         }
         return data;
     },
+
+    /** Posto: litros + tipo. O preço do litro é aplicado no banco e não volta na resposta. */
+    async registerPostoFuel(input: {
+        vehicle_id: string;
+        driver_id?: string | null;
+        odometer: number;
+        liters: number;
+        kind: 'diesel' | 'arla';
+    }) {
+        const { data, error } = await supabase.rpc('posto_register_fuel', {
+            p_vehicle_id: input.vehicle_id,
+            p_driver_id: input.driver_id || null,
+            p_odometer: input.odometer,
+            p_liters: input.liters,
+            p_kind: input.kind,
+        });
+        if (error) throw error;
+        if (input.vehicle_id) {
+            try { await fleetService.recalculateVehicleKm(input.vehicle_id); } catch (e) { console.warn('recalculateVehicleKm:', e); }
+        }
+        return data;
+    },
+
     async getFuelRecordById(id: string) {
         const { data, error } = await supabase
             .from('fuel_records')
@@ -2868,6 +2958,9 @@ export const agregadoService = {
             .select()
             .single();
         if (error) throw error;
+        if (created?.company_id) {
+            try { await fleetService.ensureAgregadoVehicles(created.company_id); } catch { /* posto/abastecimento sincroniza de novo */ }
+        }
         return created;
     },
     async update(id: string, updates: any) {
@@ -2878,6 +2971,9 @@ export const agregadoService = {
             .select()
             .single();
         if (error) throw error;
+        if (data?.company_id) {
+            try { await fleetService.ensureAgregadoVehicles(data.company_id); } catch { /* posto/abastecimento sincroniza de novo */ }
+        }
         return data;
     },
     async remove(id: string) {

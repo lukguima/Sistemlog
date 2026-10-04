@@ -53,7 +53,7 @@ export default function Fuel() {
             setLoading(true);
             const [fuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
                 driverService.getFuelRecords(user.company_id, startDate, endDate),
-                fleetService.getVehicles(user.company_id),
+                fleetService.getVehiclesForFuel(user.company_id),
                 fleetService.getDrivers(user.company_id),
                 supplierService.getSuppliers(user.company_id)
             ]);
@@ -84,7 +84,7 @@ export default function Fuel() {
             }
             setKmPerLiterMap(kmMap);
             setRecords(period);
-            setVehicles((vehiclesData || []).filter((v: any) => v.category !== 'implemento'));
+            setVehicles(vehiclesData || []);
             setDrivers(driversData || []);
             setSuppliers((suppliersData || []).filter((s: any) => s.category === 'Combustível'));
 

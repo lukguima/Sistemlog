@@ -18,6 +18,7 @@ interface DriverProduction {
     totalGross: number;
     totalCommission: number;
     totalAdvances: number;
+    totalTax: number;
     totalNet: number;
     tripCount: number;
 }
@@ -78,19 +79,22 @@ export default function DriverReport() {
                         totalGross: 0,
                         totalCommission: 0,
                         totalAdvances: 0,
+                        totalTax: 0,
                         totalNet: 0,
                         tripCount: 0,
                     };
                 }
 
-                const { commission: commissionValue, rate } = calcTripCommission(trip, commissionBase, DEFAULT_COMMISSION_RATE);
+                const { commission: commissionValue, rate, expenses } = calcTripCommission(trip, commissionBase, DEFAULT_COMMISSION_RATE);
                 const gross = Number(trip.gross_value) || 0;
                 const advance = Number(trip.advance_value) || 0;
+                const taxAmount = expenses.taxAmount;
 
-                byDriver[trip.driver_id].trips.push({ ...trip, commissionValue, commissionRate: rate });
+                byDriver[trip.driver_id].trips.push({ ...trip, commissionValue, commissionRate: rate, taxAmount });
                 byDriver[trip.driver_id].totalGross += gross;
                 byDriver[trip.driver_id].totalCommission += commissionValue;
                 byDriver[trip.driver_id].totalAdvances += advance;
+                byDriver[trip.driver_id].totalTax += taxAmount;
                 byDriver[trip.driver_id].tripCount++;
             });
 
@@ -105,6 +109,7 @@ export default function DriverReport() {
                 d.totalGross = round2(d.totalGross);
                 d.totalCommission = round2(d.totalCommission);
                 d.totalAdvances = round2(d.totalAdvances);
+                d.totalTax = round2(d.totalTax);
                 d.totalNet = round2(Math.max(0, d.totalCommission - d.totalAdvances));
             });
 
@@ -134,6 +139,7 @@ export default function DriverReport() {
                 commissionRate: t.commissionRate,
                 commissionValue: t.commissionValue,
                 advance: Number(t.advance_value) || 0,
+                taxAmount: Number(t.taxAmount) || 0,
                 net: round2(t.commissionValue - (Number(t.advance_value) || 0)),
             })),
             advances: driver.advances,
@@ -141,6 +147,7 @@ export default function DriverReport() {
                 totalGross: driver.totalGross,
                 totalCommission: driver.totalCommission,
                 totalAdvances: driver.totalAdvances,
+                totalTax: driver.totalTax,
                 totalNet: driver.totalNet,
             },
         });
@@ -158,9 +165,11 @@ export default function DriverReport() {
                     'Destino': t.destination || '-',
                     'Veículo': t.vehicle?.plate || '-',
                     'Frete Bruto (R$)': Number(t.gross_value) || 0,
-                    'Taxa Comissão (%)': t.commissionRate,
-                    'Comissão (R$)': t.commissionValue,
+                    'Taxa (%)': t.commissionRate,
+                    'Resultado (R$)': t.commissionValue,
+                    'Imposto (R$)': Number(t.taxAmount) || 0,
                     'Vale/Adiant. (R$)': Number(t.advance_value) || 0,
+                    'Descontos (R$)': (Number(t.advance_value) || 0) + (Number(t.taxAmount) || 0),
                     'Status': t.status,
                 });
             });
@@ -265,12 +274,12 @@ export default function DriverReport() {
                                 <p className="font-bold text-slate-700">{fmt(driver.totalGross)}</p>
                             </div>
                             <div className="text-right">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comissão</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resultado</p>
                                 <p className="font-bold text-blue-600">{fmt(driver.totalCommission)}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Descontos</p>
-                                <p className="font-bold text-rose-500">- {fmt(driver.totalAdvances)}</p>
+                                <p className="font-bold text-rose-500">- {fmt(driver.totalAdvances + driver.totalTax)}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Líquido</p>
@@ -297,8 +306,8 @@ export default function DriverReport() {
                                             <th className="px-5 py-3">Origem → Destino</th>
                                             <th className="px-5 py-3">Veículo</th>
                                             <th className="px-5 py-3 text-right">Frete Bruto</th>
-                                            <th className="px-5 py-3 text-right">Comissão</th>
-                                            <th className="px-5 py-3 text-right">Vale/Adiant.</th>
+                                            <th className="px-5 py-3 text-right">Resultado</th>
+                                            <th className="px-5 py-3 text-right">Descontos</th>
                                             <th className="px-5 py-3 text-right">Líq. Viagem</th>
                                             <th className="px-5 py-3">Status</th>
                                         </tr>
@@ -306,6 +315,7 @@ export default function DriverReport() {
                                     <tbody className="divide-y divide-slate-100">
                                         {driver.trips.map((t, i) => {
                                             const advance = Number(t.advance_value) || 0;
+                                            const taxAmount = Number(t.taxAmount) || 0;
                                             const tripNet = round2(t.commissionValue - advance);
                                             return (
                                                 <tr key={i} className="hover:bg-slate-50 transition-colors">
@@ -318,7 +328,7 @@ export default function DriverReport() {
                                                         <span className="text-blue-600 font-bold">{fmt(t.commissionValue)}</span>
                                                         <span className="text-slate-400 text-xs ml-1">({t.commissionRate}%)</span>
                                                     </td>
-                                                    <td className="px-5 py-3 text-sm font-bold text-right text-rose-500">{advance > 0 ? `- ${fmt(advance)}` : '-'}</td>
+                                                    <td className="px-5 py-3 text-sm font-bold text-right text-rose-500">{(advance + taxAmount) > 0 ? `- ${fmt(advance + taxAmount)}` : '-'}</td>
                                                     <td className="px-5 py-3 text-sm font-black text-right text-emerald-600">{fmt(Math.max(0, tripNet))}</td>
                                                     <td className="px-5 py-3">
                                                         <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded ${statusClass(t.status)}`}>
