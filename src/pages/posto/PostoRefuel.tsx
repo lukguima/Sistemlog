@@ -58,6 +58,8 @@ export default function PostoRefuel() {
     const [unlockError, setUnlockError] = useState<string | null>(null);
     const [dieselPrice, setDieselPrice] = useState('');
     const [arlaPrice, setArlaPrice] = useState('');
+    const [agregadoDieselPrice, setAgregadoDieselPrice] = useState('');
+    const [agregadoArlaPrice, setAgregadoArlaPrice] = useState('');
     const [savingPrice, setSavingPrice] = useState(false);
     const [priceSaved, setPriceSaved] = useState(false);
 
@@ -163,16 +165,18 @@ export default function PostoRefuel() {
             }
             const { data: prices, error: priceErr } = await signed
                 .from('posto_prices')
-                .select('diesel_price, arla_price')
+                .select('diesel_price, arla_price, agregado_diesel_price, agregado_arla_price')
                 .eq('company_id', companyId)
                 .maybeSingle();
             if (priceErr) {
                 await signed.auth.signOut();
-                setUnlockError('Senha correta, mas a tabela de preços ainda não existe. Rode o SQL FIX_POSTO_AGREGADOS_FRETE no Supabase.');
+                setUnlockError('Senha correta, mas a tabela de preços ainda não está atualizada. Rode de novo o SQL FIX_POSTO_AGREGADOS_FRETE no Supabase.');
                 return;
             }
             setDieselPrice(prices?.diesel_price != null ? String(prices.diesel_price) : '');
             setArlaPrice(prices?.arla_price != null ? String(prices.arla_price) : '');
+            setAgregadoDieselPrice(prices?.agregado_diesel_price != null ? String(prices.agregado_diesel_price) : '');
+            setAgregadoArlaPrice(prices?.agregado_arla_price != null ? String(prices.agregado_arla_price) : '');
             setAdminClient(signed);
             setAdminPassword('');
         } catch (err: any) {
@@ -187,7 +191,10 @@ export default function PostoRefuel() {
         if (!adminClient || !companyId) return;
         const diesel = dieselPrice === '' ? null : Number(dieselPrice);
         const arla = arlaPrice === '' ? null : Number(arlaPrice);
-        if ((diesel != null && (!Number.isFinite(diesel) || diesel < 0)) || (arla != null && (!Number.isFinite(arla) || arla < 0))) {
+        const agregadoDiesel = agregadoDieselPrice === '' ? null : Number(agregadoDieselPrice);
+        const agregadoArla = agregadoArlaPrice === '' ? null : Number(agregadoArlaPrice);
+        const values = [diesel, arla, agregadoDiesel, agregadoArla];
+        if (values.some(v => v != null && (!Number.isFinite(v) || v < 0))) {
             alert('Informe um preço válido.');
             return;
         }
@@ -198,6 +205,8 @@ export default function PostoRefuel() {
                 company_id: companyId,
                 diesel_price: diesel,
                 arla_price: arla,
+                agregado_diesel_price: agregadoDiesel,
+                agregado_arla_price: agregadoArla,
                 updated_at: new Date().toISOString(),
             }, { onConflict: 'company_id' });
             if (error) throw error;
@@ -285,33 +294,64 @@ export default function PostoRefuel() {
                             </button>
                         </form>
                     ) : (
-                        <form onSubmit={savePrices} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-                            <p className="text-sm font-bold text-slate-700">Preço usado em todo lançamento do posto</p>
-                            <div>
-                                <label className="block text-xs font-black text-slate-500 uppercase mb-2">Diesel (R$/L)</label>
-                                <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    step="0.001"
-                                    min="0"
-                                    value={dieselPrice}
-                                    onChange={e => { setDieselPrice(e.target.value); setPriceSaved(false); }}
-                                    placeholder="0,000"
-                                    className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
-                                />
+                        <form onSubmit={savePrices} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5">
+                            <div className="space-y-3">
+                                <p className="text-sm font-bold text-slate-700">Frota própria</p>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Diesel (R$/L)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.001"
+                                        min="0"
+                                        value={dieselPrice}
+                                        onChange={e => { setDieselPrice(e.target.value); setPriceSaved(false); }}
+                                        placeholder="0,000"
+                                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">ARLA (R$/L)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.001"
+                                        min="0"
+                                        value={arlaPrice}
+                                        onChange={e => { setArlaPrice(e.target.value); setPriceSaved(false); }}
+                                        placeholder="0,000"
+                                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-black text-slate-500 uppercase mb-2">ARLA (R$/L)</label>
-                                <input
-                                    type="number"
-                                    inputMode="decimal"
-                                    step="0.001"
-                                    min="0"
-                                    value={arlaPrice}
-                                    onChange={e => { setArlaPrice(e.target.value); setPriceSaved(false); }}
-                                    placeholder="0,000"
-                                    className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
-                                />
+                            <div className="space-y-3 border-t border-slate-100 pt-4">
+                                <p className="text-sm font-bold text-slate-700">Agregados</p>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">Diesel (R$/L)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.001"
+                                        min="0"
+                                        value={agregadoDieselPrice}
+                                        onChange={e => { setAgregadoDieselPrice(e.target.value); setPriceSaved(false); }}
+                                        placeholder="0,000"
+                                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-500 uppercase mb-2">ARLA (R$/L)</label>
+                                    <input
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.001"
+                                        min="0"
+                                        value={agregadoArlaPrice}
+                                        onChange={e => { setAgregadoArlaPrice(e.target.value); setPriceSaved(false); }}
+                                        placeholder="0,000"
+                                        className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-2xl font-mono font-black text-slate-900 outline-none"
+                                    />
+                                </div>
                             </div>
                             {priceSaved && <p className="text-emerald-600 text-xs font-bold">Preço salvo.</p>}
                             <button

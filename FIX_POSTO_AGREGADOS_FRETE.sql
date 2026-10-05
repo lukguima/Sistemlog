@@ -50,6 +50,9 @@ CREATE POLICY posto_prices_admin ON public.posto_prices
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.posto_prices TO authenticated;
 
+ALTER TABLE public.posto_prices ADD COLUMN IF NOT EXISTS agregado_diesel_price numeric;
+ALTER TABLE public.posto_prices ADD COLUMN IF NOT EXISTS agregado_arla_price numeric;
+
 -- Colunas de ARLA usadas pelo lançamento do posto
 ALTER TABLE public.fuel_records ADD COLUMN IF NOT EXISTS arla_liters numeric;
 ALTER TABLE public.fuel_records ADD COLUMN IF NOT EXISTS arla_value numeric;
@@ -70,6 +73,10 @@ DECLARE
     cid uuid;
     diesel_price numeric;
     arla_price numeric;
+    agregado_diesel_price numeric;
+    agregado_arla_price numeric;
+    is_agregado boolean := false;
+    liter_price numeric;
     new_id uuid;
     kind text := lower(trim(COALESCE(p_kind, '')));
 BEGIN
@@ -115,14 +122,31 @@ BEGIN
         RAISE EXCEPTION 'Selecione diesel ou ARLA.';
     END IF;
 
-    SELECT p.diesel_price, p.arla_price
-      INTO diesel_price, arla_price
+    SELECT p.diesel_price, p.arla_price, p.agregado_diesel_price, p.agregado_arla_price
+      INTO diesel_price, arla_price, agregado_diesel_price, agregado_arla_price
     FROM public.posto_prices p
     WHERE p.company_id = cid;
 
+    BEGIN
+        EXECUTE $q$
+            SELECT (agregado_id IS NOT NULL) OR COALESCE(brand, '') LIKE 'agregado:%'
+            FROM public.vehicles WHERE id = $1
+        $q$ INTO is_agregado USING p_vehicle_id;
+    EXCEPTION
+        WHEN undefined_column THEN
+            SELECT COALESCE(brand, '') LIKE 'agregado:%'
+              INTO is_agregado
+            FROM public.vehicles
+            WHERE id = p_vehicle_id;
+    END;
+
     IF kind = 'diesel' THEN
-        IF diesel_price IS NULL OR diesel_price <= 0 THEN
-            RAISE EXCEPTION 'Preço do litro de diesel não definido. Peça ao administrador.';
+        liter_price := CASE WHEN is_agregado THEN agregado_diesel_price ELSE diesel_price END;
+        IF liter_price IS NULL OR liter_price <= 0 THEN
+            IF is_agregado THEN
+                RAISE EXCEPTION 'Preço do litro de diesel para agregados não definido. Peça ao administrador.';
+            END IF;
+            RAISE EXCEPTION 'Preço do litro de diesel da frota não definido. Peça ao administrador.';
         END IF;
         IF EXISTS (
             SELECT 1 FROM public.fuel_records f
@@ -139,12 +163,16 @@ BEGIN
             arla_liters, arla_value, fuel_type
         ) VALUES (
             cid, p_vehicle_id, p_driver_id, p_odometer,
-            p_liters, diesel_price, round(p_liters * diesel_price, 2),
+            p_liters, liter_price, round(p_liters * liter_price, 2),
             0, 0, 'diesel'
         ) RETURNING id INTO new_id;
     ELSE
-        IF arla_price IS NULL OR arla_price <= 0 THEN
-            RAISE EXCEPTION 'Preço do litro de ARLA não definido. Peça ao administrador.';
+        liter_price := CASE WHEN is_agregado THEN agregado_arla_price ELSE arla_price END;
+        IF liter_price IS NULL OR liter_price <= 0 THEN
+            IF is_agregado THEN
+                RAISE EXCEPTION 'Preço do litro de ARLA para agregados não definido. Peça ao administrador.';
+            END IF;
+            RAISE EXCEPTION 'Preço do litro de ARLA da frota não definido. Peça ao administrador.';
         END IF;
         INSERT INTO public.fuel_records (
             company_id, vehicle_id, driver_id, odometer,
@@ -153,7 +181,7 @@ BEGIN
         ) VALUES (
             cid, p_vehicle_id, p_driver_id, p_odometer,
             0, 0, 0,
-            p_liters, round(p_liters * arla_price, 2), 'diesel'
+            p_liters, round(p_liters * liter_price, 2), 'diesel'
         ) RETURNING id INTO new_id;
     END IF;
 
