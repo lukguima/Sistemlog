@@ -37,6 +37,18 @@ function isAgregadoMirror(v: any) {
     return !!agregadoMirrorId(v);
 }
 
+function driverMirrorId(d: any): string | null {
+    const license = String(d?.license_number || '');
+    if (license.startsWith(AGREGADO_BRAND_PREFIX)) return license.slice(AGREGADO_BRAND_PREFIX.length);
+    const email = String(d?.email || '');
+    if (email.startsWith(AGREGADO_BRAND_PREFIX)) return email.slice(AGREGADO_BRAND_PREFIX.length);
+    return null;
+}
+
+function isAgregadoDriver(d: any) {
+    return !!driverMirrorId(d);
+}
+
 async function insertVehicleRow(row: Record<string, unknown>) {
     let payload = { ...row };
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -51,6 +63,27 @@ async function insertVehicleRow(row: Record<string, unknown>) {
         return msg;
     }
     return 'Não foi possível criar o veículo do agregado.';
+}
+
+async function insertDriverRow(row: Record<string, unknown>) {
+    let payload = { ...row };
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const { error } = await supabase.from('drivers').insert([payload]);
+        if (!error) return null;
+        const msg = error.message || '';
+        const missing = msg.match(/'([a-z_]+)' column/i)?.[1] || msg.match(/column "([a-z_]+)"/i)?.[1];
+        if (missing === 'license_number' && payload.license_number) {
+            payload.email = payload.license_number;
+            delete payload.license_number;
+            continue;
+        }
+        if (missing && missing in payload) {
+            delete payload[missing];
+            continue;
+        }
+        return msg;
+    }
+    return 'Não foi possível criar o motorista do agregado.';
 }
 
 export const fleetService = {
@@ -300,7 +333,80 @@ export const fleetService = {
             .select('*')
             .eq('company_id', companyId);
         if (error) throw error;
-        return data;
+        return (data || []).filter((d: any) => !isAgregadoDriver(d));
+    },
+
+    /** Cria/atualiza um motorista só para o abastecimento do agregado. */
+    async ensureAgregadoDrivers(companyId: string) {
+        if (!companyId) return;
+        try {
+            const { data: agregados, error: agErr } = await supabase
+                .from('agregados')
+                .select('id, name, phone, email, status')
+                .eq('company_id', companyId);
+            if (agErr) throw agErr;
+            const active = (agregados || []).filter((a: any) =>
+                a.status !== 'inactive' && String(a.name || '').trim()
+            );
+            if (active.length === 0) return;
+
+            const { data: existing, error: dErr } = await supabase
+                .from('drivers')
+                .select('id, name, phone, email, license_number')
+                .eq('company_id', companyId);
+            if (dErr) throw dErr;
+
+            for (const a of active) {
+                const name = String(a.name).trim();
+                const marker = `${AGREGADO_BRAND_PREFIX}${a.id}`;
+                const mirror = (existing || []).find((d: any) => driverMirrorId(d) === String(a.id));
+                if (mirror) {
+                    if (mirror.name !== name || mirror.phone !== (a.phone || null) || mirror.license_number !== marker) {
+                        await supabase.from('drivers').update({
+                            name,
+                            phone: a.phone || null,
+                            email: a.email || null,
+                            license_number: marker,
+                            status: 'active',
+                        }).eq('id', mirror.id);
+                    }
+                    continue;
+                }
+                const fail = await insertDriverRow({
+                    company_id: companyId,
+                    name,
+                    phone: a.phone || null,
+                    email: a.email || null,
+                    license_number: marker,
+                    status: 'active',
+                });
+                if (fail) console.warn('ensureAgregadoDrivers:', fail);
+            }
+        } catch (e) {
+            console.warn('ensureAgregadoDrivers:', e);
+        }
+    },
+
+    /** Motoristas da empresa + agregados ativos. */
+    async getDriversForFuel(companyId: string) {
+        if (!companyId) return [];
+        await this.ensureAgregadoDrivers(companyId);
+        const [{ data, error }, { data: agregados, error: agErr }] = await Promise.all([
+            supabase.from('drivers').select('*').eq('company_id', companyId),
+            supabase.from('agregados').select('id, name, status').eq('company_id', companyId),
+        ]);
+        if (error) throw error;
+        if (agErr) console.warn('getDriversForFuel agregados:', agErr.message);
+        const activeIds = new Set(
+            (agregados || [])
+                .filter((a: any) => a.status !== 'inactive' && String(a.name || '').trim())
+                .map((a: any) => String(a.id))
+        );
+        return (data || []).filter((d: any) => {
+            const mirrorId = driverMirrorId(d);
+            if (!mirrorId) return true;
+            return activeIds.has(mirrorId);
+        });
     },
     async addDriver(driver: any) {
         if (!driver.company_id) throw new Error("ID da empresa não informado.");
@@ -3006,7 +3112,10 @@ export const agregadoService = {
             .single();
         if (error) throw error;
         if (created?.company_id) {
-            try { await fleetService.ensureAgregadoVehicles(created.company_id); } catch { /* posto/abastecimento sincroniza de novo */ }
+            try {
+                await fleetService.ensureAgregadoVehicles(created.company_id);
+                await fleetService.ensureAgregadoDrivers(created.company_id);
+            } catch { /* posto/abastecimento sincroniza de novo */ }
         }
         return created;
     },
@@ -3019,7 +3128,10 @@ export const agregadoService = {
             .single();
         if (error) throw error;
         if (data?.company_id) {
-            try { await fleetService.ensureAgregadoVehicles(data.company_id); } catch { /* posto/abastecimento sincroniza de novo */ }
+            try {
+                await fleetService.ensureAgregadoVehicles(data.company_id);
+                await fleetService.ensureAgregadoDrivers(data.company_id);
+            } catch { /* posto/abastecimento sincroniza de novo */ }
         }
         return data;
     },

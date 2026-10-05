@@ -67,7 +67,7 @@ export default function PostoRefuel() {
             try {
                 const [vs, ds] = await Promise.all([
                     fleetService.getVehiclesForFuel(companyId),
-                    fleetService.getDrivers(companyId),
+                    fleetService.getDriversForFuel(companyId),
                 ]);
                 setVehicles(vs || []);
                 setDrivers(ds || []);
@@ -394,7 +394,11 @@ export default function PostoRefuel() {
                             className="w-full bg-white border border-slate-200 rounded-2xl py-3.5 px-4 text-slate-900 outline-none focus:ring-2 focus:ring-primary-500/20"
                         >
                             <option value="">Não informar</option>
-                            {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            {drivers.map(d => (
+                                <option key={d.id} value={d.id}>
+                                    {d.name}{(d.license_number && String(d.license_number).startsWith('agregado:')) ? ' · Agregado' : ''}
+                                </option>
+                            ))}
                         </select>
                     </div>
 

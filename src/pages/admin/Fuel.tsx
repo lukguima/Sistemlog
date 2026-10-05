@@ -54,7 +54,7 @@ export default function Fuel() {
             const [fuelData, vehiclesData, driversData, suppliersData] = await Promise.all([
                 driverService.getFuelRecords(user.company_id, startDate, endDate),
                 fleetService.getVehiclesForFuel(user.company_id),
-                fleetService.getDrivers(user.company_id),
+                fleetService.getDriversForFuel(user.company_id),
                 supplierService.getSuppliers(user.company_id)
             ]);
 

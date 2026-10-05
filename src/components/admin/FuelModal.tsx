@@ -240,7 +240,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                             >
                                 <option value="">Selecionar Motorista</option>
                                 {drivers.map(d => (
-                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                    <option key={d.id} value={d.id}>{d.name}{(d.license_number && String(d.license_number).startsWith('agregado:')) ? ' · Agregado' : ''}</option>
                                 ))}
                             </select>
                         </div>
