@@ -231,9 +231,8 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                         </div>
 
                         <div className="space-y-1">
-                            <label className={labelStyle}>Motorista</label>
+                            <label className={labelStyle}>Motorista — opcional</label>
                             <select
-                                required
                                 value={formData.driver_id}
                                 onChange={(e) => setFormData({ driver_id: e.target.value })}
                                 className={inputStyle}
