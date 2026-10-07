@@ -8,7 +8,7 @@ import {
 } from '../../lib/docReader';
 import {
     isDacteText, parseDacteText, ensureDacteFromFilename, looksLikeDacteFilename,
-    matchVehicleByPlate, matchDriver, buildTripValueFields,
+    matchVehicleByPlate, matchDriver, buildTripValueFields, mergeDacte,
     type DacteParseResult,
 } from '../../lib/dacteReader';
 import { interpretDocumentText } from '../../lib/interpretDocument';
@@ -215,14 +215,12 @@ export default function Documents() {
                 }
 
                 const readTrip = async () => {
+                    const fromRules = ensureDacteFromFilename(file.name, parseDacteText(text));
                     const fromGpt = await interpretDocumentText(text, file.name);
-                    if (fromGpt) {
-                        const parsed = ensureDacteFromFilename(file.name, fromGpt);
-                        const partial = !parsed.origin && !parsed.freightValue;
-                        return { parsed, partial };
-                    }
-                    const parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
-                    const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
+                    const parsed = fromGpt
+                        ? mergeDacte(ensureDacteFromFilename(file.name, fromGpt), fromRules)
+                        : fromRules;
+                    const partial = !parsed.origin && !parsed.freightValue;
                     return { parsed, partial };
                 };
 

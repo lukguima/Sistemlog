@@ -145,15 +145,32 @@ export function parseFilename(fileName: string): FilenameParse {
 }
 
 function pageTextFromContent(content: { items: unknown[] }): string {
-    let out = '';
+    const positioned: { str: string; x: number; y: number }[] = [];
     for (const raw of content.items) {
-        const it = raw as { str?: string; hasEOL?: boolean };
-        if (typeof it.str !== 'string') continue;
-        out += it.str;
-        if (it.hasEOL) out += '\n';
-        else if (it.str) out += ' ';
+        const it = raw as { str?: string; transform?: number[] };
+        if (typeof it.str !== 'string' || !it.str.trim()) continue;
+        const x = it.transform?.[4];
+        const y = it.transform?.[5];
+        if (typeof x !== 'number' || typeof y !== 'number') continue;
+        positioned.push({ str: it.str.trim(), x, y });
     }
-    return out;
+    if (positioned.length === 0) {
+        return content.items
+            .map(raw => (raw as { str?: string }).str || '')
+            .filter(Boolean)
+            .join(' ');
+    }
+
+    positioned.sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines: { y: number; parts: { str: string; x: number }[] }[] = [];
+    for (const it of positioned) {
+        const last = lines[lines.length - 1];
+        if (!last || Math.abs(last.y - it.y) > 2.5) lines.push({ y: it.y, parts: [it] });
+        else last.parts.push(it);
+    }
+    return lines
+        .map(line => line.parts.sort((a, b) => a.x - b.x).map(part => part.str).join(' '))
+        .join('\n');
 }
 
 async function readPdfPages(data: Uint8Array, opts: Record<string, unknown> = {}): Promise<string> {

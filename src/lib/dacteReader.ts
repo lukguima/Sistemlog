@@ -89,6 +89,11 @@ function parseDateBr(s: string): string | null {
     return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+function digitsCte(raw: string): string | null {
+    const num = raw.replace(/\./g, '').replace(/^0+/, '');
+    return num || null;
+}
+
 function extractCteNumber(t: string): string | null {
     // "CT-E Nº DOCUMENTO: 4200" ou "Nº DOCUMENTO: 4200"
     let m = t.match(/N[ºO°]?\s*DOCUMENTO\s*[:.]?\s*(\d{1,9})/i);
@@ -96,13 +101,19 @@ function extractCteNumber(t: string): string | null {
     // Bloco SÉRIE ... NÚMERO — no texto linear: "SÉRIE 002 4200 NÚMERO"
     m = t.match(/S[ÉE]RIE\s+(\d{1,3})\s+(\d{1,9})\s+N[ÚU]MERO/i);
     if (m) return m[2];
-    // Chave de acesso: posições 26-34 = número do CT-e (9 dígitos)
-    m = t.match(/(\d{44})/);
-    if (m) {
-        const num = m[1].slice(25, 34).replace(/^0+/, '');
-        return num || null;
-    }
+    // "NÚMERO" e, na linha de baixo, "000.002.804"
+    m = t.match(/N[ÚU]MERO[\s\S]{0,200}?((?:\d{1,3}\.){2,}\d{1,3})/i);
+    if (m) return digitsCte(m[1]);
+    const key = extractAccessKey(t);
+    if (key) return digitsCte(key.slice(25, 34));
     return null;
+}
+
+function extractAccessKey(t: string): string | null {
+    const compact = t.match(/(\d{44})/);
+    if (compact) return compact[1];
+    const spaced = t.match(/\d{4}(?:\s+\d{4}){10}/);
+    return spaced ? spaced[0].replace(/\s/g, '') : null;
 }
 
 function extractSeries(t: string): string | null {
@@ -113,12 +124,24 @@ function extractSeries(t: string): string | null {
 function extractMoneyAfter(t: string, labelRe: RegExp): number | null {
     const m = t.match(labelRe);
     if (!m) return null;
-    const window = t.slice(m.index! + m[0].length, m.index! + m[0].length + 40);
+    const window = t.slice(m.index! + m[0].length, m.index! + m[0].length + 180);
     const money = window.match(/R\$\s*([\d.]+,\d{2})/i) || window.match(/([\d.]+,\d{2})/);
     return money ? parseBrMoney(money[1]) : null;
 }
 
+function taxRowNumbers(t: string): number[] {
+    const row = t.match(/AL[ÍI]Q\.?\s*(?:DO\s+)?ICMS[^\n]*\n([^\n]+)/i);
+    if (!row) return [];
+    return [...row[1].matchAll(/([\d.]+,\d{2})/g)]
+        .map(match => parseBrMoney(match[1]))
+        .filter((value): value is number => value != null);
+}
+
 function extractTaxRate(t: string): number | null {
+    const row = taxRowNumbers(t);
+    const fromRow = row.find(value => value > 0 && value <= 40);
+    if (fromRow != null) return fromRow;
+
     const n = norm(t);
     const idx = n.indexOf('ALIQUOTA DO ICMS');
     const window = idx >= 0 ? n.slice(idx, idx + 160) : n;
@@ -132,6 +155,10 @@ function extractTaxRate(t: string): number | null {
 }
 
 function extractIcmsValue(t: string): number | null {
+    const row = taxRowNumbers(t);
+    const rateIndex = row.findIndex(value => value > 0 && value <= 40);
+    if (rateIndex >= 0 && row[rateIndex + 1] != null) return row[rateIndex + 1];
+
     const n = norm(t);
     const idx = n.indexOf('VALOR DO ICMS');
     if (idx >= 0) {
@@ -146,7 +173,22 @@ function extractIcmsValue(t: string): number | null {
     return m ? parseBrMoney(m[1]) : null;
 }
 
+function cleanCity(s: string): string {
+    return s.replace(/\s+/g, ' ').trim();
+}
+
 function extractOriginDest(t: string): { origin: string | null; destination: string | null } {
+    // Leitura em ordem visual: rótulos e, na linha seguinte, "Cidade - UF - IBGE"
+    const labeled = t.match(
+        /ORIGEM\s+DA\s+PRESTA[ÇC][ÃA]O\s+DESTINO\s+DA\s+PRESTA[ÇC][ÃA]O\s+(.+?)\s*-\s*([A-Z]{2})\s*-\s*\d{7}\s+(.+?)\s*-\s*([A-Z]{2})\s*-\s*\d{7}/i
+    );
+    if (labeled) {
+        return {
+            origin: `${cleanCity(labeled[1])} - ${labeled[2]}`,
+            destination: `${cleanCity(labeled[3])} - ${labeled[4]}`,
+        };
+    }
+
     // Preferência: bloco com códigos IBGE imediatamente antes do rótulo de prestação
     // (evita o "ORIGEM DA PRESTAÇÃO - DATA/HORA" do canhoto no topo do DACTe)
     const block = t.match(
@@ -186,13 +228,18 @@ function extractCargo(t: string): string | null {
     // "VALOR TOTAL DA CARGA OLEO DIESEL A S10   R$ 263.829,37"
     const m = t.match(/VALOR TOTAL DA CARGA\s+([A-Z0-9À-ú][A-Z0-9À-ú\s\/-]{2,50}?)\s+R\$/i);
     if (m) return m[1].replace(/\s+/g, ' ').trim();
+    // "PRODUTO PREDOMINANTE" na linha de cima, nome na linha de baixo
+    const product = t.match(/PRODUTO\s+PREDOMINANTE[^\n]*\n\s*([A-Za-zÀ-ú0-9][A-Za-zÀ-ú0-9\s\/.-]{2,80}?)(?:\s+[\d.]+\s*,\s*\d{2}|\s*$)/i);
+    if (product) return product[1].replace(/\s+/g, ' ').trim();
     const m2 = t.match(/OLEO\s+DIESEL[A-Z0-9\s]*/i) || t.match(/ÓLEO\s+DIESEL[A-Z0-9\s]*/i);
     return m2 ? m2[0].replace(/\s+/g, ' ').trim() : null;
 }
 
 function extractWeightKg(t: string): number | null {
     const m = t.match(/PESO\s+BRUTO\s+([\d.]+(?:,\d+)?)\s*KG/i);
-    return m ? parseBrMoney(m[1]) : null;
+    if (m) return parseBrMoney(m[1]);
+    const next = t.match(/PESO\s+BRUTO\s*\(Kg\)[^\n]*\n\s*([\d.]+,\d+)/i);
+    return next ? parseBrMoney(next[1]) : null;
 }
 
 function extractWeightLiters(t: string): number | null {
@@ -214,20 +261,24 @@ function extractPlatesFromObs(t: string): string[] {
 }
 
 function extractDriver(t: string): { name: string | null; cpf: string | null } {
-    const m = t.match(/MOTORISTA\s+([A-Za-zÀ-ú\s.]+?)\s*,?\s*CPF\s*[:.]?\s*(\d{11}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+    const m = t.match(/MOTORISTA\s*[:\-]?\s*([A-Za-zÀ-ú\s.]+?)\s*,?\s*CPF\s*[:.]?\s*(\d{11}|\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
     if (m) {
         return {
             name: m[1].replace(/\s+/g, ' ').trim(),
             cpf: m[2].replace(/\D/g, ''),
         };
     }
+    const labeled = t.match(/MOTORISTA\s*:\s*([A-Za-zÀ-ú][A-Za-zÀ-ú .]{2,80})/i);
+    if (labeled) return { name: labeled[1].replace(/\s+/g, ' ').trim(), cpf: null };
     const m2 = t.match(/MOTORISTA\s+([A-Za-zÀ-ú\s.]{5,60}?)(?:\s*;|\s*INFORMA|\s*RNTRC)/i);
     return { name: m2 ? m2[1].replace(/\s+/g, ' ').trim() : null, cpf: null };
 }
 
 function extractDate(t: string): string | null {
-    // Protocolo: "141260191848939 - 02/07/2026 16:33:34"
-    const proto = t.match(/PROTOCOLO[^\d]*\d+\s*-\s*(\d{2}\/\d{2}\/\d{4})/i);
+    const emission = t.match(/DATA E HORA DE EMISS[ÃA]O[\s\S]{0,240}?(\d{2}\/\d{2}\/\d{4})/i);
+    if (emission) return parseDateBr(emission[1]);
+    // Protocolo: "141260191848939 - 02/07/2026 16:33:34" ou sem hífen
+    const proto = t.match(/PROTOCOLO[\s\S]{0,80}?(\d{2}\/\d{2}\/\d{4})/i);
     if (proto) return parseDateBr(proto[1]);
     // "02/07/2026 16:29:00 MODELO"
     const em = t.match(/(\d{2}\/\d{2}\/\d{4})\s+\d{2}:\d{2}:\d{2}\s+MODELO/i);
@@ -262,7 +313,7 @@ export function parseDacteText(rawText: string): DacteParseResult {
 
     const { origin, destination } = extractOriginDest(rawText);
     const { name: driverName, cpf: driverCpf } = extractDriver(rawText);
-    const accessKey = (rawText.match(/(\d{44})/) || [])[1] || null;
+    const accessKey = extractAccessKey(rawText);
 
     const freightValue =
         extractMoneyAfter(rawText, /VALOR TOTAL DO SERVI[ÇC]O/i)
@@ -323,6 +374,38 @@ export function matchDriver(drivers: any[], name: string | null, cpf: string | n
  * gross = weight * tarifa quando ambos > 0.
  * Usa kg se disponível; senão litros; senão só o frete (peso 0).
  */
+function filledText(primary: string | null, fallback: string | null): string | null {
+    return (primary && primary.trim()) || fallback || null;
+}
+
+function filledNumber(primary: number | null, fallback: number | null): number | null {
+    return primary != null && primary > 0 ? primary : fallback;
+}
+
+/** Completa o que o GPT não trouxe com a leitura por regras. */
+export function mergeDacte(primary: DacteParseResult, fallback: DacteParseResult): DacteParseResult {
+    return {
+        isDacte: primary.isDacte || fallback.isDacte,
+        cteNumber: filledText(primary.cteNumber, fallback.cteNumber),
+        series: filledText(primary.series, fallback.series),
+        accessKey: filledText(primary.accessKey, fallback.accessKey),
+        date: filledText(primary.date, fallback.date),
+        origin: filledText(primary.origin, fallback.origin),
+        destination: filledText(primary.destination, fallback.destination),
+        cargoDescription: filledText(primary.cargoDescription, fallback.cargoDescription),
+        weightKg: filledNumber(primary.weightKg, fallback.weightKg),
+        weightLiters: filledNumber(primary.weightLiters, fallback.weightLiters),
+        freightValue: filledNumber(primary.freightValue, fallback.freightValue),
+        tollsValue: filledNumber(primary.tollsValue, fallback.tollsValue),
+        taxRate: filledNumber(primary.taxRate, fallback.taxRate),
+        icmsValue: filledNumber(primary.icmsValue, fallback.icmsValue),
+        plates: primary.plates.length ? primary.plates : fallback.plates,
+        driverName: filledText(primary.driverName, fallback.driverName),
+        driverCpf: filledText(primary.driverCpf, fallback.driverCpf),
+        rawText: fallback.rawText || primary.rawText,
+    };
+}
+
 export function buildTripValueFields(parsed: DacteParseResult): { weight: number; value: number; gross: number } {
     const frete = parsed.freightValue || 0;
     const kg = parsed.weightKg || 0;
