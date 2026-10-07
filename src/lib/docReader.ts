@@ -6,14 +6,26 @@
 // Quando as duas fontes concordam => confiança alta.
 // ============================================================
 import * as pdfjs from 'pdfjs-dist';
-// @ts-ignore — worker via URL (Vite)
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// O worker entra no próprio pacote do site. Um .mjs separado sai do nginx
+// como arquivo genérico e o navegador recusa, deixando o PDF sem texto.
+// @ts-ignore — o pacote do worker não publica tipos
+import * as pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs';
 // @ts-ignore — pasta de fontes padrão (Vite)
 import liberationRegularUrl from 'pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf?url';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+const workerGlobal = globalThis as typeof globalThis & {
+    pdfjsWorker?: { WorkerMessageHandler: unknown };
+};
+workerGlobal.pdfjsWorker = pdfjsWorker as { WorkerMessageHandler: unknown };
 
-const STANDARD_FONT_DATA_URL = String(liberationRegularUrl).replace(/LiberationSans-Regular\.ttf(\?.*)?$/i, '');
+function fontDirectory(assetUrl: string): string {
+    const base = typeof window !== 'undefined' ? window.location.href : 'http://localhost/';
+    const url = new URL(assetUrl, base);
+    url.pathname = url.pathname.replace(/[^/]*$/, '');
+    return url.href;
+}
+
+const STANDARD_FONT_DATA_URL = fontDirectory(String(liberationRegularUrl));
 
 export type DocTypeKey =
     | 'crlv' | 'antt' | 'civ' | 'tacografo' | 'cipp' | 'afericao'
@@ -196,18 +208,8 @@ export async function extractPdfText(file: File): Promise<string> {
     try {
         return await readPdfPages(bytes);
     } catch (e) {
-        console.warn('Falha ao extrair texto do PDF (worker); tentando na thread principal:', e);
-        try {
-            const prev = pdfjs.GlobalWorkerOptions.workerSrc;
-            // Força fallback sem worker quando o worker falha no browser
-            (pdfjs.GlobalWorkerOptions as { workerSrc: string }).workerSrc = '';
-            const text = await readPdfPages(bytes, { disableWorker: true });
-            pdfjs.GlobalWorkerOptions.workerSrc = prev;
-            return text;
-        } catch (e2) {
-            console.warn('Falha ao extrair texto do PDF:', e2);
-            return '';
-        }
+        console.warn('Falha ao extrair texto do PDF:', e);
+        return '';
     }
 }
 
