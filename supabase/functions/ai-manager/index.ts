@@ -78,6 +78,14 @@ serve(async (req) => {
             return json({ error: 'Empresa não autorizada.' }, 403);
         }
 
+        const { data: companyKey } = await supabase
+            .from('company_openai_keys')
+            .select('api_key')
+            .eq('company_id', companyId)
+            .maybeSingle();
+        const openaiKey = String(companyKey?.api_key || '').trim() || OPENAI_API_KEY || '';
+        if (!openaiKey) return json({ error: 'IA não configurada para esta empresa.' }, 500);
+
         // userId sempre do JWT — ignora spoofing no body
         const userId = caller.id;
         const sid = sessionId ?? crypto.randomUUID();
@@ -528,7 +536,7 @@ Regras:
 
             const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+                headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: 'gpt-4o',
                     temperature: 0.3,
@@ -577,7 +585,7 @@ Regras:
 
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: 'gpt-4o',
                 temperature: 0.7,

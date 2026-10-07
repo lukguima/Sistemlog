@@ -16,7 +16,8 @@ import {
     Trash2,
     Mail,
     Lock,
-    Pencil
+    Pencil,
+    KeyRound
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +27,7 @@ import { supabase } from '../../lib/supabase';
 import UserModal from '../../components/admin/UserModal';
 import { SECTORS, PAGES } from '../../lib/permissions';
 import { COMMISSION_BASE_OPTIONS, type CommissionBase } from '../../lib/commission';
+import { openaiKeyRequest } from '../../lib/interpretDocument';
 
 type Tab = 'company' | 'users' | 'security' | 'subscription' | 'branding';
 
@@ -63,6 +65,11 @@ export default function Settings() {
     });
 
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [gptConfigured, setGptConfigured] = useState(false);
+    const [gptHint, setGptHint] = useState<string | null>(null);
+    const [gptInput, setGptInput] = useState('');
+    const [gptBusy, setGptBusy] = useState(false);
+    const canManageGpt = user?.role === 'admin' || user?.role === 'master';
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [loadingEmail, setLoadingEmail] = useState(false);
     const logoInputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +150,17 @@ export default function Settings() {
                 });
             }
 
+            if (user.role === 'admin' || user.role === 'master') {
+                try {
+                    const keyStatus = await openaiKeyRequest({ action: 'status' });
+                    setGptConfigured(!!keyStatus.configured);
+                    setGptHint(keyStatus.hint);
+                } catch {
+                    setGptConfigured(false);
+                    setGptHint(null);
+                }
+            }
+
             if (subsRes.status === 'fulfilled' && subsRes.value) {
                 setSubscription(subsRes.value);
             }
@@ -188,6 +206,38 @@ export default function Settings() {
             setStatusMessage({ type: 'error', text: 'Erro ao salvar perfil: ' + (error as any).message });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSaveGptKey = async () => {
+        if (!canManageGpt) return;
+        setGptBusy(true);
+        try {
+            const saved = await openaiKeyRequest({ action: 'save', apiKey: gptInput });
+            setGptConfigured(true);
+            setGptHint(saved.hint);
+            setGptInput('');
+            setStatusMessage({ type: 'success', text: 'Chave salva. A leitura de documentos e o Gestor IA usam o GPT da empresa.' });
+        } catch (err: any) {
+            setStatusMessage({ type: 'error', text: err?.message || 'Não foi possível salvar a chave.' });
+        } finally {
+            setGptBusy(false);
+        }
+    };
+
+    const handleRemoveGptKey = async () => {
+        if (!canManageGpt) return;
+        setGptBusy(true);
+        try {
+            await openaiKeyRequest({ action: 'delete' });
+            setGptConfigured(false);
+            setGptHint(null);
+            setGptInput('');
+            setStatusMessage({ type: 'success', text: 'Chave removida. A leitura voltou para o sistema.' });
+        } catch (err: any) {
+            setStatusMessage({ type: 'error', text: err?.message || 'Não foi possível remover a chave.' });
+        } finally {
+            setGptBusy(false);
         }
     };
 
@@ -566,6 +616,61 @@ export default function Settings() {
                 )}
 
                 {activeTab === 'security' && (
+                    <div className="space-y-8">
+                    {canManageGpt && (
+                    <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl space-y-8">
+                        <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                                <KeyRound size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 leading-none">Leitura de documentos (GPT)</h3>
+                                <p className="text-slate-500 text-[10px] font-bold mt-2 uppercase tracking-widest">
+                                    {gptConfigured ? 'Usando o GPT da empresa' : 'Usando a leitura do sistema'}
+                                </p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                            Cole a chave da OpenAI da empresa. Com ela salva, a Central de Documentos e o Gestor IA passam a usar essa conta. Sem a chave, a leitura por regras e a IA da plataforma continuam iguais.
+                        </p>
+                        {gptConfigured && (
+                            <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-2xl px-5 py-4 text-sm font-bold">
+                                Chave ativa: {gptHint || 'sk-...****'}
+                            </div>
+                        )}
+                        <div>
+                            <label className="text-[10px] font-black text-[#8B95B1] uppercase tracking-widest block mb-2 px-1">Chave da OpenAI</label>
+                            <input
+                                type="password"
+                                autoComplete="off"
+                                className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold text-slate-900 w-full outline-none focus:border-blue-500 transition-colors"
+                                placeholder="sk-..."
+                                value={gptInput}
+                                onChange={e => setGptInput(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={handleSaveGptKey}
+                                disabled={gptBusy || !gptInput.trim()}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                            >
+                                {gptBusy ? 'Validando...' : 'Salvar chave'}
+                            </button>
+                            {gptConfigured && (
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveGptKey}
+                                    disabled={gptBusy}
+                                    className="bg-white border border-slate-200 text-slate-600 px-8 py-4 rounded-2xl font-black text-xs uppercase transition-all hover:border-rose-200 hover:text-rose-600 disabled:opacity-50"
+                                >
+                                    Remover
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    )}
                     <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl space-y-10">
                         <div className="flex items-center gap-4 border-b border-slate-100 pb-6">
                             <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
@@ -642,6 +747,7 @@ export default function Settings() {
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 )}
 

@@ -11,6 +11,7 @@ import {
     matchVehicleByPlate, matchDriver, buildTripValueFields,
     type DacteParseResult,
 } from '../../lib/dacteReader';
+import { interpretDocumentText } from '../../lib/interpretDocument';
 import {
     UploadCloud, FileText, CheckCircle2, AlertTriangle, Loader2,
     Trash2, ExternalLink, ShieldCheck, Truck,
@@ -213,19 +214,29 @@ export default function Documents() {
                     continue;
                 }
 
-                // Modo Viagens: sempre caminho de viagem (mesmo com texto fraco)
-                if (uploadMode === 'trip') {
+                const readTrip = async () => {
+                    const fromGpt = await interpretDocumentText(text, file.name);
+                    if (fromGpt) {
+                        const parsed = ensureDacteFromFilename(file.name, fromGpt);
+                        const partial = !parsed.origin && !parsed.freightValue;
+                        return { parsed, partial };
+                    }
                     const parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
                     const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
+                    return { parsed, partial };
+                };
+
+                // Modo Viagens: sempre caminho de viagem (mesmo com texto fraco)
+                if (uploadMode === 'trip') {
+                    const { parsed, partial } = await readTrip();
                     tripBatch.push(buildTripImport(file, parsed, i, partial));
                     continue;
                 }
 
                 // Automático: DACTe por texto ou nome (força viagem se nome bater)
                 if (isDacteText(text) || nameIsDacte) {
-                    const parsed = ensureDacteFromFilename(file.name, parseDacteText(text));
+                    const { parsed, partial } = await readTrip();
                     if (parsed.isDacte) {
-                        const partial = !isDacteText(text) || (!parsed.origin && !parsed.freightValue);
                         tripBatch.push(buildTripImport(file, parsed, i, partial));
                         continue;
                     }
