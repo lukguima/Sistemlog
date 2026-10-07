@@ -356,7 +356,7 @@ export default function FuelModal({ isOpen, onClose, onSave, vehicles, drivers, 
                                 <label className={`${labelStyle} text-teal-600`}>Litros de ARLA 32</label>
                                 <input
                                     type="number"
-                                    step="0.01"
+                                    step="0.001"
                                     className={`${inputStyle} focus:ring-teal-500/20`}
                                     placeholder="Ex: 5,00"
                                     min={0}

@@ -1418,6 +1418,7 @@ export const driverService = {
         odometer: number;
         liters: number;
         kind: 'diesel' | 'arla';
+        date?: string | null;
     }) {
         const { data, error } = await supabase.rpc('posto_register_fuel', {
             p_vehicle_id: input.vehicle_id,
@@ -1425,6 +1426,7 @@ export const driverService = {
             p_odometer: input.odometer,
             p_liters: input.liters,
             p_kind: input.kind,
+            p_date: input.date || null,
         });
         if (error) throw error;
         if (input.vehicle_id) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Droplet, Truck, Gauge, Send, CheckCircle2, LogOut, Loader2, Search, User, Lock } from 'lucide-react';
+import { Droplet, Truck, Gauge, Send, CheckCircle2, LogOut, Loader2, Search, User, Lock, Calendar } from 'lucide-react';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -8,6 +8,13 @@ import { useNavigate } from 'react-router-dom';
 
 type FuelKind = 'diesel' | 'arla';
 type Tab = 'abastecer' | 'preco';
+
+function todayIso() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${month}-${day}`;
+}
 
 function adminProbeClient() {
     const memory = new Map<string, string>();
@@ -45,6 +52,7 @@ export default function PostoRefuel() {
     const [lastKm, setLastKm] = useState<number>(0);
 
     const [driverId, setDriverId] = useState('');
+    const [fuelDate, setFuelDate] = useState(todayIso);
     const [kind, setKind] = useState<FuelKind>('diesel');
     const [litros, setLitros] = useState<number | ''>('');
     const [km, setKm] = useState<number | ''>('');
@@ -104,7 +112,7 @@ export default function PostoRefuel() {
 
     const reset = () => {
         setSelectedVehicle(null);
-        setKm(''); setLitros(''); setDriverId(''); setKind('diesel');
+        setKm(''); setLitros(''); setDriverId(''); setKind('diesel'); setFuelDate(todayIso());
         setErrorKm(null); setLastKm(0); setSearch('');
     };
 
@@ -123,6 +131,7 @@ export default function PostoRefuel() {
                 odometer: km,
                 liters: litros,
                 kind,
+                date: fuelDate,
             });
             setSuccess(true);
             setTimeout(() => { setSuccess(false); reset(); }, 2000);
@@ -425,6 +434,19 @@ export default function PostoRefuel() {
                     </div>
 
                     <div>
+                        <label className="block text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                            <Calendar size={16} /> Data do abastecimento
+                        </label>
+                        <input
+                            type="date"
+                            required
+                            value={fuelDate}
+                            onChange={e => setFuelDate(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-4 text-lg font-black text-slate-900 outline-none focus:ring-2 focus:ring-primary-500/20"
+                        />
+                    </div>
+
+                    <div>
                         <label className="block text-sm font-black text-slate-500 mb-2 flex items-center gap-2">
                             <User size={16} /> Motorista — opcional
                         </label>
@@ -471,7 +493,7 @@ export default function PostoRefuel() {
                         <input
                             type="number"
                             inputMode="decimal"
-                            step="0.01"
+                            step={kind === 'arla' ? '0.001' : '0.01'}
                             required
                             value={litros}
                             onChange={e => setLitros(e.target.value === '' ? '' : Number(e.target.value))}
