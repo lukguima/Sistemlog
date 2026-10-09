@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle, Search, Wallet, AlertTriangle, Plus, Edit2, Trash2, Handshake, FileDown, Undo2 } from 'lucide-react';
 import { exportToPDF } from '../../lib/exports';
 import { useAuth } from '../../context/AuthContext';
@@ -457,6 +457,28 @@ export default function Settlement() {
     const settleTotalPages = Math.max(1, Math.ceil(filteredViagens.length / SETTLE_PAGE_SIZE));
     const settleSafePage = Math.min(settlePage, settleTotalPages);
     const paginatedViagens = filteredViagens.slice((settleSafePage - 1) * SETTLE_PAGE_SIZE, settleSafePage * SETTLE_PAGE_SIZE);
+    const selectableViagens = filteredViagens.filter(v => String(v.status || '').toLowerCase() !== 'paid');
+    const allSelectableSelected = selectableViagens.length > 0 && selectableViagens.every(v => selectedIds.has(v.id));
+    const someSelectableSelected = selectableViagens.some(v => selectedIds.has(v.id));
+    const selectAllRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (selectAllRef.current) {
+            selectAllRef.current.indeterminate = someSelectableSelected && !allSelectableSelected;
+        }
+    }, [someSelectableSelected, allSelectableSelected]);
+
+    const handleToggleSelectAll = () => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            const allSelected = selectableViagens.length > 0 && selectableViagens.every(v => next.has(v.id));
+            selectableViagens.forEach(v => {
+                if (allSelected) next.delete(v.id);
+                else next.add(v.id);
+            });
+            return next;
+        });
+    };
 
     const settlementCalc = useMemo(() => {
         const selected = viagens.filter(v => selectedIds.has(v.id));
@@ -715,6 +737,16 @@ export default function Settlement() {
                                         <thead className="bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800 uppercase text-xs font-semibold text-slate-400">
                                             <tr>
                                                 <th className="px-6 py-4 w-12 text-center">
+                                                    <input
+                                                        ref={selectAllRef}
+                                                        type="checkbox"
+                                                        title="Selecionar todos os fretes em aberto desta lista"
+                                                        aria-label="Selecionar todos os fretes em aberto"
+                                                        className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
+                                                        checked={allSelectableSelected}
+                                                        disabled={selectableViagens.length === 0}
+                                                        onChange={handleToggleSelectAll}
+                                                    />
                                                 </th>
                                                 <th className="px-6 py-4">ID Frete</th>
                                                 <th className="px-6 py-4">Motorista</th>

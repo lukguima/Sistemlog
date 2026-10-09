@@ -49,10 +49,10 @@ export const TRUCK_TYPES = {
     },
     CAVALO_3E: {
         id: 'CAVALO_3E',
-        name: 'C. Mecânico + Carreta 3 Eixos (18 Pneus)',
-        description: 'Uma das configurações mais comuns.',
-        axles: 5,
-        tyre_count: 18,
+        name: 'C. Mecânico + Carreta 3 Eixos (22 Pneus)',
+        description: 'Cavalo 3 eixos (10 pneus) + Carreta 3 eixos (12 pneus).',
+        axles: 6,
+        tyre_count: 22,
         default_intervals: { oil: 25000, filter: 50000, tyre: 80000 }
     },
     CAVALO_4E: {
@@ -82,6 +82,50 @@ export const TRUCK_TYPES = {
 };
 
 export type TruckTypeId = keyof typeof TRUCK_TYPES;
+
+export type CompanyTruckTypeKind = 'cavalo' | 'implemento';
+
+export type CompanyTruckType = {
+    id: string;
+    company_id: string;
+    name: string;
+    kind: CompanyTruckTypeKind;
+    layout_key: string;
+    uses_implement: boolean;
+};
+
+/** Tipos padrão que pedem placa de carreta e o botão Trocar conjunto. */
+export const TRAILER_TRUCK_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
+
+export function vehicleUsesImplement(
+    truckType: string | null | undefined,
+    customTypes: Pick<CompanyTruckType, 'name' | 'kind' | 'uses_implement'>[] = [],
+) {
+    const value = String(truckType || '').trim();
+    if (!value) return false;
+    if ((TRAILER_TRUCK_TYPES as string[]).includes(value)) return true;
+    return customTypes.some(t =>
+        t.kind === 'cavalo'
+        && t.uses_implement
+        && t.name.trim().toLowerCase() === value.toLowerCase()
+    );
+}
+
+/** Desenho da inspeção 3D: tipo padrão, senão o desenho do cadastro da empresa, senão o truck. */
+export function resolveVehicleLayoutKey(
+    vehicle: { truck_type?: string | null; implement_type?: string | null } | null | undefined,
+    customTypes: Pick<CompanyTruckType, 'name' | 'layout_key'>[] = [],
+) {
+    const truckType = String(vehicle?.truck_type || '').trim();
+    if (truckType && truckType in TRUCK_TYPES) return truckType;
+    const names = [truckType, String(vehicle?.implement_type || '').trim()]
+        .filter(Boolean)
+        .map(name => name.toLowerCase());
+    const match = customTypes.find(t =>
+        names.includes(t.name.trim().toLowerCase()) && t.layout_key in TRUCK_TYPES
+    );
+    return match?.layout_key || 'TRUCK';
+}
 
 // Tipos de implemento (carretas/reboques) — Plano 1
 export const IMPLEMENT_TYPE_OPTIONS = [

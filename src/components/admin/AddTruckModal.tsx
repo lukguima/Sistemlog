@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { X, Truck } from 'lucide-react';
-import { TRUCK_TYPES, type TruckTypeId } from '../../lib/constants';
+import { TRUCK_TYPES, vehicleUsesImplement, type CompanyTruckType, type TruckTypeId } from '../../lib/constants';
 import { saveDraft, loadDraft, clearDraftStore } from '../../hooks/usePersistedForm';
+import RegisterTruckTypeForm from './RegisterTruckTypeForm';
 import React from 'react';
 
 const DRAFT_KEY = 'truck';
-const IMPLEMENT_TYPES: TruckTypeId[] = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
 
 const makeEmpty = () => ({
     plate: '', brand: '', model: '', year: new Date().getFullYear(),
-    initial_km: 0, current_km: 0, truck_type: '' as TruckTypeId | '',
-    axle_count: 0, maint_oil_interval: 15000, maint_filter_interval: 30000,
+    initial_km: 0, current_km: 0, truck_type: '' as string,
+    axle_count: 0, tyre_count: 0, maint_oil_interval: 15000, maint_filter_interval: 30000,
     maint_tyre_interval: 60000, last_oil_change_km: 0, last_filter_change_km: 0,
     last_tyre_change_km: 0, insurance_value: 0, document_expiry: '', antt_expiry: '',
     civ_expiry: '', tacografo_expiry: '',
@@ -22,18 +22,24 @@ interface AddTruckModalProps {
     onClose: () => void;
     onSave: (data: any) => Promise<void>;
     initialData?: any;
+    companyId?: string;
+    customTypes?: CompanyTruckType[];
+    onCustomTypeCreated?: (row: CompanyTruckType) => void;
 }
 
-export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: AddTruckModalProps) {
+export default function AddTruckModal({ isOpen, onClose, onSave, initialData, companyId, customTypes = [], onCustomTypeCreated }: AddTruckModalProps) {
     const isEditing = !!initialData;
     const [formData, setFormDataState] = useState(() => {
         if (isEditing) return { ...makeEmpty(), ...initialData };
         return { ...makeEmpty(), ...(loadDraft(DRAFT_KEY) || {}) };
     });
     const [loading, setLoading] = useState(false);
+    const [registerOpen, setRegisterOpen] = useState(false);
+    const cavaloTypes = customTypes.filter(t => t.kind === 'cavalo');
 
     React.useEffect(() => {
         if (!isOpen) return;
+        setRegisterOpen(false);
         if (isEditing && initialData) {
             setFormDataState({ ...makeEmpty(), ...initialData });
         } else if (!isEditing) {
@@ -50,7 +56,57 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
         });
     }
 
+    function applyTruckType(typeId: string) {
+        const config = TRUCK_TYPES[typeId as TruckTypeId];
+        if (config) {
+            setFormData({
+                truck_type: typeId,
+                axle_count: config.axles,
+                tyre_count: config.tyre_count,
+                maint_oil_interval: config.default_intervals.oil,
+                maint_filter_interval: config.default_intervals.filter,
+                maint_tyre_interval: config.default_intervals.tyre,
+            });
+            return;
+        }
+        const custom = cavaloTypes.find(t => t.name === typeId);
+        const base = custom ? TRUCK_TYPES[custom.layout_key as TruckTypeId] : undefined;
+        if (custom && base) {
+            setFormData({
+                truck_type: custom.name,
+                axle_count: base.axles,
+                tyre_count: base.tyre_count,
+                maint_oil_interval: base.default_intervals.oil,
+                maint_filter_interval: base.default_intervals.filter,
+                maint_tyre_interval: base.default_intervals.tyre,
+            });
+        }
+    }
+
+    function handleTypeCreated(row: CompanyTruckType) {
+        onCustomTypeCreated?.(row);
+        if (row.kind !== 'cavalo') {
+            alert('Tipo de implemento cadastrado. Ele aparece ao cadastrar um implemento.');
+            return;
+        }
+        const base = TRUCK_TYPES[row.layout_key as TruckTypeId];
+        if (!base) return;
+        setFormData({
+            truck_type: row.name,
+            axle_count: base.axles,
+            tyre_count: base.tyre_count,
+            maint_oil_interval: base.default_intervals.oil,
+            maint_filter_interval: base.default_intervals.filter,
+            maint_tyre_interval: base.default_intervals.tyre,
+        });
+    }
+
     if (!isOpen) return null;
+
+    const standardType = TRUCK_TYPES[formData.truck_type as TruckTypeId];
+    const customType = cavaloTypes.find(t => t.name === formData.truck_type);
+    const orphanType = formData.truck_type && !standardType && !customType ? formData.truck_type : '';
+    const showImplementPlates = vehicleUsesImplement(formData.truck_type, customTypes);
 
     const labelStyle = "text-[10px] font-black text-[#8B95B1] uppercase tracking-widest ml-1 mb-1.5 block";
     const inputStyle = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-300 appearance-none";
@@ -64,6 +120,8 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                 year: Number(formData.year) || new Date().getFullYear(),
                 initial_km: Number(formData.initial_km) || 0,
                 current_km: Number(formData.current_km) || 0,
+                axle_count: Number(formData.axle_count) || 0,
+                tyre_count: Number(formData.tyre_count) || 0,
                 maint_oil_interval: Number(formData.maint_oil_interval) || 15000,
                 maint_filter_interval: Number(formData.maint_filter_interval) || 30000,
                 maint_tyre_interval: Number(formData.maint_tyre_interval) || 60000,
@@ -107,35 +165,71 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="space-y-1">
-                        <label className={labelStyle}>Tipo de Caminhão</label>
+                        <div className="flex items-center justify-between gap-3">
+                            <label className={`${labelStyle} mb-0`}>Tipo de Caminhão</label>
+                            <button
+                                type="button"
+                                onClick={() => setRegisterOpen(open => !open)}
+                                className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-800"
+                            >
+                                Cadastrar tipo
+                            </button>
+                        </div>
                         <select
                             className={inputStyle}
                             value={formData.truck_type}
-                            onChange={e => {
-                                const typeId = e.target.value as TruckTypeId;
-                                const config = TRUCK_TYPES[typeId];
-                                if (config) {
-                                    setFormData({
-                                        ...formData,
-                                        truck_type: typeId,
-                                        axle_count: config.axles,
-                                        maint_oil_interval: config.default_intervals.oil,
-                                        maint_filter_interval: config.default_intervals.filter,
-                                        maint_tyre_interval: config.default_intervals.tyre,
-                                    });
-                                }
-                            }}
+                            onChange={e => applyTruckType(e.target.value)}
                         >
                             <option value="">Selecione o tipo...</option>
                             {Object.values(TRUCK_TYPES).map(t => (
                                 <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
+                            {cavaloTypes.map(t => (
+                                <option key={t.id} value={t.name}>{t.name}</option>
+                            ))}
+                            {orphanType && <option value={orphanType}>{orphanType}</option>}
                         </select>
-                        {formData.truck_type && (
+                        {registerOpen && (
+                            <RegisterTruckTypeForm
+                                companyId={companyId || ''}
+                                defaultKind="cavalo"
+                                onCreated={handleTypeCreated}
+                                onClose={() => setRegisterOpen(false)}
+                            />
+                        )}
+                        {standardType && (
                             <p className="text-[10px] text-blue-600 font-bold uppercase mt-2 flex items-center gap-2 ml-1">
-                                <Truck size={12} /> {TRUCK_TYPES[formData.truck_type as TruckTypeId]?.description}
+                                <Truck size={12} /> {standardType.description}
                             </p>
                         )}
+                        {!standardType && customType && (
+                            <p className="text-[10px] text-blue-600 font-bold uppercase mt-2 flex items-center gap-2 ml-1">
+                                <Truck size={12} /> Tipo cadastrado · {TRUCK_TYPES[customType.layout_key as TruckTypeId]?.name}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Nº de Eixos</label>
+                            <input
+                                type="number"
+                                min={0}
+                                className={inputStyle}
+                                value={formData.axle_count}
+                                onChange={e => setFormData({ axle_count: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Nº de Pneus</label>
+                            <input
+                                type="number"
+                                min={0}
+                                className={inputStyle}
+                                value={formData.tyre_count}
+                                onChange={e => setFormData({ tyre_count: Number(e.target.value) })}
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -221,7 +315,7 @@ export default function AddTruckModal({ isOpen, onClose, onSave, initialData }: 
                     </div>
 
                     {/* Placas dos Implementos — aparece apenas para tipos que usam cavalo */}
-                    {formData.truck_type && IMPLEMENT_TYPES.includes(formData.truck_type as TruckTypeId) && (
+                    {showImplementPlates && (
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Placas dos Implementos</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

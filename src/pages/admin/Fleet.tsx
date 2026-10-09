@@ -9,6 +9,7 @@ import AddImplementModal from '../../components/admin/AddImplementModal';
 import DriverModal from '../../components/admin/DriverModal';
 import SwapConjuntoModal from '../../components/admin/SwapConjuntoModal';
 import VehicleDetailsModal from '../../components/admin/VehicleDetailsModal';
+import { vehicleUsesImplement, type CompanyTruckType } from '../../lib/constants';
 
 const PLAN_LIMITS: Record<string, number | null> = {
     trial: 3,
@@ -47,8 +48,8 @@ export default function Fleet() {
     const [swapVehicle, setSwapVehicle] = useState<any | null>(null);
     const [detailVehicleId, setDetailVehicleId] = useState<string | null>(null);
     const [checkoutUrls, setCheckoutUrls] = useState(KIWIFY_CHECKOUT_URLS);
-
-    const IMPLEMENT_TYPES = ['CAVALO_2E', 'CAVALO_3E', 'CAVALO_4E', 'BITREM', 'RODOTREM'];
+    const [customTypes, setCustomTypes] = useState<CompanyTruckType[]>([]);
+    const [activeCompanyId, setActiveCompanyId] = useState('');
 
     const companyId = (user as any)?.company_id;
     // Separa cavalos/caminhões dos implementos (legado sem category = truck)
@@ -78,14 +79,17 @@ export default function Fleet() {
             setLoading(false);
             return;
         }
+        setActiveCompanyId(targetCompanyId);
 
         try {
-            const [vData, dData] = await Promise.all([
+            const [vData, dData, typeData] = await Promise.all([
                 fleetService.getVehicles(targetCompanyId),
-                fleetService.getDrivers(targetCompanyId)
+                fleetService.getDrivers(targetCompanyId),
+                fleetService.getCompanyTruckTypes(targetCompanyId).catch(() => []),
             ]);
             setVehicles(vData || []);
             setDrivers(dData || []);
+            setCustomTypes(typeData || []);
         } catch (error) {
             console.error('Error fetching fleet data:', error);
         } finally {
@@ -433,7 +437,7 @@ export default function Fleet() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2 text-slate-400">
-                                                    {IMPLEMENT_TYPES.includes(v.truck_type) && (
+                                                    {vehicleUsesImplement(v.truck_type, customTypes) && (
                                                         <button
                                                             onClick={() => setSwapVehicle(v)}
                                                             title="Trocar Conjunto"
@@ -564,6 +568,9 @@ export default function Fleet() {
                     setModalData({});
                 }}
                 initialData={editingId ? modalData : undefined}
+                companyId={activeCompanyId || companyId}
+                customTypes={customTypes}
+                onCustomTypeCreated={(row) => setCustomTypes(prev => [...prev.filter(t => t.id !== row.id), row])}
             />
 
             {/* Modal de Cadastro de Implemento */}
@@ -597,6 +604,9 @@ export default function Fleet() {
                     setModalData({});
                 }}
                 initialData={editingId ? modalData : undefined}
+                companyId={activeCompanyId || companyId}
+                customTypes={customTypes}
+                onCustomTypeCreated={(row) => setCustomTypes(prev => [...prev.filter(t => t.id !== row.id), row])}
             />
 
             {/* Modal de Cadastro de Motorista Padronizado */}

@@ -52,13 +52,26 @@ const TRUCK_LAYOUTS: Record<string, any> = {
         ]
     },
     CAVALO_3E: {
-        chassisLength: 8.0,
+        chassisLength: 10.0,
         axles: [
-            { id: 1, z: 3.2, type: 'steering' },
-            { id: 2, z: 2.0, type: 'double' },
-            { id: 3, z: -0.5, type: 'double' },
-            { id: 4, z: -1.8, type: 'double' },
-            { id: 5, z: -3.0, type: 'double' }
+            { id: 1, z: 4.4, type: 'steering' },
+            { id: 2, z: 3.2, type: 'double' },
+            { id: 3, z: 2.0, type: 'double' },
+            { id: 4, z: -0.6, type: 'double' },
+            { id: 5, z: -1.9, type: 'double' },
+            { id: 6, z: -3.2, type: 'double' }
+        ]
+    },
+    CAVALO_4E: {
+        chassisLength: 11.0,
+        axles: [
+            { id: 1, z: 4.8, type: 'steering' },
+            { id: 2, z: 3.5, type: 'double' },
+            { id: 3, z: 2.2, type: 'double' },
+            { id: 4, z: 0.2, type: 'double' },
+            { id: 5, z: -1.1, type: 'double' },
+            { id: 6, z: -2.4, type: 'double' },
+            { id: 7, z: -3.7, type: 'double' }
         ]
     },
     BITREM: {
@@ -154,8 +167,47 @@ function ResizeHandler() {
     return null;
 }
 
-export function TruckScene3D({ pneus, activeTyre, onSelect, vehicleType }: any) {
-    const config = TRUCK_LAYOUTS[vehicleType] || TRUCK_LAYOUTS.TRUCK;
+function tiresInLayout(layout: { axles: { type: string }[] }) {
+    return layout.axles.reduce((total, axle) => total + (axle.type === 'double' ? 4 : 2), 0);
+}
+
+/** Monta o chassi a partir da quantidade de eixos e pneus. Duplos ficam atrás. */
+function layoutFromCounts(axleCount: number, tyreCount: number, trailer: boolean) {
+    if (axleCount < 1 || tyreCount < 2 || tyreCount % 2 !== 0) return null;
+    if (tyreCount < axleCount * 2 || tyreCount > axleCount * 4) return null;
+    const doubles = (tyreCount - axleCount * 2) / 2;
+    const types: Array<'steering' | 'single' | 'double'> = Array.from({ length: axleCount }, () => 'single' as const);
+    if (!trailer) types[0] = 'steering';
+    let left = doubles;
+    for (let i = axleCount - 1; i >= 0 && left > 0; i--) {
+        if (!trailer && i === 0 && left < axleCount) continue;
+        types[i] = 'double';
+        left -= 1;
+    }
+    if (left > 0 && !trailer) types[0] = 'double';
+    const gap = 1.25;
+    const start = ((axleCount - 1) * gap) / 2;
+    return {
+        chassisLength: Math.max(4, axleCount * gap + 1.5),
+        axles: types.map((type, i) => ({ id: i + 1, z: Number((start - i * gap).toFixed(2)), type })),
+    };
+}
+
+function sceneLayout(vehicleType: string, axleCount: number, tyreCount: number, trailer: boolean) {
+    const preset = TRUCK_LAYOUTS[vehicleType] || TRUCK_LAYOUTS.TRUCK;
+    if (axleCount > 0 && tyreCount > 0) {
+        if (preset.axles.length === axleCount && tiresInLayout(preset) === tyreCount) return preset;
+        const known = Object.values(TRUCK_LAYOUTS).find(layout =>
+            layout.axles.length === axleCount && tiresInLayout(layout) === tyreCount
+        );
+        if (known) return known;
+        return layoutFromCounts(axleCount, tyreCount, trailer) || preset;
+    }
+    return preset;
+}
+
+export function TruckScene3D({ pneus, activeTyre, onSelect, vehicleType, axleCount, tyreCount, trailer }: any) {
+    const config = sceneLayout(vehicleType, Number(axleCount) || 0, Number(tyreCount) || 0, !!trailer);
     const { chassisLength, axles } = config;
 
     return (

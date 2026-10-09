@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { Map, ChevronDown, History, Settings, Save, Info, AlertTriangle, Loader2 } from 'lucide-react';
 import { fleetService, tyreService } from '../../lib/services';
+import { resolveVehicleLayoutKey, type CompanyTruckType } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
 import { format } from 'date-fns';
 import { TruckScene3D } from '../../components/admin/TruckScene3D';
@@ -9,6 +10,7 @@ import { TYRE_DEPTH } from '../../lib/constants';
 export default function TyreCheck() {
     const { user } = useAuth();
     const [vehicles, setVehicles] = useState<any[]>([]);
+    const [customTypes, setCustomTypes] = useState<CompanyTruckType[]>([]);
     const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
     const [pneus, setPneus] = useState<any[]>([]);
     const [activeTyre, setActiveTyre] = useState<any | null>(null);
@@ -42,6 +44,7 @@ export default function TyreCheck() {
             }
         };
         fetchVehicles();
+        fleetService.getCompanyTruckTypes(companyId).then(rows => setCustomTypes(rows || [])).catch(() => setCustomTypes([]));
     }, [companyId]);
 
     useEffect(() => {
@@ -228,7 +231,10 @@ export default function TyreCheck() {
                             pneus={pneus}
                             activeTyre={activeTyre}
                             onSelect={handleSelectTyre}
-                            vehicleType={selectedVehicleData?.truck_type}
+                            vehicleType={resolveVehicleLayoutKey(selectedVehicleData, customTypes)}
+                            axleCount={selectedVehicleData?.axle_count}
+                            tyreCount={selectedVehicleData?.tyre_count}
+                            trailer={selectedVehicleData?.category === 'implemento'}
                         />
                     </Suspense>
 

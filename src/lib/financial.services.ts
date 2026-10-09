@@ -122,6 +122,35 @@ export const transactionService = {
     }
 };
 
+const PAYABLE_BAIXA_NOTE = 'Baixado automaticamente de Conta a Pagar';
+
+async function findAutoPayableExpense(item: {
+    id: string;
+    company_id: string;
+    description: string;
+    amount: number | string;
+    paid_date?: string | null;
+}) {
+    const { data: txs, error } = await supabase
+        .from('financial_transactions')
+        .select('id, amount, payment_date, notes, created_at')
+        .eq('company_id', item.company_id)
+        .eq('type', 'despesa')
+        .eq('description', item.description)
+        .ilike('notes', `${PAYABLE_BAIXA_NOTE}%`);
+    if (error) throw error;
+
+    const amount = Number(item.amount);
+    const tagged = (txs || []).filter((t: any) => String(t.notes || '') === `${PAYABLE_BAIXA_NOTE} #${item.id}`);
+    const sameAmount = (txs || []).filter((t: any) =>
+        String(t.notes || '') === PAYABLE_BAIXA_NOTE && Number(t.amount) === amount
+    );
+    const pool = tagged.length ? tagged : sameAmount;
+    const dated = item.paid_date ? pool.filter((t: any) => t.payment_date === item.paid_date) : pool;
+    return (dated.length ? dated : pool)
+        .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
+}
+
 // ─── Contas a Pagar ───────────────────────────────────────────────────────────
 
 export const accountsPayableService = {
@@ -162,6 +191,47 @@ export const accountsPayableService = {
             .eq('id', id).select().single();
         if (error) throw error;
         return data;
+    },
+    async markPending(id: string) {
+        const { data: item, error: getErr } = await supabase
+            .from('accounts_payable')
+            .select('id, company_id, description, amount, status, paid_date')
+            .eq('id', id)
+            .single();
+        if (getErr) throw getErr;
+        if (!item || item.status !== 'paid') {
+            throw new Error('Somente uma conta paga pode voltar para pendente.');
+        }
+
+        const chosen = await findAutoPayableExpense(item);
+
+        const { error } = await supabase
+            .from('accounts_payable')
+            .update({ status: 'pending', paid_date: null })
+            .eq('id', id);
+        if (error) throw error;
+
+        if (chosen) {
+            const { error: delErr } = await supabase.from('financial_transactions').delete().eq('id', chosen.id);
+            if (delErr) throw delErr;
+        }
+    },
+    /** Ajusta a despesa gerada na baixa quando o valor de uma parcela já paga muda. */
+    async syncPaidExpense(item: {
+        id: string;
+        company_id: string;
+        description: string;
+        amount: number | string;
+        paid_date?: string | null;
+    }, newAmount: number) {
+        if (Number(item.amount) === newAmount) return;
+        const chosen = await findAutoPayableExpense(item);
+        if (!chosen) return;
+        const { error } = await supabase
+            .from('financial_transactions')
+            .update({ amount: newAmount, notes: `${PAYABLE_BAIXA_NOTE} #${item.id}` })
+            .eq('id', chosen.id);
+        if (error) throw error;
     },
     async remove(id: string) {
         const { error } = await supabase.from('accounts_payable').delete().eq('id', id);

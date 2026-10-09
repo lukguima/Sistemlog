@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { X, Container } from 'lucide-react';
-import { IMPLEMENT_TYPE_OPTIONS } from '../../lib/constants';
+import { IMPLEMENT_TYPE_OPTIONS, TRUCK_TYPES, type CompanyTruckType, type TruckTypeId } from '../../lib/constants';
+import RegisterTruckTypeForm from './RegisterTruckTypeForm';
 
 interface AddImplementModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: any) => Promise<void>;
     initialData?: any;
+    companyId?: string;
+    customTypes?: CompanyTruckType[];
+    onCustomTypeCreated?: (row: CompanyTruckType) => void;
 }
 
 const makeEmpty = () => ({
@@ -25,12 +29,17 @@ const makeEmpty = () => ({
     afericao_expiry: '',
 });
 
-export default function AddImplementModal({ isOpen, onClose, onSave, initialData }: AddImplementModalProps) {
+export default function AddImplementModal({ isOpen, onClose, onSave, initialData, companyId, customTypes = [], onCustomTypeCreated }: AddImplementModalProps) {
     const isEditing = !!initialData;
     const [formData, setFormData] = useState(makeEmpty());
     const [loading, setLoading] = useState(false);
+    const [registerOpen, setRegisterOpen] = useState(false);
+    const implementTypes = customTypes.filter(t => t.kind === 'implemento');
+    const set = (partial: Partial<ReturnType<typeof makeEmpty>>) => setFormData(prev => ({ ...prev, ...partial }));
 
     useEffect(() => {
+        if (!isOpen) return;
+        setRegisterOpen(false);
         if (isEditing && initialData) {
             setFormData({ ...makeEmpty(), ...initialData });
         } else {
@@ -38,12 +47,36 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
         }
     }, [isOpen, initialData?.id]);
 
+    function applyImplementType(value: string) {
+        const custom = implementTypes.find(t => t.name === value);
+        const base = custom ? TRUCK_TYPES[custom.layout_key as TruckTypeId] : undefined;
+        if (custom && base) {
+            set({ implement_type: value, axle_count: base.axles, tyre_count: base.tyre_count });
+            return;
+        }
+        set({ implement_type: value });
+    }
+
+    function handleTypeCreated(row: CompanyTruckType) {
+        onCustomTypeCreated?.(row);
+        if (row.kind !== 'implemento') {
+            alert('Tipo de caminhão cadastrado. Ele aparece ao cadastrar um veículo.');
+            return;
+        }
+        const base = TRUCK_TYPES[row.layout_key as TruckTypeId];
+        set({
+            implement_type: row.name,
+            ...(base ? { axle_count: base.axles, tyre_count: base.tyre_count } : {}),
+        });
+    }
+
     if (!isOpen) return null;
+
+    const knownImplement = IMPLEMENT_TYPE_OPTIONS.includes(formData.implement_type) || implementTypes.some(t => t.name === formData.implement_type);
+    const orphanType = formData.implement_type && !knownImplement ? formData.implement_type : '';
 
     const labelStyle = "text-[10px] font-black text-[#8B95B1] uppercase tracking-widest ml-1 mb-1.5 block";
     const inputStyle = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-300 appearance-none";
-
-    const set = (partial: Partial<ReturnType<typeof makeEmpty>>) => setFormData(prev => ({ ...prev, ...partial }));
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -101,14 +134,34 @@ export default function AddImplementModal({ isOpen, onClose, onSave, initialData
                                 value={formData.plate} onChange={e => set({ plate: e.target.value.toUpperCase() })} />
                         </div>
                         <div className="space-y-1">
-                            <label className={labelStyle}>Tipo *</label>
+                            <div className="flex items-center justify-between gap-2">
+                                <label className={`${labelStyle} mb-0`}>Tipo *</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setRegisterOpen(open => !open)}
+                                    className="text-[10px] font-black uppercase tracking-widest text-violet-600 hover:text-violet-800"
+                                >
+                                    Cadastrar tipo
+                                </button>
+                            </div>
                             <select required className={inputStyle}
-                                value={formData.implement_type} onChange={e => set({ implement_type: e.target.value })}>
+                                value={formData.implement_type} onChange={e => applyImplementType(e.target.value)}>
                                 <option value="">Selecione...</option>
                                 {IMPLEMENT_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                {implementTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                                {orphanType && <option value={orphanType}>{orphanType}</option>}
                             </select>
                         </div>
                     </div>
+
+                    {registerOpen && (
+                        <RegisterTruckTypeForm
+                            companyId={companyId || ''}
+                            defaultKind="implemento"
+                            onCreated={handleTypeCreated}
+                            onClose={() => setRegisterOpen(false)}
+                        />
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">

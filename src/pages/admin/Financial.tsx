@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
     transactionService, accountsPayableService, accountsReceivableService,
@@ -6,12 +6,56 @@ import {
 } from '../../lib/financial.services';
 import {
     Plus, TrendingUp, TrendingDown, Wallet, Clock,
-    AlertTriangle, X, Pencil, Trash2, Check
+    AlertTriangle, X, Pencil, Trash2, Check, Undo2
 } from 'lucide-react';
 
 const fmt = (v: number) => `R$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const fmtDate = (d: string) => d ? new Date(d + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const today = () => new Date().toISOString().split('T')[0];
+
+function addMonths(dateStr: string, months: number): string {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().split('T')[0];
+}
+
+function parseParcelLabel(description: string): { base: string; index: number; total: number } | null {
+    const match = String(description || '').trim().match(/^(.*) \((\d+)\/(\d+)\)$/);
+    if (!match) return null;
+    const index = Number(match[2]);
+    const total = Number(match[3]);
+    if (!Number.isInteger(index) || !Number.isInteger(total) || index < 1 || total < 2 || index > total) return null;
+    return { base: match[1], index, total };
+}
+
+/** Parcelas criadas juntas: mesma descrição base, fornecedor e categoria. */
+function siblingParcels(item: any, all: any[]) {
+    const parsed = parseParcelLabel(item?.description);
+    if (!parsed || !item?.id) return [];
+    const same = all.filter(p => {
+        const other = parseParcelLabel(p.description);
+        if (!other || other.base !== parsed.base || other.total !== parsed.total) return false;
+        return String(p.supplier_name || '') === String(item.supplier_name || '')
+            && String(p.category_id || '') === String(item.category_id || '');
+    });
+    const itemTime = new Date(item.created_at || 0).getTime();
+    const ranked = [...same].sort((a, b) => {
+        const da = Math.abs(new Date(a.created_at || 0).getTime() - itemTime);
+        const db = Math.abs(new Date(b.created_at || 0).getTime() - itemTime);
+        return da - db;
+    });
+    const picked: any[] = [];
+    const seen = new Set<number>();
+    for (const row of ranked) {
+        const idx = parseParcelLabel(row.description)!.index;
+        if (seen.has(idx)) continue;
+        seen.add(idx);
+        picked.push(row);
+        if (picked.length === parsed.total) break;
+    }
+    if (!picked.some(p => p.id === item.id)) picked.push(item);
+    return picked.sort((a, b) => parseParcelLabel(a.description)!.index - parseParcelLabel(b.description)!.index);
+}
 
 const STATUS_COLORS: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-700',
@@ -126,7 +170,7 @@ function TransactionForm({ companyId, categories, initial, onSave, onClose }: an
 }
 
 // ── Formulário Contas a Pagar ────────────────────────────────────────────────
-function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
+function PayableForm({ companyId, categories, initial, payables = [], onSave, onClose }: any) {
     const [form, setForm] = useState({
         description: initial?.description ?? '',
         amount: initial?.amount ? String(initial.amount) : '',
@@ -139,51 +183,173 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
     const [saving, setSaving] = useState(false);
     const despCats = categories.filter((c: any) => c.type === 'despesa');
     const isEdit = !!initial?.id;
+    const group = useMemo(() => isEdit ? siblingParcels(initial, payables) : [], [isEdit, initial, payables]);
+    const isGroup = group.length > 1;
+    const parcelCount = Math.max(1, parseInt(form.parcelas) || 1);
+    const manualRows = useRef<Record<number, { amount?: boolean; date?: boolean }>>({});
+    const [draftRows, setDraftRows] = useState<{ amount: string; due_date: string }[]>([]);
+    const [editRows, setEditRows] = useState(() => group.map((p: any) => ({
+        id: p.id,
+        description: p.description,
+        amount: p.amount != null ? String(p.amount) : '',
+        due_date: p.due_date || '',
+        status: p.status,
+        originalAmount: Number(p.amount),
+        paid_date: p.paid_date,
+    })));
 
-    const addMonths = (dateStr: string, months: number): string => {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setMonth(d.getMonth() + months);
-        return d.toISOString().split('T')[0];
-    };
+    useEffect(() => {
+        if (isEdit || parcelCount <= 1) {
+            setDraftRows([]);
+            return;
+        }
+        setDraftRows(prev => Array.from({ length: parcelCount }, (_, i) => {
+            const manual = manualRows.current[i] || {};
+            const old = prev[i];
+            return {
+                amount: manual.amount && old ? old.amount : form.amount,
+                due_date: manual.date && old ? old.due_date : addMonths(form.due_date, i),
+            };
+        }));
+    }, [isEdit, parcelCount, form.amount, form.due_date]);
+
+    const rowsTotal = (isGroup ? editRows : draftRows).reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const base = { company_id: companyId, amount: parseFloat(form.amount) || 0, category_id: form.category_id || null };
-            if (isEdit) {
-                const payload = { ...base, description: form.description, due_date: form.due_date, supplier_name: form.supplier_name, notes: form.notes };
-                await accountsPayableService.update(initial.id, payload);
-            } else {
-                const n = parseInt(form.parcelas) || 1;
-                for (let i = 0; i < n; i++) {
-                    const description = n > 1 ? `${form.description} (${i + 1}/${n})` : form.description;
-                    const due_date = addMonths(form.due_date, i);
-                    await accountsPayableService.add({ ...base, description, due_date, supplier_name: form.supplier_name, notes: form.notes });
+            const categoryId = form.category_id || null;
+            if (isGroup) {
+                if (editRows.some(row => !row.due_date || Number.isNaN(parseFloat(row.amount)))) {
+                    alert('Informe o valor e o vencimento de cada parcela.');
+                    return;
                 }
+                for (const row of editRows) {
+                    const amount = parseFloat(row.amount);
+                    await accountsPayableService.update(row.id, {
+                        amount,
+                        due_date: row.due_date,
+                        supplier_name: form.supplier_name,
+                        category_id: categoryId,
+                        notes: form.notes,
+                    });
+                    if (row.status === 'paid' && row.originalAmount !== amount) {
+                        await accountsPayableService.syncPaidExpense({
+                            id: row.id,
+                            company_id: companyId,
+                            description: row.description,
+                            amount: row.originalAmount,
+                            paid_date: row.paid_date,
+                        }, amount);
+                    }
+                }
+            } else if (isEdit) {
+                await accountsPayableService.update(initial.id, {
+                    company_id: companyId,
+                    amount: parseFloat(form.amount) || 0,
+                    category_id: categoryId,
+                    description: form.description,
+                    due_date: form.due_date,
+                    supplier_name: form.supplier_name,
+                    notes: form.notes,
+                });
+            } else if (parcelCount > 1) {
+                if (draftRows.length !== parcelCount || draftRows.some(row => !row.due_date || Number.isNaN(parseFloat(row.amount)))) {
+                    alert('Informe o valor e o vencimento de cada parcela.');
+                    return;
+                }
+                for (let i = 0; i < draftRows.length; i++) {
+                    const amount = parseFloat(draftRows[i].amount);
+                    await accountsPayableService.add({
+                        company_id: companyId,
+                        amount,
+                        category_id: categoryId,
+                        description: `${form.description} (${i + 1}/${parcelCount})`,
+                        due_date: draftRows[i].due_date,
+                        supplier_name: form.supplier_name,
+                        notes: form.notes,
+                    });
+                }
+            } else {
+                await accountsPayableService.add({
+                    company_id: companyId,
+                    amount: parseFloat(form.amount) || 0,
+                    category_id: categoryId,
+                    description: form.description,
+                    due_date: form.due_date,
+                    supplier_name: form.supplier_name,
+                    notes: form.notes,
+                });
             }
             onSave();
+        } catch (error: any) {
+            alert(error?.message || 'Não foi possível salvar a conta.');
         } finally { setSaving(false); }
     };
+
+    const parcelEditor = (rows: { amount: string; due_date: string; status?: string; description?: string }[], onChange: (index: number, field: 'amount' | 'due_date', value: string) => void) => (
+        <div className="col-span-2 space-y-2">
+            <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-600">Parcelas</span>
+                <span className="text-xs font-semibold text-slate-700">Total {fmt(rowsTotal)}</span>
+            </div>
+            <div className="border border-slate-200 rounded-lg divide-y max-h-64 overflow-y-auto">
+                {rows.map((row, i) => {
+                    const label = parseParcelLabel(row.description || '') ;
+                    const title = label ? `${label.index}/${label.total}` : `${i + 1}/${rows.length}`;
+                    return (
+                        <div key={row.description || i} className="grid grid-cols-[4.5rem_1fr_1fr] gap-2 p-2 items-center">
+                            <div>
+                                <span className="text-xs font-semibold text-slate-500">{title}</span>
+                                {row.status && (
+                                    <span className={`mt-1 block w-fit px-1.5 py-0.5 rounded-full text-[10px] ${STATUS_COLORS[row.status] ?? ''}`}>
+                                        {STATUS_LABELS[row.status] ?? row.status}
+                                    </span>
+                                )}
+                            </div>
+                            <input required type="number" step="0.01" min="0" value={row.amount}
+                                onChange={e => onChange(i, 'amount', e.target.value)}
+                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm" placeholder="Valor" />
+                            <input required type="date" value={row.due_date}
+                                onChange={e => onChange(i, 'due_date', e.target.value)}
+                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm" />
+                        </div>
+                    );
+                })}
+            </div>
+            <p className="text-[11px] text-slate-400">
+                Cada parcela pode ter valor e vencimento diferentes. Parcela já paga: o valor novo também corrige a despesa já lançada.
+            </p>
+        </div>
+    );
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
                 <label className="col-span-2">
                     <span className="text-xs font-medium text-slate-600">Descrição *</span>
-                    <input required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Ex: Parcela do financiamento" />
+                    {isGroup ? (
+                        <p className="mt-1 text-sm font-medium text-slate-800">{parseParcelLabel(initial.description)?.base || initial.description}</p>
+                    ) : (
+                        <input required value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                            className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="Ex: Parcela do financiamento" />
+                    )}
                 </label>
-                <label>
-                    <span className="text-xs font-medium text-slate-600">Valor (R$) *</span>
-                    <input required type="number" step="0.01" min="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                </label>
-                <label>
-                    <span className="text-xs font-medium text-slate-600">1º Vencimento *</span>
-                    <input required type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-                        className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
-                </label>
+                {!isGroup && (
+                    <>
+                        <label>
+                            <span className="text-xs font-medium text-slate-600">{parcelCount > 1 ? 'Valor padrão (R$)' : 'Valor (R$)'} *</span>
+                            <input required type="number" step="0.01" min="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </label>
+                        <label>
+                            <span className="text-xs font-medium text-slate-600">1º Vencimento *</span>
+                            <input required type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+                                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                        </label>
+                    </>
+                )}
                 <label>
                     <span className="text-xs font-medium text-slate-600">Fornecedor</span>
                     <input value={form.supplier_name} onChange={e => setForm(f => ({ ...f, supplier_name: e.target.value }))}
@@ -206,13 +372,15 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
                                 <option key={n} value={n}>{n}x {n > 1 ? `— vence todo mês a partir do 1º vencimento` : '— à vista'}</option>
                             ))}
                         </select>
-                        {parseInt(form.parcelas) > 1 && (
-                            <p className="text-[11px] text-slate-400 mt-1">
-                                Serão criados {form.parcelas} lançamentos com vencimentos mensais.
-                            </p>
-                        )}
                     </label>
                 )}
+                {!isEdit && parcelCount > 1 && parcelEditor(draftRows, (index, field, value) => {
+                    manualRows.current[index] = { ...manualRows.current[index], [field === 'amount' ? 'amount' : 'date']: true };
+                    setDraftRows(rows => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
+                })}
+                {isGroup && parcelEditor(editRows, (index, field, value) => {
+                    setEditRows(rows => rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
+                })}
                 <label className="col-span-2">
                     <span className="text-xs font-medium text-slate-600">Observações</span>
                     <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -222,7 +390,7 @@ function PayableForm({ companyId, categories, initial, onSave, onClose }: any) {
             <div className="flex gap-2 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                    {saving ? 'Salvando...' : parseInt(form.parcelas) > 1 ? `Salvar ${form.parcelas} parcelas` : 'Salvar'}
+                    {saving ? 'Salvando...' : (isGroup || parcelCount > 1) ? `Salvar ${isGroup ? editRows.length : parcelCount} parcelas` : 'Salvar'}
                 </button>
             </div>
         </form>
@@ -359,10 +527,19 @@ export default function Financial() {
                 competence_date: today(),
                 payment_date: today(),
                 status: 'paid',
-                notes: `Baixado automaticamente de Conta a Pagar`,
+                notes: `Baixado automaticamente de Conta a Pagar #${id}`,
             });
         }
         load();
+    };
+    const handleMarkPending = async (id: string) => {
+        if (!confirm('Voltar esta conta para pendente? O lançamento de despesa deste pagamento também será removido.')) return;
+        try {
+            await accountsPayableService.markPending(id);
+            load();
+        } catch (error: any) {
+            alert(error?.message || 'Não foi possível voltar para pendente.');
+        }
     };
     const handleMarkReceived = async (id: string) => {
         const item = receivables.find(r => r.id === id);
@@ -560,6 +737,10 @@ export default function Financial() {
                                                                         <button onClick={() => handleMarkPaid(p.id)} title="Marcar como pago"
                                                                             className="p-1.5 rounded-lg hover:bg-green-50 text-green-500"><Check size={14} /></button>
                                                                     )}
+                                                                    {p.status === 'paid' && (
+                                                                        <button onClick={() => handleMarkPending(p.id)} title="Voltar para pendente"
+                                                                            className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600"><Undo2 size={14} /></button>
+                                                                    )}
                                                                     <button onClick={() => setModal({ type: 'pay', item: p })} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><Pencil size={14} /></button>
                                                                     <button onClick={() => handleDeletePay(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><Trash2 size={14} /></button>
                                                                 </div>
@@ -688,7 +869,7 @@ export default function Financial() {
             )}
             {modal?.type === 'pay' && (
                 <Modal title={modal.item ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'} onClose={() => setModal(null)}>
-                    <PayableForm companyId={companyId} categories={categories} initial={modal.item}
+                    <PayableForm key={modal.item?.id || 'new'} companyId={companyId} categories={categories} initial={modal.item} payables={payables}
                         onSave={() => { setModal(null); load(); }} onClose={() => setModal(null)} />
                 </Modal>
             )}

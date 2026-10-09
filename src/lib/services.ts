@@ -86,6 +86,11 @@ async function insertDriverRow(row: Record<string, unknown>) {
     return 'Não foi possível criar o motorista do agregado.';
 }
 
+function isMissingTruckTypesTable(error: { code?: string; message?: string; details?: string }) {
+    const msg = `${error?.message || ''} ${error?.details || ''}`;
+    return error?.code === '42P01' || error?.code === 'PGRST205' || /company_truck_types/i.test(msg);
+}
+
 export const fleetService = {
     async getVehicles(companyId: string) {
         if (!companyId) return [];
@@ -96,6 +101,61 @@ export const fleetService = {
         if (error) throw error;
         // Espelho de agregado não entra na frota, viagens, manutenção etc.
         return (data || []).filter((v: any) => !isAgregadoMirror(v));
+    },
+
+    async getCompanyTruckTypes(companyId: string) {
+        if (!companyId) return [];
+        const { data, error } = await supabase
+            .from('company_truck_types')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name');
+        if (error) {
+            if (isMissingTruckTypesTable(error)) return [];
+            throw error;
+        }
+        return data || [];
+    },
+
+    async addCompanyTruckType(row: {
+        company_id: string;
+        name: string;
+        kind: 'cavalo' | 'implemento';
+        layout_key: string;
+        uses_implement: boolean;
+    }) {
+        const name = String(row.name || '').trim();
+        if (!name) throw new Error('Informe o nome do tipo.');
+        if (!row.company_id) throw new Error('ID da empresa não informado.');
+        if (row.kind !== 'cavalo' && row.kind !== 'implemento') throw new Error('Informe se o tipo é caminhão ou implemento.');
+        if (!row.layout_key) throw new Error('Escolha o desenho da inspeção.');
+
+        const existing = await this.getCompanyTruckTypes(row.company_id);
+        if (existing.some((t: { kind?: string; name?: string }) =>
+            t.kind === row.kind && String(t.name || '').trim().toLowerCase() === name.toLowerCase()
+        )) {
+            throw new Error('Já existe um tipo com esse nome.');
+        }
+
+        const { data, error } = await supabase
+            .from('company_truck_types')
+            .insert([{
+                company_id: row.company_id,
+                name,
+                kind: row.kind,
+                layout_key: row.layout_key,
+                uses_implement: row.kind === 'cavalo' ? !!row.uses_implement : false,
+            }])
+            .select()
+            .single();
+        if (error) {
+            if (isMissingTruckTypesTable(error)) {
+                throw new Error('Rode o script FIX_TRUCK_TYPES.sql no SQL Editor do Supabase.');
+            }
+            if (error.code === '23505') throw new Error('Já existe um tipo com esse nome.');
+            throw error;
+        }
+        return data;
     },
 
     /** Cria/atualiza um veículo só para abastecer a placa do agregado. */
