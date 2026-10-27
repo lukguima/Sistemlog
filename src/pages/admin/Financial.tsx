@@ -473,6 +473,10 @@ export default function Financial() {
     const [modal, setModal] = useState<{ type: 'tx' | 'pay' | 'rec' | 'cat'; item?: any } | null>(null);
     const [catForm, setCatForm] = useState({ name: '', type: 'despesa' as 'receita' | 'despesa' });
     const [filterType, setFilterType] = useState<'all' | 'receita' | 'despesa'>('all');
+    const [selectedPayIds, setSelectedPayIds] = useState<Set<string>>(new Set());
+    const [paying, setPaying] = useState(false);
+    const payingLock = useRef(false);
+    const selectAllPayRef = useRef<HTMLInputElement>(null);
 
     const load = async () => {
         if (!companyId) return;
@@ -514,23 +518,93 @@ export default function Financial() {
         await accountsReceivableService.remove(id);
         load();
     };
+    const openPayables = payables.filter(p => ['pending', 'overdue'].includes(p.status));
+    const selectedOpen = openPayables.filter(p => selectedPayIds.has(p.id));
+    const allOpenSelected = openPayables.length > 0 && openPayables.every(p => selectedPayIds.has(p.id));
+    const someOpenSelected = openPayables.some(p => selectedPayIds.has(p.id));
+
+    useEffect(() => {
+        if (selectAllPayRef.current) {
+            selectAllPayRef.current.indeterminate = someOpenSelected && !allOpenSelected;
+        }
+    }, [someOpenSelected, allOpenSelected]);
+
+    const payOne = async (item: any) => {
+        const paidOn = today();
+        await accountsPayableService.markPaid(item.id, paidOn);
+        await transactionService.add({
+            company_id: companyId,
+            type: 'despesa',
+            description: item.description,
+            amount: item.amount,
+            category_id: item.category_id ?? null,
+            competence_date: paidOn,
+            payment_date: paidOn,
+            status: 'paid',
+            notes: `Baixado automaticamente de Conta a Pagar #${item.id}`,
+        });
+    };
+
     const handleMarkPaid = async (id: string) => {
         const item = payables.find(p => p.id === id);
-        await accountsPayableService.markPaid(id, today());
-        if (item) {
-            await transactionService.add({
-                company_id: companyId,
-                type: 'despesa',
-                description: item.description,
-                amount: item.amount,
-                category_id: item.category_id ?? null,
-                competence_date: today(),
-                payment_date: today(),
-                status: 'paid',
-                notes: `Baixado automaticamente de Conta a Pagar #${id}`,
-            });
+        if (!item || payingLock.current) return;
+        payingLock.current = true;
+        setPaying(true);
+        try {
+            await payOne(item);
+        } finally {
+            payingLock.current = false;
+            setPaying(false);
+            load();
         }
-        load();
+    };
+
+    const handleTogglePay = (id: string) => {
+        setSelectedPayIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleToggleAllPay = () => {
+        setSelectedPayIds(prev => {
+            const next = new Set(prev);
+            const allSelected = openPayables.length > 0 && openPayables.every(p => next.has(p.id));
+            openPayables.forEach(p => {
+                if (allSelected) next.delete(p.id);
+                else next.add(p.id);
+            });
+            return next;
+        });
+    };
+
+    const handlePaySelected = async () => {
+        if (!selectedOpen.length || payingLock.current) return;
+        const total = selectedOpen.reduce((sum, p) => sum + Number(p.amount), 0);
+        if (!confirm(`Dar baixa em ${selectedOpen.length} conta${selectedOpen.length > 1 ? 's' : ''}, total ${fmt(total)}? A data do pagamento será hoje.`)) return;
+        if (payingLock.current) return;
+        payingLock.current = true;
+        setPaying(true);
+        const done: string[] = [];
+        try {
+            for (const item of selectedOpen) {
+                await payOne(item);
+                done.push(item.id);
+            }
+        } catch (error: any) {
+            alert(error?.message || 'A baixa parou no meio. Confira quais contas já foram pagas.');
+        } finally {
+            setSelectedPayIds(prev => {
+                const next = new Set(prev);
+                done.forEach(id => next.delete(id));
+                return next;
+            });
+            payingLock.current = false;
+            setPaying(false);
+            load();
+        }
     };
     const handleMarkPending = async (id: string) => {
         if (!confirm('Voltar esta conta para pendente? O lançamento de despesa deste pagamento também será removido.')) return;
@@ -700,7 +774,13 @@ export default function Financial() {
                             {/* ── A Pagar ── */}
                             {tab === 'pagar' && (
                                 <div className="space-y-3">
-                                    <div className="flex justify-end">
+                                    <div className="flex justify-end gap-2">
+                                        {selectedOpen.length > 0 && (
+                                            <button onClick={handlePaySelected} disabled={paying}
+                                                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
+                                                <Check size={16} /> Dar baixa ({selectedOpen.length})
+                                            </button>
+                                        )}
                                         <button onClick={() => setModal({ type: 'pay' })}
                                             disabled={isSubscriptionBlocked}
                                             title={isSubscriptionBlocked ? 'Assine para criar novos registros' : undefined}
@@ -715,14 +795,38 @@ export default function Financial() {
                                             <table className="w-full text-sm">
                                                 <thead>
                                                     <tr className="border-b border-slate-100">
+                                                        <th className="py-2 px-2 w-8">
+                                                            <input
+                                                                ref={selectAllPayRef}
+                                                                type="checkbox"
+                                                                title="Selecionar todas as contas em aberto"
+                                                                aria-label="Selecionar todas as contas em aberto"
+                                                                className="w-4 h-4 rounded border-slate-300"
+                                                                checked={allOpenSelected}
+                                                                disabled={openPayables.length === 0 || paying}
+                                                                onChange={handleToggleAllPay}
+                                                            />
+                                                        </th>
                                                         {['Vencimento', 'Descrição', 'Fornecedor', 'Categoria', 'Valor', 'Status', ''].map(h => (
                                                             <th key={h} className="text-left py-2 px-2 text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
                                                         ))}
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {payables.map(p => (
+                                                    {payables.map(p => {
+                                                        const open = ['pending', 'overdue'].includes(p.status);
+                                                        return (
                                                         <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                                                            <td className="py-2.5 px-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    aria-label={`Selecionar ${p.description}`}
+                                                                    className="w-4 h-4 rounded border-slate-300 disabled:opacity-40"
+                                                                    checked={open && selectedPayIds.has(p.id)}
+                                                                    disabled={!open || paying}
+                                                                    onChange={() => handleTogglePay(p.id)}
+                                                                />
+                                                            </td>
                                                             <td className={`py-2.5 px-2 whitespace-nowrap font-medium ${p.status === 'overdue' ? 'text-red-600' : 'text-slate-600'}`}>{fmtDate(p.due_date)}</td>
                                                             <td className="py-2.5 px-2 text-slate-800">{p.description}</td>
                                                             <td className="py-2.5 px-2 text-slate-500">{p.supplier_name ?? '—'}</td>
@@ -746,7 +850,8 @@ export default function Financial() {
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
